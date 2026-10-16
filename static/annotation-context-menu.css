@@ -1,0 +1,22 @@
+.annotation-context-layer { position:fixed; inset:0; z-index:210; background:transparent; }
+.annotation-context-menu { position:fixed; width:302px; display:flex; flex-direction:column; margin:0; border:1px solid var(--line,#dbe2eb); border-radius:10px; background:var(--panel,#fff); color:var(--text,#1f2937); box-shadow:0 8px 30px #1f293729; overflow:hidden; font-size:13px; line-height:1.55; }
+.annotation-context-header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex:none; padding:11px 12px 10px 16px; border-bottom:1px solid var(--line-soft,#e8edf3); }
+.annotation-context-header h2 { margin:0; font-size:14px; font-weight:650; }
+.annotation-context-close { flex:none; width:30px; height:30px; display:grid; place-items:center; padding:0; border:1px solid transparent; border-radius:6px; background:transparent; color:var(--muted,#64748b); font-size:22px; cursor:pointer; }
+.annotation-context-close:hover { border-color:var(--line,#dbe2eb); background:var(--panel-2,#f1f4f9); }
+.annotation-context-body { min-height:0; padding:12px 12px 10px; overflow:auto; overscroll-behavior:contain; }
+.annotation-context-target { margin:0 3px 12px; color:var(--brand,#365cf5); font-weight:600; overflow-wrap:anywhere; }
+.annotation-context-field { display:flex; flex-direction:column; gap:6px; margin:0 3px 13px; font-size:12px; color:var(--muted,#64748b); }
+.annotation-context-field select { width:100%; min-width:0; min-height:36px; padding:6px 9px; border:1px solid var(--line,#dbe2eb); border-radius:6px; background:var(--panel,#fff); color:var(--text,#1f2937); font:inherit; font-size:13px; }
+.annotation-context-readonly { margin:0 3px 12px; padding:8px 9px; border-left:2px solid var(--warning,#946212); background:#fff8e9; color:var(--warning,#946212); font-size:12px; overflow-wrap:anywhere; }
+.annotation-context-actions { display:grid; gap:3px; padding-top:7px; border-top:1px solid var(--line-soft,#e8edf3); }
+.annotation-context-action { min-height:37px; padding:7px 10px; border:1px solid transparent; border-radius:6px; background:transparent; color:var(--text,#1f2937); font:inherit; text-align:left; cursor:pointer; }
+.annotation-context-action:hover { color:var(--brand,#365cf5); background:var(--brand-soft,#edf1ff); }
+.annotation-context-action.danger { color:var(--danger,#c9384b); }
+.annotation-context-action.danger:hover { background:#fff0f2; }
+.annotation-context-action[data-context-action="continue"] { margin-top:4px; border-top:1px solid var(--line-soft,#e8edf3); border-radius:0 0 6px 6px; }
+.annotation-context-status { margin:10px 3px 2px; color:var(--muted,#64748b); font-size:12px; overflow-wrap:anywhere; }
+.annotation-context-menu button:disabled,.annotation-context-menu select:disabled { opacity:.5; cursor:not-allowed; }
+.annotation-context-menu button:focus-visible,.annotation-context-menu select:focus-visible { outline:2px solid var(--brand,#365cf5); outline-offset:1px; }
+.annotation-context-menu[aria-busy="true"] { cursor:progress; }
+@media (max-width:600px) { .annotation-context-menu { width:300px; } .annotation-context-action { min-height:40px; } }

@@ -1,0 +1,14 @@
+.venv
+.env
+.env.*
+data
+models
+__pycache__
+*.pyc
+tests
+.git
+.github
+docs
+dist
+.visionforge-mode
+.cvsprout-mode

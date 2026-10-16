@@ -1,0 +1,11 @@
+# Install in a separate environment, then set MDP_RKNN_PYTHON to its Python.
+# RKNN compilation runs on the host CPU; it does not require a Rockchip board.
+--extra-index-url https://download.pytorch.org/whl/cpu
+rknn-toolkit2==2.3.2
+torch==2.4.0+cpu
+numpy==1.26.4
+onnx==1.17.0
+onnxruntime==1.23.2
+opencv-python==4.11.0.86
+protobuf==4.25.4
+setuptools<81

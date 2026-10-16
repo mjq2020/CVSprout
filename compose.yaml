@@ -1,0 +1,77 @@
+name: cvsprout
+
+x-runtime: &runtime
+  MDP_DATA_DIR: /data
+  MDP_MODELS_DIR: /models
+  MDP_TRAINING_MODEL_DIRS: /models/training
+  MDP_AUTH_MODE: ${MDP_AUTH_MODE:-accounts}
+  MDP_BOOTSTRAP_API_KEY: ${MDP_BOOTSTRAP_API_KEY:-}
+  MDP_COOKIE_SECURE: ${MDP_COOKIE_SECURE:-false}
+  MDP_PUBLIC_ORIGIN: ${MDP_PUBLIC_ORIGIN:-}
+  MDP_TRAINING_ENABLED: ${MDP_TRAINING_ENABLED:-true}
+  MDP_EMBEDDED_WORKER: "false"
+  MDP_EMBEDDED_PIPELINE_WORKER: "false"
+  MDP_MODEL_DEVICE: ${MDP_MODEL_DEVICE:-auto}
+  MDP_RELEASE_GPU_AFTER_INFERENCE: "true"
+  MDP_MAX_UPLOAD_MB: ${MDP_MAX_UPLOAD_MB:-250}
+  MDP_MAX_IMAGE_PIXELS: ${MDP_MAX_IMAGE_PIXELS:-50000000}
+  MDP_MAX_ASSETS_PER_UPLOAD: ${MDP_MAX_ASSETS_PER_UPLOAD:-10000}
+  MDP_RKNN_PYTHON: ${MDP_RKNN_PYTHON:-}
+  MDP_DOWNLOAD_PROXY: ${MDP_DOWNLOAD_PROXY:-}
+  QWEN_BASE_URL: ${QWEN_BASE_URL:-}
+  QWEN_API_KEY: ${QWEN_API_KEY:-}
+  QWEN_MODEL: ${QWEN_MODEL:-Qwen/Qwen3.5-35B-A3B}
+
+x-service: &service
+  restart: unless-stopped
+  stop_grace_period: 45s
+  volumes:
+    - visionforge-data:/data
+    - visionforge-models:/models
+
+services:
+  web:
+    <<: *service
+    image: ${MDP_IMAGE_PREFIX:-cvsprout}/web:${MDP_VERSION:-local}
+    build:
+      context: .
+      target: web
+    environment:
+      <<: *runtime
+      MDP_WORKER_URL: http://worker:8001
+      MDP_EMBEDDED_WORKER: "false"
+      MDP_EMBEDDED_PIPELINE_WORKER: "false"
+    ports:
+      - "${MDP_BIND_ADDRESS:-127.0.0.1}:${MDP_PORT:-8000}:8000"
+    depends_on:
+      worker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  worker:
+    <<: *service
+    image: ${MDP_IMAGE_PREFIX:-cvsprout}/worker-cpu:${MDP_VERSION:-local}
+    build:
+      context: .
+      target: worker-cpu
+    environment:
+      <<: *runtime
+      MDP_WORKER_URL: ""
+      MDP_MODEL_DEVICE: cpu
+      CUDA_VISIBLE_DEVICES: ""
+    shm_size: "2gb"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  visionforge-data:
+  visionforge-models:

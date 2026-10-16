@@ -1,0 +1,52 @@
+.task-purpose { margin-top: 10px; padding-left: 12px; border-left: 3px solid var(--brand); line-height: 1.65; }
+.task-purpose strong, .task-purpose span { display: block; }
+.task-purpose strong { color: var(--text); font-size: 14px; font-weight: 500; }
+.task-purpose span { margin-top: 3px; color: var(--muted); font-size: 13px; }
+.keypoint-setup { margin-bottom: 20px; }
+.setup-details { border-top: 1px solid var(--line); }
+.setup-details > summary, .member-role-guide > summary { padding: 11px 0; color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; }
+.setup-details > summary:hover, .member-role-guide > summary:hover { color: var(--brand); }
+.setup-details > summary:focus-visible, .member-role-guide > summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 3px; }
+.setup-details-body { padding: 6px 0 3px; }
+.setup-details-body > .hint:first-child { margin: 0 0 14px; }
+.advanced-keypoint-settings { margin-top: 14px; }
+.advanced-keypoint-settings > summary { color: var(--muted); font-weight: 500; }
+.advanced-keypoint-settings textarea { min-height: 72px; font-family: ui-monospace, monospace; font-size: 12px; }
+.keypoint-order { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: -3px 0 16px; padding: 0; list-style: none; }
+.keypoint-order:empty { display: none; }
+.keypoint-order li { display: flex; align-items: center; gap: 6px; max-width: 100%; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.keypoint-order li > span { display: inline-grid; width: 20px; height: 20px; flex: 0 0 auto; place-items: center; border-radius: 50%; background: var(--panel-2); color: var(--text); font-size: 11px; }
+.export-format-options { align-items: stretch; flex-wrap: wrap; }
+.export-format-options .scope-option { flex: 1 1 145px; align-items: flex-start; gap: 8px; padding: 11px; }
+.export-format-options .scope-option input { margin-top: 4px; }
+.export-format-options .scope-option small { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.member-role-guide { margin: 0 0 22px; border-bottom: 1px solid var(--line); }
+.member-role-guide dl { margin: 3px 0 8px; }
+.member-role-guide dl > div { display: grid; grid-template-columns: 74px 1fr; gap: 12px; padding: 7px 0; font-size: 13px; }
+.member-role-guide dt { color: var(--text); font-weight: 600; }
+.member-role-guide dd { margin: 0; color: var(--muted); }
+.member-role-guide > p { color: var(--muted); font-size: 13px; margin: 12px 0 16px; }
+.member-count { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+.member-table table { min-width: 600px; }
+.member-self { display: inline-block; margin-left: 9px; padding: 1px 6px; border-radius: 4px; background: var(--brand-soft); color: var(--brand); font-size: 11px; font-weight: 400; }
+.member-status { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; font-size: 13px; }
+.member-status::before { width: 6px; height: 6px; border-radius: 50%; background: currentColor; content: ""; }
+.member-status.enabled { color: var(--success); }
+.member-status.disabled { color: var(--muted); }
+.member-account-line { margin: 0 0 20px; color: var(--muted); font-size: 13px; }
+.member-account-line strong { margin-left: 8px; color: var(--text); }
+.role-purpose { margin: 9px 0 0; padding-left: 11px; border-left: 3px solid var(--brand); color: var(--muted); font-size: 13px; line-height: 1.6; }
+.member-admin-hint { margin: -3px 0 18px; }
+.password-entry { display: flex; position: relative; }
+.password-entry input { padding-right: 58px !important; }
+.password-entry button { position: absolute; inset: 4px 4px 4px auto; padding: 0 10px; border: 0; border-radius: 5px; color: var(--brand); background: transparent; font: inherit; font-size: 13px; cursor: pointer; }
+.password-entry button:hover { background: var(--brand-soft); }
+.password-entry button:focus-visible { outline: 2px solid var(--brand); }
+.field [aria-invalid="true"] { border-color: var(--danger); }
+.member-load-error { padding: 24px 0; }
+.member-load-error > p { color: var(--muted); }
+@media (max-width: 600px) {
+  .modal:has(#user-role) .form-grid { grid-template-columns: 1fr; gap: 0; }
+  .member-role-guide dl > div { grid-template-columns: 58px 1fr; gap: 8px; }
+  .member-account-line .member-self { display: table; margin: 6px 0 0; }
+}

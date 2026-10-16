@@ -1,0 +1,21 @@
+name: cvsprout-model
+services:
+  model:
+    build:
+      context: .
+      target: cpu
+    image: cvsprout-model:local
+    environment:
+      VISIONFORGE_API_KEY: ${VISIONFORGE_API_KEY:?Run start.sh or start.ps1 first}
+      VISIONFORGE_DEVICE: cpu
+    volumes:
+      - ./model:/model:ro
+    ports:
+      - "${VISIONFORGE_BIND_ADDRESS:-127.0.0.1}:${VISIONFORGE_PORT:-8080}:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s

@@ -1,0 +1,8 @@
+services:
+  model:
+    build:
+      target: gpu
+    gpus: all
+    environment:
+      VISIONFORGE_DEVICE: cuda:0
+      CUDA_VISIBLE_DEVICES: ${VISIONFORGE_GPU_DEVICES:-0}

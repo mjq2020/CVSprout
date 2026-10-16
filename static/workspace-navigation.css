@@ -1,0 +1,86 @@
+.app-shell:has(> .workspace-navigation) { --navigation-width: 218px; display: grid; grid-template-columns: var(--navigation-width) minmax(0, 1fr); grid-template-rows: 64px minmax(0, 1fr); }
+.app-shell:has(> .workspace-navigation.is-collapsed) { --navigation-width: 66px; }
+.app-shell > .workspace-navigation { grid-column: 1; grid-row: 1 / -1; }
+.app-shell > .workspace-topbar { grid-column: 2; grid-row: 1; min-width: 0; padding: 0 22px; }
+.app-shell:has(> .workspace-navigation) > main { grid-column: 2; grid-row: 2; min-width: 0; min-height: 0; }
+.workspace-navigation { position: relative; display: flex; flex-direction: column; width: var(--navigation-width); min-width: 0; min-height: 0; border-right: 1px solid var(--line); background: #fff; z-index: 25; }
+.navigation-brand { min-height: 64px; display: flex; align-items: center; gap: 10px; padding: 0 17px; color: var(--text); text-decoration: none; border-bottom: 1px solid var(--line); }
+.navigation-brand > span:last-child { font-size: 16px; font-weight: 750; letter-spacing: -.02em; }
+.navigation-brand small { display: block; color: var(--muted); font-size: 10px; font-weight: 500; letter-spacing: .08em; }
+.navigation-brand .brand-mark { flex-shrink: 0; width: 32px; height: 32px; }
+.navigation-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 17px 10px; }
+.workspace-navigation nav { display: grid; gap: 5px; }
+.navigation-link { display: flex; align-items: center; gap: 11px; min-height: 42px; padding: 10px 13px; border-radius: 7px; color: #5e6d81; font-size: 13px; text-decoration: none; white-space: nowrap; }
+.navigation-link .icon { width: 18px; height: 18px; flex-shrink: 0; }
+.navigation-link:hover { color: var(--brand); background: #f6f8fc; }
+.navigation-link.active { color: var(--brand); background: #edf3ff; font-weight: 650; box-shadow: inset 3px 0 var(--brand); }
+.navigation-project { padding: 24px 13px 12px; }
+.navigation-project > span { color: var(--muted); font-size: 11px; }
+.navigation-project strong { display: block; overflow: hidden; margin-top: 5px; color: var(--text); font-size: 12px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-navigation .management-links { margin-top: 23px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+.navigation-collapse { display: flex; align-items: center; gap: 11px; min-height: 50px; width: 100%; padding: 12px 23px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
+.navigation-collapse .icon { width: 18px; height: 18px; flex-shrink: 0; }
+.workspace-navigation.is-collapsed .navigation-collapse .icon { transform: rotate(180deg); }
+.workspace-navigation.is-collapsed .navigation-brand { padding: 0 17px; }
+.workspace-navigation.is-collapsed .navigation-brand > span:last-child, .workspace-navigation.is-collapsed .navigation-link > span, .workspace-navigation.is-collapsed .navigation-project, .workspace-navigation.is-collapsed .navigation-collapse > span { display: none; }
+.workspace-navigation.is-collapsed .navigation-scroll { padding: 17px 7px; }
+.workspace-navigation.is-collapsed .navigation-link { justify-content: center; padding: 10px; }
+.workspace-navigation.is-collapsed .workflow-links { padding-top: 15px; margin-top: 15px; border-top: 1px solid var(--line-soft); }
+.workspace-navigation.is-collapsed .navigation-collapse { justify-content: center; padding: 12px; }
+.navigation-close, .navigation-backdrop { display: none; }
+.workspace-topbar { gap: 14px; height: 64px; }
+.workspace-context { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.workspace-context > div { min-width: 0; }
+.workspace-context strong { display: block; max-width: min(34vw, 440px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.workspace-context small { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; }
+.workspace-back { display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 30px; border-radius: 6px; color: var(--muted); }
+.workspace-back:hover { color: var(--brand); background: var(--brand-soft); }
+.navigation-toggle { flex-shrink: 0; }
+.workspace-navigation a:focus-visible, .workspace-navigation button:focus-visible, .section-tabs button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.section-tabs { display: flex; align-items: stretch; gap: 4px; padding: 0 3px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: thin; }
+.section-tabs [role="tab"] { flex: 0 0 auto; min-height: 46px; padding: 10px 17px; border: 0; border-bottom: 3px solid transparent; border-radius: 6px 6px 0 0; color: var(--muted); background: transparent; font-size: 13px; cursor: pointer; }
+.section-tabs [role="tab"]:hover { color: var(--brand); background: #f4f7fc; }
+.section-tabs [role="tab"][aria-selected="true"] { color: var(--brand); border-bottom-color: var(--brand); font-weight: 650; }
+[data-section-panel][hidden] { display: none !important; }
+.training-selected-detail > .section-tabs { margin-top: -2px; }
+.training-tab-panel { min-width: 0; }
+.training-tab-panel .training-configuration { min-height: 240px; }
+.ai-page-tabs { margin: 0 0 22px; }
+.ai-config-intro { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 18px; margin-bottom: 20px; padding: 23px; }
+.ai-config-intro h2 { margin-bottom: 8px; font-size: 19px; }
+.ai-config-intro p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.8; }
+.ai-config-counts { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 14px; color: var(--muted); font-size: 12px; }
+.ai-config-counts strong { color: var(--text); font-weight: 650; }
+@media (min-width: 901px) and (max-width: 1250px) {
+  .app-shell:has(> .workspace-navigation:not(.is-collapsed)) { --navigation-width: 188px; }
+  .workspace-navigation:not(.is-collapsed) .navigation-brand { padding: 0 12px; }
+  .workspace-topbar .session-identity { display: none; }
+  .app-shell:has(> .workspace-navigation:not(.is-collapsed)) .training-workbench { grid-template-columns: 255px minmax(0, 1fr); gap: 16px; }
+  .app-shell:has(> .workspace-navigation) .project-page { padding-left: 24px; padding-right: 24px; }
+  .app-shell:has(> .workspace-navigation) .training-monitor-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-shell:has(> .workspace-navigation) .training-monitor-stats > div:nth-child(2) { border: 0; }
+}
+@media (max-width: 900px) {
+  .app-shell:has(> .workspace-navigation) { --navigation-width: 0px; grid-template-columns: minmax(0, 1fr); grid-template-rows: 60px minmax(0, 1fr); }
+  .app-shell > .workspace-topbar, .app-shell:has(> .workspace-navigation) > main { grid-column: 1; }
+  .app-shell > .workspace-topbar { height: 60px; padding: 0 14px; gap: 10px; }
+  .workspace-navigation { position: fixed; inset: 0 auto 0 0; width: min(280px, calc(100vw - 60px)); visibility: hidden; transform: translateX(-100%); z-index: 71; box-shadow: 12px 0 40px #1d2b4726; }
+  .workspace-navigation.is-open { visibility: visible; transform: none; }
+  .workspace-navigation.is-collapsed .navigation-brand > span:last-child, .workspace-navigation.is-collapsed .navigation-link > span, .workspace-navigation.is-collapsed .navigation-project { display: block; }
+  .workspace-navigation.is-collapsed .navigation-link { justify-content: flex-start; padding: 10px 13px; }
+  .workspace-navigation.is-collapsed .navigation-project { padding: 24px 13px 12px; }
+  .workspace-navigation.is-collapsed .workflow-links { padding-top: 0; margin-top: 0; border-top: 0; }
+  .workspace-navigation .navigation-collapse { display: none; }
+  .navigation-close { position: absolute; display: grid; place-items: center; top: 16px; right: 12px; width: 30px; height: 30px; }
+  .navigation-backdrop:not([hidden]) { position: fixed; display: block; inset: 0; width: 100%; height: 100%; border: 0; background: #15213875; z-index: 70; cursor: default; }
+  .workspace-context strong { max-width: calc(100vw - 140px); font-size: 13px; }
+  .workspace-topbar .system-status, .workspace-topbar .session-identity { display: none; }
+  .workspace-back { display: none; }
+  .workspace-context small { font-size: 10px; }
+  .section-tabs [role="tab"] { padding: 10px 12px; font-size: 12px; }
+}
+@media (max-width: 600px) {
+  .ai-config-intro { grid-template-columns: minmax(0, 1fr); padding: 18px; }
+  .ai-config-intro .btn { justify-self: start; }
+  .workspace-topbar .topbar-spacer { min-width: 0; }
+}

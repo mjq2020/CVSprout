@@ -1,0 +1,15 @@
+.annotation-shortcuts-help { color: var(--text); font-size: 13px; line-height: 1.65; }
+.shortcuts-intro { margin: 0 0 20px; color: var(--muted); }
+.shortcuts-intro strong { color: var(--text); }
+.shortcuts-group + .shortcuts-group { margin-top: 24px; }
+.shortcuts-group h3 { margin: 0 0 10px; font-size: 14px; }
+.shortcuts-group dl { margin: 0; }
+.shortcuts-group dl > div { display: grid; grid-template-columns: 155px minmax(0,1fr); gap: 16px; align-items: start; padding: 9px 0; border-top: 1px solid var(--line-soft); }
+.shortcuts-group dt, .shortcuts-group dd { margin: 0; min-width: 0; }
+.shortcuts-group dd { color: var(--muted); }
+.annotation-shortcuts-help kbd { display: inline-block; max-width: 100%; padding: 2px 6px; border: 1px solid #cbd5e1; border-bottom-width: 2px; border-radius: 4px; background: #f7f9fc; color: #34445a; font-family: inherit; font-size: 12px; overflow-wrap: anywhere; }
+.shortcuts-labels ul { display: flex; flex-wrap: wrap; gap: 10px 18px; margin: 0; padding: 0; list-style: none; }
+.shortcuts-labels li { display: flex; align-items: baseline; gap: 8px; max-width: 100%; overflow-wrap: anywhere; }
+.shortcuts-note { padding: 14px; margin: 24px 0 0; background: #f0f5ff; border-left: 3px solid var(--brand); color: #465c80; font-size: 12px; }
+.annotation-shortcuts-dialog #modal-cancel { display: none; }
+@media (max-width: 500px) { .shortcuts-group dl > div { grid-template-columns: 112px minmax(0, 1fr); gap: 10px; } }

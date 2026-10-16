@@ -1,0 +1,95 @@
+/* Shared visual tokens. Geometry stays with each workspace and its components. */
+:root {
+  --brand: #365cf5;
+  --brand-2: #294ad1;
+  --brand-soft: #edf1ff;
+  --bg: #f5f7fb;
+  --panel: #ffffff;
+  --panel-2: #f7f9fc;
+  --panel-3: #eef3fa;
+  --text: #23334d;
+  --muted: #62728a;
+  --muted-2: #62728a;
+  --line: #dfe6ef;
+  --line-soft: #eaf0f6;
+  --ui-control-bg: #f7f9fc;
+  --ui-hover-line: #c2cfe1;
+  --ui-focus-color: #365cf5;
+  --ui-card-shadow: 0 2px 8px rgba(35, 51, 77, .035);
+  --ui-card-hover-shadow: 0 4px 14px rgba(35, 51, 77, .055);
+}
+
+/* Page hierarchy; annotation headers, charts and previews keep their own sizing. */
+:where(.dashboard, .project-page) .page-head h1 {
+  color: var(--text);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -.015em;
+}
+:where(.dashboard, .project-page) .page-subtitle {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+:where(.dashboard, .project-page) :is(.section-head, .surface-head) h2 {
+  color: var(--text);
+  font-weight: 650;
+}
+:where(.dashboard, .project-page) :is(.dataset-project-card, .model-service-card, .surface, .overview-strip, .version-card) {
+  border-color: var(--line);
+  box-shadow: var(--ui-card-shadow);
+}
+:where(.dashboard, .project-page) :is(.dataset-project-card, .model-service-card):hover {
+  border-color: var(--ui-hover-line);
+  box-shadow: var(--ui-card-hover-shadow);
+}
+.project-page .data-asset-card.selected {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px rgba(54, 92, 245, .12);
+}
+
+/* Navigation and ordinary actions share the same blue focus treatment. */
+.app-shell:not(.annotation-shell) > .workspace-navigation { background: #fbfcfe; }
+.app-shell:not(.annotation-shell) .navigation-link { color: var(--muted); }
+.app-shell:not(.annotation-shell) .navigation-link:hover { color: var(--brand); background: #f0f4fc; }
+.app-shell:not(.annotation-shell) .navigation-link.active { color: var(--brand); background: var(--brand-soft); }
+.app-shell:not(.annotation-shell) > .workspace-topbar { background: var(--panel); border-bottom-color: var(--line); }
+:where(.app-shell:not(.annotation-shell), .modal) .btn.primary:not(:disabled):hover {
+  color: #fff;
+  background: var(--brand-2);
+  border-color: var(--brand-2);
+}
+:where(.app-shell:not(.annotation-shell), .modal) .btn.ghost:not(.active):not(:disabled):hover {
+  border-color: var(--ui-hover-line);
+  background: var(--panel-2);
+}
+.app-shell:not(.annotation-shell) :is(button, a, summary):focus-visible,
+.modal :is(button, a, summary):focus-visible {
+  outline: 2px solid var(--ui-focus-color);
+  outline-offset: 2px;
+}
+
+/* An omitted input type is still a text field, not a native-sized special control. */
+:where(.app-shell:not(.annotation-shell), .modal) .field input:not([type]) {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--ui-control-bg);
+  font: inherit;
+}
+:where(.app-shell:not(.annotation-shell), .modal) .field :is(input:not([type]), input[type="text"], input[type="password"], input[type="number"], textarea, select):focus-visible {
+  border-color: var(--ui-focus-color);
+  outline: 2px solid var(--ui-focus-color);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+:where(.app-shell:not(.annotation-shell), .modal) .field [aria-invalid="true"] { border-color: var(--danger); }
+
+@media (max-width: 760px) {
+  :where(.dashboard, .project-page) .page-head h1 { font-size: 24px; }
+}

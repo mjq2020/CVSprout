@@ -1,0 +1,55 @@
+.account-security-link { display: block; padding: 10px 12px; color: var(--brand); text-decoration: none; border-radius: 6px; }
+.account-security-link:hover { background: var(--panel-2); }
+.account-grid { display: grid; grid-template-columns: minmax(240px, .85fr) minmax(300px, 1.15fr); gap: 20px; align-items: start; }
+.account-grid.password-required { display: block; max-width: 640px; margin: auto; }
+.account-section { padding: 24px; margin-bottom: 22px; }
+.account-section h2 { margin: 0 0 16px; font-size: 18px; }
+.account-section .field { margin-bottom: 18px; }
+.account-section .field input, .members-toolbar .field input, .modal .field #user-display, .modal .field #user-name { width: 100%; min-height: 40px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--text); font: inherit; font-size: 14px; }
+.account-section .field input:focus, .members-toolbar .field input:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+.account-section form > .btn { margin-top: 18px; }
+.account-section .section-head { align-items: flex-start; gap: 16px; }
+.account-section .section-head h2 { margin-bottom: 8px; }
+.session-list { display: grid; gap: 0; }
+.session-item { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+.session-item:last-child { border-bottom: 0; }
+.session-item > div { min-width: 0; }
+.session-item p { margin: 6px 0; font-size: 12px; line-height: 1.65; color: var(--muted); overflow-wrap: anywhere; }
+.session-item strong { font-size: 14px; }
+.session-item > button { flex-shrink: 0; }
+.security-events { list-style: none; padding: 0; margin: 12px 0 0; }
+.security-events li { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.security-events li:last-child { border: 0; }
+.security-events li > div { display: flex; justify-content: space-between; gap: 16px; font-size: 13px; }
+.security-events li span, .security-events li p { font-size: 12px; color: var(--muted); }
+.security-events li p { margin: 6px 0 0; overflow-wrap: anywhere; }
+.members-toolbar { display: flex; align-items: end; gap: 16px; padding: 18px 0; }
+.members-toolbar .field { margin: 0; min-width: 160px; }
+.members-toolbar .field:first-child { flex: 1; max-width: 440px; }
+.member-username, .member-note { display: block; color: var(--muted); font-size: 12px; margin-top: 6px; }
+.member-note.feedback-error { color: var(--danger); }
+.member-actions { display: flex; gap: 8px; align-items: center; }
+.member-more { position: relative; font-size: 12px; }
+.member-more summary { cursor: pointer; padding: 9px; list-style: none; border: 1px solid var(--line); border-radius: 6px; white-space: nowrap; }
+.member-more > div { position: absolute; right: 0; top: 100%; min-width: 160px; z-index: 9; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: white; box-shadow: 0 8px 22px #1c305222; }
+.member-more button, .member-more a { display: block; border: 0; background: transparent; color: var(--text); text-align: left; padding: 10px; width: 100%; cursor: pointer; border-radius: 4px; font-size: 12px; text-decoration: none; }
+.member-more button:hover { color: var(--brand); background: var(--panel-2); }
+.member-table { overflow: visible; }
+.member-table td { vertical-align: middle; }
+.member-pagination { display: flex; justify-content: flex-end; align-items: center; gap: 12px; padding-top: 18px; }
+.member-pagination > span { margin-right: auto; font-size: 12px; color: var(--muted); }
+.members-toolbar input, .members-toolbar select { min-height: 38px; }
+#member-results[aria-busy="true"] { opacity: .6; pointer-events: none; }
+@media (max-width: 760px) {
+  .account-grid { grid-template-columns: 1fr; }
+  .account-section { padding: 18px; }
+  .session-item { flex-direction: column; gap: 8px; }
+  .account-section .section-head { flex-wrap: wrap; }
+  .members-toolbar { flex-wrap: wrap; gap: 10px; }
+  .members-toolbar .field:first-child { flex-basis: 100%; max-width: none; }
+  .members-toolbar .field { flex: 1; min-width: 0; }
+  .member-table { overflow-x: auto; padding-bottom: 150px; margin-bottom: -150px; }
+  .member-table table { min-width: 640px; }
+  .member-pagination { flex-wrap: wrap; margin-top: 18px; }
+  .security-events li > div { flex-direction: column; gap: 6px; }
+}

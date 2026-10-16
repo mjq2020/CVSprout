@@ -1,0 +1,32 @@
+.manual-tool-group, .annotation-ai-points { display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.workspace-toolbar .manual-annotation-tool { width:auto; min-width:0; height:34px; padding:0 10px; gap:7px; white-space:nowrap; }
+.manual-annotation-tool.active { color:var(--brand); border-color:#9aafff; background:var(--brand-soft); }
+.manual-annotation-tool kbd, .manual-task-guide kbd { display:inline-flex; align-items:center; justify-content:center; min-width:21px; padding:1px 5px; border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; background:var(--panel); color:var(--muted); font-family:inherit; font-size:10px; line-height:1.5; font-weight:500; }
+.manual-annotation-tool.active kbd { border-color:#b6c5ff; color:var(--brand); }
+.annotation-ai-points { padding-left:10px; margin-left:3px; border-left:1px solid var(--line); }
+.annotation-ai-points > small { font-size:11px; color:var(--muted); white-space:nowrap; }
+.annotation-ai-points .ai-point-tool { color:var(--muted); font-size:12px; }
+.annotation-ai-points .ai-point-tool > span { font-size:17px; line-height:1; }
+.annotation-ai-points .ai-point-tool.active { color:var(--brand); }
+.manual-classification-note { display:flex; flex-direction:column; gap:2px; padding:0 8px; line-height:1.5; }
+.manual-classification-note strong { font-size:12px; font-weight:600; }
+.manual-classification-note > span { font-size:11px; color:var(--muted); }
+.manual-task-guide { font-size:12px; }
+.manual-task-guide h3 { display:flex; align-items:center; flex-wrap:wrap; justify-content:space-between; gap:6px; }
+.manual-task-guide p { line-height:1.75; margin:8px 0; }
+.manual-task-guide p strong { color:var(--brand); }
+.manual-task-guide .manual-draft-class { color:var(--muted); font-size:11px; }
+.manual-pose-actions { display:flex; flex-wrap:wrap; gap:7px; margin:12px 0; }
+.manual-pose-actions .btn { font-size:11px; min-width:0; padding:0 9px; }
+.manual-pose-actions .btn.primary { flex-basis:100%; }
+.manual-pose-actions .btn.primary kbd { color:inherit; background:transparent; border-color:rgba(255,255,255,.5); }
+.manual-draft-error { color:var(--warning); padding-left:9px; border-left:2px solid var(--warning); line-height:1.7; font-size:12px; }
+.keypoint-editor > [data-retry-task-save] { margin:4px 0 10px; font-size:12px; }
+.keypoint-row.placing { background:var(--brand-soft); border-radius:5px; }
+.keypoint-row.placing .mini-action { color:var(--brand); }
+.manual-annotation-tool:focus-visible, .manual-pose-actions .btn:focus-visible { outline:2px solid var(--brand); outline-offset:3px; }
+@media (max-width:600px) {
+  .workspace-toolbar .manual-annotation-tool { height:34px; padding:0 8px; font-size:12px; gap:6px; }
+  .annotation-ai-points { padding-left:7px; }
+  .manual-classification-note { display:none; }
+}

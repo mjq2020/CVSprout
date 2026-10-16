@@ -1,0 +1,2 @@
+# Compatibility entry point for existing installations.
+-r requirements/worker-gpu.txt

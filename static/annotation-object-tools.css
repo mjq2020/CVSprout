@@ -1,0 +1,13 @@
+.inspector-object-actions { display: flex; align-items: center; gap: 6px; }
+.annotation-delete-action { display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; }
+.annotation-delete-action:not(:disabled) { color: #b42339; border-color: #ebbdc4; background: #fff5f6; }
+.annotation-delete-action:not(:disabled):hover { color: #981b30; background: #ffe5e9; border-color: #dc97a3; }
+.annotation-delete-action svg { width: 15px; height: 15px; flex-shrink: 0; }
+.annotation-delete-action:disabled { cursor: not-allowed; }
+.canvas-svg .label-chip { pointer-events: all; cursor: pointer; }
+.canvas-svg .label-chip:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.canvas-svg .shape-handle.resize-nwse { cursor: nwse-resize; }
+.canvas-svg .shape-handle.resize-nesw { cursor: nesw-resize; }
+.canvas-svg .shape-handle.resize-ns { cursor: ns-resize; }
+.canvas-svg .shape-handle.resize-ew { cursor: ew-resize; }
+.canvas-svg.tool-keypoints { cursor: crosshair; }

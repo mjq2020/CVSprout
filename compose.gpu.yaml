@@ -1,0 +1,10 @@
+services:
+  worker:
+    image: ${MDP_IMAGE_PREFIX:-cvsprout}/worker-gpu:${MDP_VERSION:-local}
+    build:
+      target: worker-gpu
+    gpus: all
+    environment:
+      MDP_MODEL_DEVICE: ${MDP_MODEL_DEVICE:-auto}
+      # Single GPU default; may also be a comma-separated list of GPU UUIDs.
+      CUDA_VISIBLE_DEVICES: ${MDP_GPU_DEVICES:-0}

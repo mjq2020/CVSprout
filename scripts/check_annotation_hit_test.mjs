@@ -1,0 +1,25 @@
+// Run with: node scripts/check_annotation_hit_test.mjs
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const source = readFileSync(new URL("../static/annotation-context-menu.js", import.meta.url), "utf8");
+const { findAnnotationsAtPoint } = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
+const box = { id: 1, shape_type: "rectangle", points: [10, 10, 60, 60] };
+const pose = { id: 2, shape_type: "keypoints", points: [30, 30, 80, 80] };
+const polygon = { id: 3, shape_type: "polygon", points: [40, 40, 90, 40, 90, 90, 65, 60, 40, 90] };
+const classification = { id: 4, shape_type: "classification", points: [] };
+const input = [box, pose, polygon, classification];
+const hits = (x, y, tolerance) => findAnnotationsAtPoint(input, { x, y }, tolerance).map(item => item.id);
+assert.deepEqual(hits(50, 50), [3, 2, 1], "Topmost SVG objects must come first");
+assert.equal(findAnnotationsAtPoint(input, { x: 50, y: 50 })[2], box, "Keep original object references");
+assert.deepEqual(input, [box, pose, polygon, classification], "Hit testing must not reorder the input");
+assert.deepEqual(hits(10, 10), [1]);
+assert.deepEqual(hits(8, 10), []); assert.deepEqual(hits(8, 10, 2), [1]);
+assert.deepEqual(hits(50, 38, 2), [3, 2, 1], "Polygon near-edge tolerance must include the edge");
+assert.deepEqual(hits(65, 80), [2], "Concave polygon's excluded region must not hit");
+assert.deepEqual(hits(65, 60), [3, 2], "Polygon vertex is a hit");
+assert.deepEqual(hits(200, 200, 2), []);
+assert.deepEqual(findAnnotationsAtPoint([{ ...box, points: [60, 60, 10, 10] }], { x: 20, y: 20 }).map(item => item.id), [1]);
+assert.deepEqual(findAnnotationsAtPoint([{ ...polygon, points: [1, 2, 3] }, { ...box, points: [0, 0, NaN, 2] }], { x: 1, y: 1 }), []);
+assert.deepEqual(findAnnotationsAtPoint(input, { x: Infinity, y: 3 }), []);
+assert.deepEqual(hits(8, 10, -2), []);
+console.log("PASS: annotation overlap paint order, boxes, keypoint bounds, polygon interior/concavity/edges/tolerance, malformed geometry, and input immutability.");

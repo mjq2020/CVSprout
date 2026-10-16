@@ -1,0 +1,11 @@
+.login-card #setup-form { display: grid; gap: 14px; text-align: left; }
+.login-card #setup-form label { display: grid; gap: 6px; font-weight: 500; }
+.login-card #setup-form input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); }
+.login-card #setup-form p { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.login-card #setup-form .setup-feedback { color: var(--text); min-height: 20px; margin: 0; }
+.model-download-list { display: grid; gap: 0; }
+.model-download-list article { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.model-download-list p { margin: 5px 0 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.model-download-list button { flex-shrink: 0; }
+@media(max-width: 540px) { .model-download-list article { align-items: flex-start; flex-direction: column; } }
+.setup-shell { height: 100%; overflow-y: auto; align-items: start; }

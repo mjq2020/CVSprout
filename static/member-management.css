@@ -1,0 +1,125 @@
+.member-management-page { min-width:0; }
+html:has(.member-management-page), body:has(.member-management-page), #app:has(.member-management-page) { min-width:320px; }
+.member-management-page .page-head { margin-bottom:22px; }
+.member-page-actions { display:flex; gap:8px; flex-shrink:0; }
+.member-management-page .member-role-guide { padding:10px 14px; margin-bottom:16px; border:1px solid var(--line); border-radius:8px; background:var(--panel); font-size:13px; }
+.member-management-page .member-role-guide summary { cursor:pointer; font-weight:550; padding:0; }
+.member-management-page .member-role-guide dl { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:22px; margin:16px 0; }
+.member-management-page .member-role-guide dl > div { display:block; padding:0; }
+.member-management-page .member-role-guide dt, .registration-role-guide dt { font-weight:600; margin-bottom:5px; }
+.member-management-page .member-role-guide dd, .registration-role-guide dd { margin:0; color:var(--muted); line-height:1.75; font-size:12px; }
+.member-management-page .member-role-guide > p { font-size:12px; color:var(--muted); margin:0; line-height:1.75; }
+.member-management-tabs { display:flex; align-items:stretch; gap:25px; border-bottom:1px solid var(--line); }
+.member-management-tabs > button { display:flex; align-items:center; gap:8px; border:0; border-bottom:2px solid transparent; padding:12px 2px; background:none; cursor:pointer; color:var(--muted); font-weight:600; }
+.member-management-tabs > button[aria-selected="true"] { color:var(--brand); border-bottom-color:var(--brand); }
+.registration-pending-count { padding:1px 6px; min-width:21px; border-radius:5px; background:#fff1d9; color:#8a5b10; font-size:11px; line-height:18px; text-align:center; }
+.registration-pending-count.empty { background:var(--panel-2); color:var(--muted); }
+.member-management-page [role="tabpanel"][hidden], .registration-review-feedback[hidden], .registration-pending-count[hidden] { display:none; }
+.member-management-page .members-toolbar { padding:20px 0 14px; gap:14px; }
+.member-management-page .members-toolbar .field { min-width:150px; }
+.member-management-page .members-toolbar .field:first-child { max-width:430px; }
+.member-management-page .members-toolbar label { font-size:12px; margin-bottom:7px; }
+.member-management-page .members-toolbar input, .member-management-page .members-toolbar select { width:100%; min-height:38px; padding:8px 11px; background:var(--panel); border:1px solid var(--line); border-radius:7px; font:inherit; font-size:13px; color:var(--text); }
+.member-management-page .member-count { color:var(--muted); font-size:12px; margin:0 0 12px; }
+.member-management-page .member-table { border-radius:8px; }
+.member-management-page .member-table th { padding:12px 16px; background:#f8fafc; font-size:12px; }
+.member-management-page .member-table td { padding:16px; font-size:13px; }
+.member-management-page .member-table td > strong { font-weight:600; overflow-wrap:anywhere; }
+.member-management-page .member-table tr:last-child td { border-bottom:0; }
+.member-management-page .member-table th:first-child { border-top-left-radius:8px; }
+.member-management-page .member-table th:last-child { border-top-right-radius:8px; }
+.member-role { display:inline-flex; font-size:12px; border-radius:5px; padding:3px 7px; background:var(--panel-2); white-space:nowrap; }
+.member-role.admin { color:#6241aa; background:#f1edfb; }
+.member-role.reviewer { color:#2d5aa5; background:#edf3fc; }
+.member-management-page .member-status { font-size:12px; }
+.member-management-page .member-actions { gap:7px; }
+.member-management-page .member-actions .btn { white-space:nowrap; font-size:12px; height:33px; }
+.member-management-page .member-more summary { padding:7px 9px; }
+.member-management-page .member-more[open] { z-index:10; }
+.member-management-page .member-more > div { top:calc(100% + 4px); }
+.member-management-page .member-more a:hover { color:var(--brand); background:var(--panel-2); }
+.registration-intro { color:var(--muted); font-size:13px; margin:18px 0 0; line-height:1.7; }
+.registration-toolbar .field:first-child { flex:1; }
+.registration-count-line { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:12px; }
+.registration-count-line .member-count { margin:0; }
+.registration-count-line > span { color:var(--muted); font-size:12px; }
+.registration-list { background:var(--panel); border:1px solid var(--line); border-radius:8px; }
+.registration-request { display:grid; grid-template-columns:minmax(0,1fr) 240px; gap:32px; padding:20px 22px; }
+.registration-request + .registration-request { border-top:1px solid var(--line-soft); }
+.registration-person { min-width:0; }
+.registration-person-heading { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 12px; margin-bottom:10px; }
+.registration-person-heading > strong { font-size:14px; font-weight:600; overflow-wrap:anywhere; }
+.registration-username { color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+.registration-note { white-space:pre-wrap; overflow-wrap:anywhere; font-size:13px; line-height:1.75; margin:0 0 12px; }
+.registration-note.empty { color:var(--muted); font-size:12px; }
+.registration-dates { display:flex; flex-wrap:wrap; gap:6px 16px; color:var(--muted); font-size:11px; }
+.registration-full-note { margin:0 0 12px; font-size:12px; }
+.registration-full-note summary { color:var(--brand); cursor:pointer; }
+.registration-full-note > p { white-space:pre-wrap; overflow-wrap:anywhere; margin:8px 0 0; line-height:1.75; }
+.registration-decision { min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:12px; }
+.registration-status { display:inline-flex; padding:3px 8px; border-radius:5px; font-size:12px; }
+.registration-status.pending { color:#8a5b10; background:#fff5e4; }
+.registration-status.approved { color:#13755b; background:#ebf8f3; }
+.registration-status.rejected { color:#a23549; background:#fff0f3; }
+.registration-actions { display:flex; gap:8px; }
+.registration-actions .btn { height:34px; font-size:12px; }
+.registration-decision > p { margin:0; line-height:1.75; font-size:12px; }
+.registration-decision > p > span { display:block; color:var(--muted); font-size:11px; margin-top:3px; }
+.registration-review-reason { padding-left:10px; border-left:2px solid var(--line); width:100%; }
+.registration-review-reason > strong { font-size:11px; font-weight:550; color:var(--muted); }
+.registration-review-reason > p { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; line-height:1.7; margin:4px 0 0; }
+.registration-review-feedback { color:#176a52; background:#edf8f3; padding:11px 14px; border-left:3px solid #319779; font-size:13px; line-height:1.65; margin:0 0 15px; }
+.registration-review-feedback.warning { color:#8a5b10; background:#fff7e9; border-color:#c69435; }
+.registration-empty { text-align:center; padding:38px 22px; }
+.registration-empty > strong { display:block; font-weight:550; font-size:14px; margin-bottom:8px; }
+.registration-empty > p { color:var(--muted); font-size:13px; margin:0; line-height:1.7; }
+#registration-results[aria-busy="true"] { opacity:.6; pointer-events:none; }
+.registration-review-person { border-bottom:1px solid var(--line-soft); padding-bottom:15px; margin-bottom:18px; }
+.registration-review-person > strong { font-size:16px; font-weight:600; }
+.registration-review-person > span { display:block; color:var(--muted); font-size:12px; margin:4px 0 12px; }
+.registration-review-person .registration-note { margin-bottom:0; }
+.registration-review-modal .field select { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:7px; background:var(--panel); color:var(--text); }
+.registration-review-modal .field textarea { min-height:120px; resize:vertical; }
+.registration-required { font-size:11px; font-weight:400; color:var(--muted); margin-left:5px; }
+.registration-role-guide { margin-top:12px; font-size:12px; }
+.registration-role-guide summary { cursor:pointer; color:var(--muted); }
+.registration-role-guide dl { margin:14px 0 0; }
+.registration-role-guide dl > div + div { margin-top:12px; }
+.member-management-page :is(button,summary,a):focus-visible, .registration-review-modal :is(button,input,select,textarea,summary):focus-visible { outline:2px solid var(--brand); outline-offset:3px; }
+@media (max-width:1000px) {
+  .registration-request { grid-template-columns:minmax(0,1fr) 205px; gap:22px; padding:18px; }
+  .member-management-page .member-table th, .member-management-page .member-table td { padding:12px; }
+}
+@media (max-width:760px) {
+  .member-management-page .page-head { align-items:flex-start; gap:16px; }
+  .member-page-actions { flex-wrap:wrap; }
+  .member-management-page .member-role-guide dl { grid-template-columns:1fr; gap:14px; }
+  .member-management-page .members-toolbar { flex-wrap:wrap; gap:12px; }
+  .member-management-page .members-toolbar .field { flex:1; min-width:0; }
+  .member-management-page .members-toolbar .field:first-child { flex-basis:100%; max-width:none; }
+  .member-management-page .member-table { padding-bottom:0; margin-bottom:0; overflow:visible; }
+  .member-management-page .member-table table { min-width:0; }
+  .member-management-page .member-table thead { display:none; }
+  .member-management-page .member-table tbody { display:block; }
+  .member-management-page .member-table tr { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); padding:14px 16px; gap:12px; }
+  .member-management-page .member-table tr + tr { border-top:1px solid var(--line); }
+  .member-management-page .member-table td { display:block; padding:0; border:0; min-width:0; }
+  .member-management-page .member-table td::before { content:attr(data-label); display:block; color:var(--muted); font-size:11px; margin-bottom:5px; }
+  .member-management-page .member-table td:first-child, .member-management-page .member-table td:last-child, .member-management-page .member-table td:nth-child(4) { grid-column:1 / -1; }
+  .member-management-page .member-table td:first-child::before, .member-management-page .member-table td:last-child::before { display:none; }
+  .member-management-page .member-more > div { left:0; right:auto; }
+  .member-management-page .member-pagination { gap:8px; margin-top:0; }
+  .member-management-page .member-pagination > span { flex-basis:100%; }
+  .registration-count-line { align-items:flex-start; flex-direction:column; gap:5px; }
+  .registration-request { grid-template-columns:minmax(0,1fr); gap:15px; padding:16px; }
+  .registration-decision { flex-direction:row; flex-wrap:wrap; align-items:center; gap:10px; }
+  .registration-actions { margin-left:auto; }
+  .registration-decision > p, .registration-review-reason { width:100%; }
+}
+@media (max-width:460px) {
+  .member-management-page .page-head { flex-direction:column; }
+  .member-page-actions { width:100%; }
+  .member-page-actions .btn { flex:1; }
+  .registration-actions { gap:6px; }
+  .registration-actions .btn { padding:0 9px; }
+}

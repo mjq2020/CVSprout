@@ -1,0 +1,4 @@
+# Install alongside requirements-models.txt in the training worker environment.
+# Use the CUDA 12 package for the server's NVIDIA 550 driver.
+--extra-index-url https://pypi.nvidia.com
+tensorrt-cu12==10.13.3.9

@@ -1,0 +1,25 @@
+export function trainingListURL(projectId, page, filters, locateId = null) {
+  const query = new URLSearchParams({ page: String(page), page_size: "10" });
+  if (filters.query.trim()) query.set("q", filters.query.trim());
+  if (filters.status !== "all") query.set("status", filters.status);
+  if (filters.task !== "all") query.set("task", filters.task);
+  if (locateId) query.set("locate_id", String(locateId));
+  return `/api/projects/${projectId}/training-runs?${query}`;
+}
+
+export function trainingPreferenceKey(session, projectId) {
+  return `visionforge-training-view:${session?.user_id || session?.username || session?.actor || "local"}:${projectId}`;
+}
+
+export function trainingListMarkup(state, { escapeHtml: esc, trainingStatusLabel: status, trainingTaskInfo: task, formatDateTime: date, icon }) {
+  const pagination = state.training.pagination || { page: 1, total_pages: 1, total: 0 };
+  const runs = state.training.runs || [], filters = state.trainingFilters;
+  const loading = state.trainingPage.loading;
+  const total = Number(state.training.total || 0), active = Number(state.training.counts?.active || 0);
+  const selectedOutside = state.selectedTrainingRun && !runs.some(run => run.id === state.selectedTrainingId);
+  return `<aside class="training-sidebar surface ${state.trainingListOpen ? "is-open" : ""}" aria-labelledby="training-list-heading"><div class="training-sidebar-title"><div><h2 id="training-list-heading">训练记录 <span>${total.toLocaleString()} 次</span></h2><p>${active ? `${active} 次训练正在排队或运行` : "全部训练记录，可按条件查找"}</p></div><button class="btn ghost training-list-toggle" id="toggle-training-list" aria-expanded="${state.trainingListOpen}" aria-controls="training-list-body">${state.trainingListOpen ? "收起记录" : "切换训练"}</button></div><div id="training-list-body"><div class="training-list-filters"><label class="search">${icon("search")}<input id="training-search" type="search" maxlength="200" value="${esc(filters.query)}" placeholder="搜索训练名称或模型" aria-label="搜索训练名称或模型"/></label><div><select id="training-status-filter" aria-label="筛选训练状态">${[["all", "全部状态"], ["active", "进行中"], ["queued", "排队中"], ["running", "训练中"], ["completed", "已完成"], ["failed", "失败"], ["cancelled", "已取消"]].map(([id, label]) => `<option value="${id}" ${filters.status === id ? "selected" : ""}>${label}</option>`).join("")}</select><select id="training-task-filter" aria-label="筛选训练任务"><option value="all">全部任务</option>${["detect", "segment", "classify", "pose"].map(id => `<option value="${id}" ${filters.task === id ? "selected" : ""}>${esc(task(id).name)}</option>`).join("")}</select></div></div><div class="training-list-result" role="status">${loading ? "正在更新训练记录…" : state.trainingPage.error ? "训练记录暂时无法更新" : `找到 ${Number(pagination.total || 0).toLocaleString()} 次 · 每页 10 条`}${filters.query || filters.status !== "all" || filters.task !== "all" ? '<button class="mini-action" id="clear-training-filters">清除筛选</button>' : ""}</div>${selectedOutside ? `<div class="training-selection-outside">右侧仍显示“${esc(state.selectedTrainingRun.name || `训练 ${state.selectedTrainingId}`)}”，它不在本页或当前筛选中。<button class="mini-action" id="locate-selected-training">清除筛选并定位</button></div>` : ""}<div class="training-records" aria-busy="${loading}">${loading ? '<div class="training-list-empty" role="status">正在加载，请稍候…</div>' : state.trainingPage.error ? `<div class="training-list-empty" role="alert"><p>${esc(state.trainingPage.error)}</p><button class="btn ghost" id="retry-training-list">重试加载</button></div>` : runs.length ? `<ul aria-label="本页训练记录">${runs.map(run => {
+    const selected = state.selectedTrainingId === run.id;
+    const currentStatus = run.cancel_requested && ["queued", "running"].includes(run.status) ? "cancelling" : run.status;
+    return `<li><button class="training-record-button ${selected ? "selected" : ""}" data-select-training="${run.id}" ${selected ? 'aria-current="true"' : ""}><span class="training-record-title" title="${esc(run.name || `训练 ${run.id}`)}">${esc(run.name || `训练 ${run.id}`)}</span><span class="training-record-status"><span class="job-status ${esc(currentStatus)}">${esc(status(currentStatus))}</span><span>${run.current_epoch || 0} / ${run.total_epochs || run.settings?.epochs || "—"} 轮</span></span><span class="training-record-model">${esc(task(run.task).name)} · ${esc(run.model_arch || "模型未记录")}</span><time datetime="${esc(run.created_at || "")}">${esc(date(run.created_at))}</time></button></li>`;
+  }).join("")}</ul>` : `<div class="training-list-empty"><strong>${total ? "没有符合条件的训练" : "还没有训练记录"}</strong><p>${total ? "试试其他关键词，或清除筛选。" : "选择数据版本后，开始第一次训练。"}</p></div>`}</div><nav class="training-pagination" aria-label="训练记录分页"><button class="btn ghost" id="training-prev-page" ${loading || pagination.page <= 1 ? "disabled" : ""}>上一页</button><span>第 ${pagination.page} / ${pagination.total_pages} 页</span><button class="btn ghost" id="training-next-page" ${loading || pagination.page >= pagination.total_pages ? "disabled" : ""}>下一页</button></nav></div></aside>`;
+}

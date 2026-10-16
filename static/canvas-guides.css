@@ -1,0 +1,6 @@
+.canvas-guides, .canvas-guides * { pointer-events: none; }
+.canvas-guide-line { stroke-linecap: butt; }
+.canvas-guide-line-dark { stroke: #0f172a; stroke-opacity: .8; stroke-width: 3; }
+.canvas-guide-line-light { stroke: #f8fafc; stroke-opacity: .95; stroke-width: 1; }
+.canvas-guide-size rect { fill: #17212e; fill-opacity: .94; stroke: #cbd5e1; stroke-width: 1; }
+.canvas-guide-size text { fill: #f8fafc; font-family: inherit; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }

@@ -1,0 +1,2 @@
+# Source development: web + CUDA worker. Use requirements/worker-cpu.txt without NVIDIA.
+-r requirements/worker-gpu.txt
