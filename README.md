@@ -36,6 +36,13 @@ cd CVSprout
 ./start.sh --gpu
 ./start.sh --cpu
 ./start.sh --gpu --check
+
+# 指定端口；被占用时自动分配可用端口
+./start.sh --port 8080
+# 始终使用指定端口，被占用就报错
+./start.sh --port 8080 --strict-port
+# 直接自动分配端口
+./start.sh --port 0
 ```
 
 Windows PowerShell：
@@ -43,9 +50,11 @@ Windows PowerShell：
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\start.ps1
 # 强制 GPU / CPU：添加 -Gpu / -Cpu；仅检查环境：添加 -Check
+powershell -ExecutionPolicy Bypass -File .\start.ps1 -Port 8080
+# 固定端口：添加 -StrictPort；自动分配：-Port 0
 ```
 
-打开启动输出中的地址，默认 http://127.0.0.1:8000。复制终端显示的初始化口令，在网页创建管理员。
+首次默认使用 http://127.0.0.1:8000；端口被占用时自动分配可用端口。打开启动输出中的实际地址，复制初始化口令，在网页创建管理员。启动成功后，实际端口会保存到 `.env` 的 `MDP_PORT`，下次沿用；`./start.sh --status` 也会显示当前访问地址。
 
 正式发行包拉取预构建镜像。源码目录的 `MDP_VERSION=local` 会自动构建镜像，第一次启动需要下载依赖；**本地构建完成不代表镜像已经发布到 GHCR**。
 

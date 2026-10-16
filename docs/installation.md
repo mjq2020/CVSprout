@@ -11,6 +11,18 @@ Windows：安装 Docker Desktop，启用 WSL2 后端；参见 [Docker GPU 支持
 
 ## 环境诊断
 
+### 端口被占用
+
+`address already in use` 表示所选宿主机端口正在使用。可执行 `./start.sh --port 8080`（PowerShell：`.\start.ps1 -Port 8080`）指定端口，也可以修改 `.env` 中的 `MDP_PORT`。优先级为命令行参数、当前终端的 MDP_PORT 环境变量、.env 配置、默认 8000。
+
+默认启动遇到端口占用时，会让 Docker 在绑定时分配一个可用端口；端口号不一定是 8001。`--port 0` / `-Port 0` 可直接请求自动分配。原有占用端口的程序不会被关闭，绑定地址仍遵守 MDP_BIND_ADDRESS（默认只允许本机访问）。
+
+成功后，实际端口写回 `.env`，其余配置保留。使用终端输出的 URL 访问，或运行 `./start.sh --status` / `.\start.ps1 -Status` 查看。失败的启动不会改写端口配置。自动切换只针对端口占用，镜像、GPU、网络或健康检查的其他错误仍会直接报告。
+
+如果反向代理、SSH 转发或防火墙依赖固定端口，使用 `--strict-port` / `-StrictPort` 禁止自动切换，或同步更新相关转发配置。直接运行 `docker compose up` 时不会执行启动脚本的自动切换逻辑。
+
+### 运行环境检查
+
 `./start.sh --gpu --check` / `.\start.ps1 -Gpu -Check` 检查 Docker、可写数据目录、剩余磁盘、PyTorch、Ultralytics 和真实 GPU 运算。检查模式可能下载或构建镜像，但不会启动业务服务。
 
 - Docker 不可用：启动 Docker 服务；Windows 检查 Docker Desktop 和 WSL2。
