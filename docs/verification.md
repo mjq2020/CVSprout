@@ -29,6 +29,14 @@
 
 运行 `python -m unittest discover -s tests -p test_startup.py -v` 可复现脚本回归；Docker 命令由测试替身模拟，不操作本机容器。PowerShell 测试需要 POSIX 环境中的 `pwsh`，没有安装时自动跳过，也可用 `CVSPROUT_TEST_PWSH` 指定可执行文件。
 
+## 停止命令与操作文档（2026-10-16）
+
+停止功能已存在，本次补充 README 参数表和操作步骤，没有修改启动脚本。
+
+- 在独立 CPU Compose 项目中，Bash `--stop` 和 Linux PowerShell `-Stop` 均使 Web、worker 退出，宿主机端口关闭，容器与 `.env` 保留。
+- Bash 重复停止正常返回；两种脚本停止后均可不带参数再次启动，沿用已保存的 CPU 模式和端口，Web 健康检查通过，数据卷与模型卷中的测试文件保留。
+- `./start.sh --help`、`Get-Help ./start.ps1` 实际执行通过；README 覆盖全部 Bash 参数，相关文档链接检查通过。
+
 ## 适用范围
 
 GPU 实测环境为 Linux x86-64、RTX 4090、PyTorch 2.6.0+cu124。不能据此承诺所有 GPU、驱动和 CUDA 组合可用。合成数据只验证训练和部署链路，不评价业务精度。

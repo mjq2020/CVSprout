@@ -3,16 +3,25 @@
 当前支持：把 Web、worker 和数据部署在同一台 GPU 服务器，本地电脑通过浏览器使用。训练和标注消耗服务器 GPU，本地浏览器不需要显卡。
 
 1. 把源码或发行包复制到 GPU 服务器。
-2. 在服务器运行 `./start.sh --gpu`，记录首次初始化口令。
-3. 在自己的电脑打开 SSH 转发：
+2. 在服务器运行以下命令，固定使用仅本机可访问的 8080 端口，记录首次初始化口令。若 8080 已占用，请选择其他端口，并同步修改下面 SSH 命令的目标端口。
 
 ```bash
-ssh -L 8000:127.0.0.1:8000 user@server
+MDP_BIND_ADDRESS=127.0.0.1 ./start.sh --gpu --port 8080 --strict-port
 ```
 
-4. 打开 http://127.0.0.1:8000，创建管理员并开始使用。
+3. 在自己的电脑打开 SSH 转发（将 `user@server` 替换为自己的服务器登录信息），并保持该终端开启：
 
-多人内网访问时可设置 `MDP_BIND_ADDRESS=0.0.0.0` 并限制网络访问范围。跨网络协作通过 HTTPS 反向代理，设置 `MDP_COOKIE_SECURE=true` 和 `MDP_PUBLIC_ORIGIN=https://你的域名`。
+```bash
+ssh -N -L 18080:127.0.0.1:8080 user@server
+```
+
+4. 在自己的电脑打开 http://127.0.0.1:18080，创建管理员并开始使用。若本地 18080 已被占用，可修改 SSH 命令中第一个端口号，并在浏览器使用相同端口。
+
+`MDP_BIND_ADDRESS=127.0.0.1` 的命令行设置只对这次启动生效。需要长期通过 SSH 访问时，将服务器 `.env` 中的 `MDP_BIND_ADDRESS` 也设为 `127.0.0.1`；端口会在成功启动后自动保存。
+
+多人内网访问时可在服务器 `.env` 设置 `MDP_BIND_ADDRESS=0.0.0.0`、`MDP_PORT=8080`，运行 `./start.sh --strict-port`，并限制网络访问范围。其他电脑通过 `http://服务器IP:8080` 访问，防火墙或云安全组需允许对应端口。跨网络协作通过 HTTPS 反向代理，设置 `MDP_COOKIE_SECURE=true` 和 `MDP_PUBLIC_ORIGIN=https://你的域名`。
+
+在服务器执行 `./start.sh --stop` 停止服务并保留数据；再次执行启动命令可恢复服务。完整参数与 PowerShell 对照见 [README](../README.md#启动参数)。
 
 内部 worker 端口不映射到宿主机，只允许同一 Compose 网络中的 Web 通过共享随机凭证调用。不要把 worker 的 8001 端口公开。
 

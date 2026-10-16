@@ -29,34 +29,89 @@ cd CVSprout
 在项目目录执行：
 
 ```bash
-# Linux / WSL：自动检测 NVIDIA；没有 GPU 时使用 CPU
+# Linux / WSL：首次自动检测 NVIDIA；之后沿用上次成功启动的模式
 ./start.sh
-
-# 显式选择模式或检查环境
-./start.sh --gpu
-./start.sh --cpu
-./start.sh --gpu --check
-
-# 指定端口；被占用时自动分配可用端口
-./start.sh --port 8080
-# 始终使用指定端口，被占用就报错
-./start.sh --port 8080 --strict-port
-# 直接自动分配端口
-./start.sh --port 0
 ```
 
 Windows PowerShell：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\start.ps1
-# 强制 GPU / CPU：添加 -Gpu / -Cpu；仅检查环境：添加 -Check
-powershell -ExecutionPolicy Bypass -File .\start.ps1 -Port 8080
-# 固定端口：添加 -StrictPort；自动分配：-Port 0
 ```
 
 首次默认使用 http://127.0.0.1:8000；端口被占用时自动分配可用端口。打开启动输出中的实际地址，复制初始化口令，在网页创建管理员。启动成功后，实际端口会保存到 `.env` 的 `MDP_PORT`，下次沿用；`./start.sh --status` 也会显示当前访问地址。
 
 正式发行包拉取预构建镜像。源码目录的 `MDP_VERSION=local` 会自动构建镜像，第一次启动需要下载依赖；**本地构建完成不代表镜像已经发布到 GHCR**。
+
+## 启动参数
+
+下列命令在服务器或本机的项目目录执行。Linux / WSL 使用 `./start.sh`；PowerShell 使用 `.\start.ps1`。若 Windows 执行策略阻止脚本，将示例中的 `.\start.ps1` 替换为 `powershell -ExecutionPolicy Bypass -File .\start.ps1`，其后参数保持不变。
+
+| Linux / WSL 参数 | PowerShell 参数 | 作用 |
+|---|---|---|
+| 不带参数 | 不带参数 | 启动 Web 和 worker。首次自动检测 NVIDIA，没有可用的 NVIDIA 检测结果时选择 CPU；后续沿用上次成功启动的模式 |
+| `--cpu` | `-Cpu` | 显式使用 CPU；成功启动后记住此模式 |
+| `--gpu` | `-Gpu` | 显式使用 NVIDIA GPU；成功启动后记住此模式。GPU 环境检查失败会报错 |
+| `--port 8080` | `-Port 8080` | 指定宿主机端口，范围为 0–65535；0 表示让 Docker 分配可用端口 |
+| `--strict-port` | `-StrictPort` | 端口被占用时直接报错，禁止自动换端口。需要固定端口时与非零端口一起使用 |
+| `--check` | `-Check` | 仅检查运行环境，不启动 Web 和常驻 worker；可能构建或拉取镜像，并运行临时诊断容器 |
+| `--status` | `-Status` | 查看容器状态；服务运行时显示访问地址和尚未完成初始化时的口令 |
+| `--stop` | `-Stop` | 停止 Web 和 worker，保留容器、账号、项目、模型和数据卷 |
+| `--build` | `-Build` | 强制从源码构建镜像后继续启动或检查，需要完整源码；不代表清除构建缓存 |
+| `--help` | 无对应参数；使用 `Get-Help .\start.ps1` | 显示脚本用法；PowerShell 使用内置帮助命令 |
+
+`--cpu` / `--gpu` 选择一种；`--check` / `--status` / `--stop` 每次选择一种操作。不指定操作时就是启动。端口、模式和严格模式可以组合；Bash 也支持 `--port=8080`。
+
+常用组合，按需要选择一条执行：
+
+| 场景 | Linux / WSL | PowerShell |
+|---|---|---|
+| 使用 GPU，在 8080 端口启动，占用时自动切换 | `./start.sh --gpu --port 8080` | `.\start.ps1 -Gpu -Port 8080` |
+| 使用 CPU，在固定 8080 端口启动 | `./start.sh --cpu --port 8080 --strict-port` | `.\start.ps1 -Cpu -Port 8080 -StrictPort` |
+| 自动分配端口 | `./start.sh --port 0` | `.\start.ps1 -Port 0` |
+| 检查 GPU 是否可用 | `./start.sh --gpu --check` | `.\start.ps1 -Gpu -Check` |
+| 修改源码后重新构建并启动 | `./start.sh --build` | `.\start.ps1 -Build` |
+
+端口优先级：命令行参数 > 当前终端的 `MDP_PORT` 环境变量 > `.env` 中的 `MDP_PORT` > 默认 8000。启动成功后实际端口写回 `.env`；若终端仍设置了 `MDP_PORT`，下次启动仍优先使用终端的值。自动切换只处理端口占用，其他错误需要按输出排查。
+
+## 停止与重新启动
+
+启动完成后服务在后台运行，关闭终端不会停止服务。需要停止时执行：
+
+```bash
+./start.sh --stop
+```
+
+Windows PowerShell 对应命令：
+
+```powershell
+.\start.ps1 -Stop
+```
+
+停止会中断正在执行的训练或推理，建议在任务完成后操作。停止后数据仍保留，重新执行 `./start.sh` / `.\start.ps1` 即可启动；需要重启时，先执行停止命令，成功后再执行启动命令。再次启动会进行正常的镜像和环境检查，不代表自动续训被中断的任务。
+
+查看正在运行的服务及访问地址：`./start.sh --status` / `.\start.ps1 -Status`。停止和状态查询不需要再次指定端口，脚本会读取项目配置。
+
+## 远程访问与常用配置
+
+首次执行启动脚本会从 `.env.example` 创建 `.env`。以后直接修改 `.env` 中对应的配置项，保留自己的其他设置；修改后再次执行启动命令生效。
+
+| 配置项 | 默认值 | 用途 |
+|---|---|---|
+| `MDP_BIND_ADDRESS` | `127.0.0.1` | 默认仅本机访问；局域网 / VPN 访问可改成 `0.0.0.0` |
+| `MDP_PORT` | `8000` | 宿主机端口；启动成功后保存实际使用的端口 |
+| `MDP_GPU_DEVICES` | `0` | GPU 模式下可见的物理 GPU；可填写逗号分隔的索引或 UUID |
+
+如果要从局域网或 VPN 中的其他电脑访问，在服务器的 `.env` 中设置：
+
+```dotenv
+MDP_BIND_ADDRESS=0.0.0.0
+MDP_PORT=8080
+```
+
+然后执行 `./start.sh --strict-port`（PowerShell：`.\start.ps1 -StrictPort`），在自己的电脑打开 `http://服务器IP:8080`。例如 `http://192.168.1.100:8080`；远程电脑应使用服务器的真实 IP，即使启动输出显示的是 `127.0.0.1`。服务器防火墙或云安全组需允许访问所选端口。端口被占用时可修改端口，或去掉严格模式并使用实际分配的新端口，同时更新相应网络规则。
+
+公网服务器的个人访问可以通过 SSH 转发，保持服务仅监听 `127.0.0.1`；多人跨网络访问使用 HTTPS 反向代理。具体启动、转发和域名配置见 [远程服务器使用方式](docs/remote-server.md)。训练使用部署服务器的 GPU，浏览器所在电脑不需要 GPU。
 
 ## 第一次使用
 
@@ -73,12 +128,6 @@ powershell -ExecutionPolicy Bypass -File .\start.ps1 -Port 8080
 ## 数据与日常管理
 
 数据和模型分别保存在 Compose 持久卷 `visionforge-data`、`visionforge-models` 中，普通重启和镜像升级会保留。**`docker compose down -v` 会删除数据卷。**
-
-```bash
-./start.sh --status      # 服务状态、未完成初始化时的口令
-./start.sh --stop        # 停止并保留数据
-# Windows 使用 .\start.ps1 -Status / -Stop
-```
 
 升级前备份数据卷和模型卷。首次使用新版的已有安装请先阅读 [迁移与备份](docs/operations.md)，特别是旧版机器专属的模型路径。
 
