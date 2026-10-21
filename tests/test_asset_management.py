@@ -25,7 +25,6 @@ class AssetManagementTest(unittest.TestCase):
         from app.auth import Actor, get_actor
         from app.config import settings
         from app.database import all_rows, db, one
-        from app.asset_management import router
         main = importlib.import_module("app.main")
         self.temp = tempfile.TemporaryDirectory(prefix="mdp-asset-delete-")
         values = dict(data_dir=Path(self.temp.name), embedded_worker=False,
@@ -35,8 +34,7 @@ class AssetManagementTest(unittest.TestCase):
             object.__setattr__(settings, key, value)
         app = FastAPI(lifespan=main.lifespan)
         app.include_router(main.app.router)
-        if not any(route.path == "/api/projects/{project_id}/assets/delete-batch" for route in app.routes):
-            app.include_router(router)
+        self.assertIn("/api/projects/{project_id}/assets/delete-batch", app.openapi()["paths"])
         self.actor = Actor("delete-test-admin", "admin")
         app.dependency_overrides[get_actor] = lambda: self.actor
         self.client = TestClient(app, headers={"X-MDP-Client": "browser"}).__enter__()

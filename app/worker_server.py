@@ -14,7 +14,7 @@ from .worker_client import worker_token
 
 
 def authenticate(x_visionforge_worker: str = Header(default="")):
-    if not hmac.compare_digest(x_visionforge_worker, worker_token()):
+    if not hmac.compare_digest(x_visionforge_worker.encode(), worker_token().encode()):
         raise HTTPException(401, "Invalid worker credential")
 
 
@@ -30,8 +30,11 @@ async def lifespan(app):
     init_db()
     worker_token()
     seed_builtin_models()
-    workers = [JobWorker(), PipelineWorker("compute")]
+    workers = [JobWorker()]
+    if settings.training_enabled:
+        workers.append(PipelineWorker("compute"))
     tasks = [asyncio.create_task(worker.run_forever()) for worker in workers]
+    app.state.worker_tasks = tasks
     try:
         yield
     finally:
@@ -51,6 +54,14 @@ app = FastAPI(title="CVSprout Compute", lifespan=lifespan, docs_url=None, redoc_
 
 @app.get("/health")
 def health():
+    from .database import one
+    try:
+        one("SELECT 1")
+    except Exception:
+        raise HTTPException(503, "Worker database unavailable")
+    tasks = getattr(app.state, "worker_tasks", None)
+    if not tasks or any(task.done() for task in tasks):
+        raise HTTPException(503, "Worker background task unavailable")
     return {"status": "ok"}
 
 

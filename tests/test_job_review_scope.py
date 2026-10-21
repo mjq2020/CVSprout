@@ -17,7 +17,6 @@ class JobReviewScopeTest(unittest.TestCase):
         from app.auth import Actor, get_actor
         from app.config import settings
         from app.database import db, one, all_rows, now_iso
-        from app.review import router
         main = importlib.import_module("app.main")
         self.temp = tempfile.TemporaryDirectory(prefix="mdp-job-review-")
         values = dict(data_dir=Path(self.temp.name), embedded_worker=False,
@@ -27,8 +26,7 @@ class JobReviewScopeTest(unittest.TestCase):
             object.__setattr__(settings, key, value)
         app = FastAPI(lifespan=main.lifespan)
         app.include_router(main.app.router)
-        if not any(route.path == "/api/projects/{project_id}/review/jobs/{job_id}" for route in app.routes):
-            app.include_router(router)
+        self.assertIn("/api/projects/{project_id}/review/jobs/{job_id}", app.openapi()["paths"])
         self.actor = Actor("job-review-admin", "admin")
         app.dependency_overrides[get_actor] = lambda: self.actor
         self.client = TestClient(app, headers={"X-MDP-Client": "browser"}).__enter__()

@@ -14,6 +14,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse
 from PIL import Image, ImageOps
+from app.http_limits import RequestBodyLimit
 
 ROOT = Path(os.getenv("VISIONFORGE_MODEL_DIR", "/model"))
 _lock = threading.Lock()
@@ -23,7 +24,7 @@ _key = ""
 
 
 def authenticate(authorization: str = Header(default="")):
-    if not _key or not hmac.compare_digest(authorization, f"Bearer {_key}"):
+    if not _key or not hmac.compare_digest(authorization.encode(), f"Bearer {_key}".encode()):
         raise HTTPException(401, "请提供部署密钥：Authorization: Bearer <key>")
 
 
@@ -50,6 +51,17 @@ async def lifespan(app):
 app = FastAPI(title="CVSprout 模型服务", version="1.0", lifespan=lifespan)
 
 
+async def request_budget(scope):
+    if scope.get("method") == "POST" and scope.get("path", "").rstrip("/") == "/predict":
+        from starlette.requests import Request
+        authenticate(Request(scope).headers.get("authorization", ""))
+        return 21 * 1024 * 1024
+    return 1024 * 1024
+
+
+app.add_middleware(RequestBodyLimit, policy=request_budget)
+
+
 @app.get("/health")
 def health():
     return {"status": "ok" if _model is not None else "loading"}
@@ -65,9 +77,31 @@ def _predict(image):
 
 @app.post("/predict", dependencies=[Depends(authenticate)])
 async def predict(file: UploadFile = File(...)):
-    data = await file.read(20 * 1024 * 1024 + 1)
-    if len(data) > 20 * 1024 * 1024:
-        raise HTTPException(413, "图片不能超过 20 MB")
+    # Reserve capacity before reading/decoding; keep it until the thread finishes
+    # even when the caller disconnects or cancels the request.
+    if not _request_slot.acquire(blocking=False):
+        raise HTTPException(429, "模型正在处理其他图片，请稍后重试。")
+    transferred = False
+    try:
+        data = await file.read(20 * 1024 * 1024 + 1)
+        if len(data) > 20 * 1024 * 1024:
+            raise HTTPException(413, "图片不能超过 20 MB")
+        task = asyncio.create_task(asyncio.to_thread(_decode_and_predict, data))
+        def done(completed):
+            try:
+                if not completed.cancelled():
+                    completed.exception()
+            finally:
+                _request_slot.release()
+        task.add_done_callback(done)
+        transferred = True
+        return await asyncio.shield(task)
+    finally:
+        if not transferred:
+            _request_slot.release()
+
+
+def _decode_and_predict(data):
     try:
         with Image.open(io.BytesIO(data)) as original:
             if original.width * original.height > 25_000_000:
@@ -77,18 +111,10 @@ async def predict(file: UploadFile = File(...)):
         raise
     except Exception as exc:
         raise HTTPException(400, "无法读取图片") from exc
-    # Reject overload rather than accumulating unbounded decoded images.
-    if not _request_slot.acquire(blocking=False):
-        raise HTTPException(429, "模型正在处理其他图片，请稍后重试。")
-    task = asyncio.create_task(asyncio.to_thread(_predict, image))
-    def done(completed):
-        try:
-            if not completed.cancelled():
-                completed.exception()
-        finally:
-            _request_slot.release()
-    task.add_done_callback(done)
-    return await asyncio.shield(task)
+    try:
+        return _predict(image)
+    finally:
+        image.close()
 
 
 _request_slot = threading.Lock()

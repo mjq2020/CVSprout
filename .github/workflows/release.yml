@@ -5,7 +5,10 @@ on:
 permissions:
   contents: read
 jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
   images:
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
       packages: write

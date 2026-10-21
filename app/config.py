@@ -24,6 +24,7 @@ class Settings:
         os.getenv("MDP_SAM3_SOURCE_DIR", MODEL_ROOT / "sam3" / "source")
     )
     max_upload_mb: int = int(os.getenv("MDP_MAX_UPLOAD_MB", "250"))
+    max_request_mb: int = int(os.getenv("MDP_MAX_REQUEST_MB", "16"))
     max_image_pixels: int = int(os.getenv("MDP_MAX_IMAGE_PIXELS", "50000000"))
     max_assets_per_upload: int = int(os.getenv("MDP_MAX_ASSETS_PER_UPLOAD", "10000"))
     qwen_base_url: str = os.getenv("QWEN_BASE_URL", "").rstrip("/")
@@ -122,7 +123,7 @@ class Settings:
             raise RuntimeError("MDP_BOOTSTRAP_API_KEY must contain at least 32 characters")
         if self.auth_mode == "accounts" and self.bootstrap_api_key and len(self.bootstrap_api_key) < 32:
             raise RuntimeError("MDP_BOOTSTRAP_API_KEY must contain at least 32 characters when set")
-        if self.max_upload_mb <= 0 or self.max_image_pixels <= 0 or self.max_assets_per_upload <= 0:
+        if self.max_request_mb <= 0 or self.max_upload_mb <= 0 or self.max_image_pixels <= 0 or self.max_assets_per_upload <= 0:
             raise RuntimeError("upload resource limits must be positive")
         if self.worker_poll_seconds <= 0 or self.job_lease_seconds < 3 or self.asset_lock_seconds < 3:
             raise RuntimeError("worker polling and lease settings are invalid")

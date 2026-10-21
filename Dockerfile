@@ -19,6 +19,7 @@ COPY scripts /app/scripts
 COPY deploy /app/deploy
 
 FROM base AS web
+RUN python -m pip install --no-cache-dir --upgrade pip==26.2.2
 COPY --from=source /app /app
 USER visionforge
 EXPOSE 8000
@@ -30,6 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2
 
 FROM compute-base AS worker-cpu
 RUN pip install --no-cache-dir -r requirements/worker-cpu.txt
+RUN python -m pip install --no-cache-dir --upgrade pip==26.2.2
 COPY --from=source /app /app
 USER visionforge
 EXPOSE 8001
@@ -37,6 +39,7 @@ CMD ["uvicorn", "app.worker_server:app", "--host", "0.0.0.0", "--port", "8001"]
 
 FROM compute-base AS worker-gpu
 RUN pip install --no-cache-dir -r requirements/worker-gpu.txt
+RUN python -m pip install --no-cache-dir --upgrade pip==26.2.2
 COPY --from=source /app /app
 USER visionforge
 EXPOSE 8001

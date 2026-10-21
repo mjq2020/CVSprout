@@ -7,6 +7,27 @@ from fastapi.responses import JSONResponse
 from .config import settings
 
 
+async def request_budget(scope):
+    """Authenticate uploads before FastAPI parses their multipart bodies."""
+    import re
+    from starlette.concurrency import run_in_threadpool
+    from .auth import get_actor, require_admin
+    path = scope.get("path", "").rstrip("/")
+    checkpoint = path == "/api/model-downloads/import/checkpoint"
+    images = re.fullmatch(r"/api/projects/[^/]+/assets", path) is not None
+    if scope.get("method") == "POST" and (checkpoint or images):
+        request = Request(scope)
+        actor = await run_in_threadpool(
+            get_actor, request, request.headers.get("authorization"),
+            request.headers.get("x-actor-id"), request.cookies.get("mdp_session"),
+        )
+        if checkpoint:
+            require_admin(actor)
+        # One MiB allows multipart boundaries/headers; handlers enforce file limits.
+        return ((2048 if checkpoint else settings.max_upload_mb) + 1) * 1024 * 1024
+    return settings.max_request_mb * 1024 * 1024
+
+
 def _origin(value: str) -> str | None:
     try:
         url = urlsplit(value)
@@ -19,7 +40,7 @@ def _origin(value: str) -> str | None:
 
 
 async def browser_security(request: Request, call_next):
-    path = request.url.path
+    path = request.scope["path"]
     unsafe = request.method not in {"GET", "HEAD", "OPTIONS"}
     bearer = request.headers.get("authorization", "").startswith("Bearer ")
     protected = settings.auth_mode != "disabled" and path.startswith("/api/") and unsafe and (

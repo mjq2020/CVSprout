@@ -40,6 +40,7 @@ def bundle(run_id: int, actor: Actor = Depends(get_actor)):
             archive.write(path, "model/model.pt")
             archive.writestr("model/manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
             archive.writestr("app/__init__.py", "")
+            archive.write(BASE_DIR / "app" / "http_limits.py", "app/http_limits.py")
             for filename in ("__init__.py", "server.py"):
                 archive.write(BASE_DIR / "app" / "runtime" / filename, f"app/runtime/{filename}")
             for filename in ("web.txt", "runtime-cpu.txt", "runtime-gpu.txt"):

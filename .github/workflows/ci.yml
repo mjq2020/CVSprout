@@ -2,9 +2,19 @@ name: Verify
 on:
   push:
   pull_request:
+  workflow_call:
 permissions:
   contents: read
 jobs:
+  web-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pip-audit==2.10.1
+      - run: pip-audit -r requirements/web.txt --progress-spinner off
   tests:
     runs-on: ubuntu-latest
     steps:

@@ -49,7 +49,7 @@ def status():
 def initialize(payload: Setup):
     if not required():
         raise HTTPException(409, "初始化已完成，请直接登录。")
-    if not hmac.compare_digest(payload.code, setup_code()):
+    if not hmac.compare_digest(payload.code.encode(), setup_code().encode()):
         raise HTTPException(403, "初始化口令不正确，请查看启动终端。")
     encoded = hash_password(payload.password)
     with db() as conn:

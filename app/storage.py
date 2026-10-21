@@ -112,7 +112,11 @@ def _unpack_content(filename: str, content: bytes) -> list[StoredImage]:
 
 
 async def unpack_upload(upload: UploadFile) -> list[StoredImage]:
-    content = await upload.read()
+    # Bound the read even when the client omits Content-Length.
+    max_bytes = settings.max_upload_mb * 1024 * 1024
+    content = await upload.read(max_bytes + 1)
+    if len(content) > max_bytes:
+        raise HTTPException(413, f"单个上传文件不能超过 {settings.max_upload_mb} MB")
     filename = upload.filename or "upload"
     # Pillow verification, ZIP decompression, hashing and filesystem writes are
     # blocking work. Running them outside the ASGI event loop lets multiple small

@@ -6,6 +6,7 @@ COPY requirements ./requirements
 COPY app ./app
 COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md ./
 RUN useradd --uid 10001 --create-home visionforge
+RUN python -m pip install --no-cache-dir --upgrade pip==26.2.2
 FROM base AS cpu
 RUN pip install --no-cache-dir -r requirements/runtime-cpu.txt
 USER visionforge

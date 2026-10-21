@@ -15,7 +15,6 @@ from PIL import Image
 from app.auth import Actor, get_actor
 from app.config import settings
 from app.database import all_rows, db, one
-from app.review import router
 
 main = importlib.import_module("app.main")
 
@@ -30,8 +29,7 @@ class BatchReviewTest(unittest.TestCase):
             object.__setattr__(settings, key, value)
         app = FastAPI(lifespan=main.lifespan)
         app.include_router(main.app.router)
-        if not any(route.path == "/api/projects/{project_id}/review/batch" for route in app.routes):
-            app.include_router(router)
+        self.assertIn("/api/projects/{project_id}/review/batch", app.openapi()["paths"])
         self.actor = Actor("test-admin", "admin")
         app.dependency_overrides[get_actor] = lambda: self.actor
         self.client = TestClient(app).__enter__()

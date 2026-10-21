@@ -66,6 +66,24 @@ class ExportDeleteRaceTest(unittest.TestCase):
             self.assertEqual(response.status_code, 409, response.text)
             self.assertIn("race.png", response.json()["detail"])
 
+    def test_export_uses_disk_and_cleans_archive_after_response_or_error(self):
+        archives = []
+        create = tempfile.NamedTemporaryFile
+        def temporary(*args, **kwargs):
+            handle = create(*args, **kwargs)
+            archives.append(Path(handle.name))
+            return handle
+        with patch("tempfile.NamedTemporaryFile", side_effect=temporary):
+            response = self.client.get(f"/api/projects/{self.project_id}/export/coco")
+            self.assertEqual(response.status_code, 200)
+            with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+                self.assertTrue(any(name.startswith("images/") for name in archive.namelist()))
+            self.media.unlink()
+            response = self.client.get(f"/api/projects/{self.project_id}/export/yolo")
+            self.assertEqual(response.status_code, 409)
+        self.assertEqual(len(archives), 2)
+        self.assertTrue(all(not path.exists() for path in archives))
+
     def test_delete_between_export_file_check_and_open_returns_conflict(self):
         archive_write = zipfile.ZipFile.write
 

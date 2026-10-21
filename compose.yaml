@@ -14,6 +14,7 @@ x-runtime: &runtime
   MDP_MODEL_DEVICE: ${MDP_MODEL_DEVICE:-auto}
   MDP_RELEASE_GPU_AFTER_INFERENCE: "true"
   MDP_MAX_UPLOAD_MB: ${MDP_MAX_UPLOAD_MB:-250}
+  MDP_MAX_REQUEST_MB: ${MDP_MAX_REQUEST_MB:-16}
   MDP_MAX_IMAGE_PIXELS: ${MDP_MAX_IMAGE_PIXELS:-50000000}
   MDP_MAX_ASSETS_PER_UPLOAD: ${MDP_MAX_ASSETS_PER_UPLOAD:-10000}
   MDP_RKNN_PYTHON: ${MDP_RKNN_PYTHON:-}
@@ -24,6 +25,12 @@ x-runtime: &runtime
 
 x-service: &service
   restart: unless-stopped
+  init: true
+  logging:
+    driver: local
+    options:
+      max-size: "10m"
+      max-file: "5"
   stop_grace_period: 45s
   volumes:
     - visionforge-data:/data
@@ -39,6 +46,7 @@ services:
     environment:
       <<: *runtime
       MDP_WORKER_URL: http://worker:8001
+      FORWARDED_ALLOW_IPS: ${MDP_TRUSTED_PROXIES:-127.0.0.1}
       MDP_EMBEDDED_WORKER: "false"
       MDP_EMBEDDED_PIPELINE_WORKER: "false"
     ports:
@@ -47,7 +55,7 @@ services:
       worker:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/ready')"]
       interval: 10s
       timeout: 5s
       retries: 12

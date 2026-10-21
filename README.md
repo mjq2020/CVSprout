@@ -133,6 +133,7 @@ MDP_PORT=8080
 
 ## 文档
 
+- [生产部署与上线审查](docs/production.md)
 - [安装、GPU 检查与故障排查](docs/installation.md)
 - [远程服务器使用方式](docs/remote-server.md)
 - [模型推理部署](docs/deployment.md)

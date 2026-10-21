@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import io
 import json
 import math
 import os
@@ -13,7 +12,7 @@ from pathlib import Path
 
 import httpx
 from fastapi import BackgroundTasks, Cookie, Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
@@ -26,7 +25,8 @@ from .analytics import router as analytics_router
 from .accounts import router as accounts_router
 from .review import router as review_router
 from .asset_management import router as asset_management_router
-from .security import browser_security
+from .security import browser_security, request_budget
+from .http_limits import RequestBodyLimit
 from .collaboration import active_job_for_assets, guard_asset, guard_job_targets
 from .task_types import validate_task_annotation
 from .database import all_rows, audit, db, init_db, now_iso, one
@@ -60,7 +60,7 @@ from .deployment import router as deployment_router
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(application: FastAPI):
     settings.validate()
     init_db()
     seed_builtin_models()
@@ -74,6 +74,7 @@ async def lifespan(_: FastAPI):
     pipeline_task = (
         asyncio.create_task(pipeline_worker.run_forever()) if pipeline_worker else None
     )
+    application.state.background_tasks = [task for task in (worker_task, pipeline_task) if task is not None]
     try:
         yield
     finally:
@@ -97,6 +98,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="CVSprout 标注平台", version="0.20.0", lifespan=lifespan)
 app.middleware("http")(browser_security)
+app.add_middleware(RequestBodyLimit, policy=request_budget)
 app.include_router(accounts_router)
 app.include_router(review_router)
 app.include_router(asset_management_router)
@@ -184,6 +186,29 @@ def health() -> dict:
             "count": len(pipeline_workers),
         },
     }
+
+
+@app.get("/api/ready")
+async def ready(request: Request):
+    """Readiness includes local background tasks or the private compute service."""
+    from starlette.concurrency import run_in_threadpool
+    try:
+        await run_in_threadpool(one, "SELECT 1")
+    except Exception:
+        return JSONResponse({"status": "unavailable", "component": "database"}, status_code=503)
+    tasks = getattr(request.app.state, "background_tasks", None)
+    if tasks is None or any(task.done() for task in tasks):
+        return JSONResponse({"status": "unavailable", "component": "background_tasks"}, status_code=503)
+    if settings.worker_url:
+        try:
+            async with httpx.AsyncClient(timeout=3, trust_env=False) as client:
+                response = await client.get(f"{settings.worker_url}/health")
+            payload = response.json() if response.status_code == 200 else None
+            if not isinstance(payload, dict) or payload.get("status") != "ok":
+                raise ValueError("Worker not ready")
+        except (httpx.HTTPError, ValueError):
+            return JSONResponse({"status": "unavailable", "component": "worker"}, status_code=503)
+    return {"status": "ok"}
 
 
 @app.get("/api/session")
@@ -1221,7 +1246,7 @@ def project_audit_logs(
 def export_dataset(
     project_id: int, export_format: str, background_tasks: BackgroundTasks, approved_only: bool = False,
     _: Actor = Depends(get_actor),
-) -> StreamingResponse:
+) -> FileResponse:
     project = require_project(project_id)
     if export_format not in {"coco", "yolo", "json"}:
         raise HTTPException(400, "仅支持 coco、yolo 或 json")
@@ -1261,77 +1286,80 @@ def export_dataset(
                WHERE n.deleted_at IS NULL AND a.id IN ({placeholders}) ORDER BY n.id""",
             tuple(asset_ids),
         ).fetchall()]
-    payload = io.BytesIO()
-    with zipfile.ZipFile(payload, "w", zipfile.ZIP_DEFLATED) as archive:
-        yolo_splits = _legacy_yolo_splits(assets_rows) if export_format == "yolo" else {}
-        if export_format == "coco":
-            _write_coco(archive, labels, assets_rows, annotations_rows)
-        else:
-            _write_yolo(archive, labels, assets_rows, annotations_rows, yolo_splits)
-        media_root = settings.media_dir.resolve()
-        for asset in assets_rows:
-            path = (settings.media_dir / asset["storage_name"]).resolve()
-            if media_root not in path.parents or not path.is_file():
-                raise HTTPException(
-                    409, f"导出所需图片已被删除或文件缺失：{asset['filename']}。请刷新图片列表后重试。"
+    import tempfile
+    handle = tempfile.NamedTemporaryFile(prefix="mdp-export-", suffix=".zip", delete=False)
+    handle.close()
+    destination = Path(handle.name)
+    try:
+        with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
+            yolo_splits = _legacy_yolo_splits(assets_rows) if export_format == "yolo" else {}
+            if export_format == "coco":
+                _write_coco(archive, labels, assets_rows, annotations_rows)
+            else:
+                _write_yolo(archive, labels, assets_rows, annotations_rows, yolo_splits)
+            media_root = settings.media_dir.resolve()
+            for asset in assets_rows:
+                path = (settings.media_dir / asset["storage_name"]).resolve()
+                if media_root not in path.parents or not path.is_file():
+                    raise HTTPException(
+                        409, f"导出所需图片已被删除或文件缺失：{asset['filename']}。请刷新图片列表后重试。"
+                    )
+                image_prefix = (
+                    f"images/{yolo_splits[asset['id']]}"
+                    if export_format == "yolo"
+                    else "images"
                 )
-            image_prefix = (
-                f"images/{yolo_splits[asset['id']]}"
-                if export_format == "yolo"
-                else "images"
+                try:
+                    archive.write(path, f"{image_prefix}/{asset['id']}_{asset['filename']}")
+                except FileNotFoundError as exc:
+                    raise HTTPException(
+                        409, f"导出时图片已被删除：{asset['filename']}。请刷新图片列表后重试。"
+                    ) from exc
+            archive.writestr(
+                "README.txt",
+                f"Project: {project['name']}\nFormat: {export_format.upper()}\nImages: {len(assets_rows)}\nApproved only: {approved_only}\n",
             )
-            try:
-                archive.write(path, f"{image_prefix}/{asset['id']}_{asset['filename']}")
-            except FileNotFoundError as exc:
-                raise HTTPException(
-                    409, f"导出时图片已被删除：{asset['filename']}。请刷新图片列表后重试。"
-                ) from exc
-        archive.writestr(
-            "README.txt",
-            f"Project: {project['name']}\nFormat: {export_format.upper()}\nImages: {len(assets_rows)}\nApproved only: {approved_only}\n",
-        )
-        archive.writestr(
-            "manifest.json",
-            json.dumps(
-                {
-                    "project_id": project_id,
-                    "exported_at": now_iso(),
-                    "approved_only": approved_only,
-                    "labels": [
-                        {
-                            "id": label["id"],
-                            "name": label["name"],
-                            "attributes_schema": json.loads(
-                                label.get("attributes_schema_json") or "{}"
-                            ),
-                        }
-                        for label in labels
-                    ],
-                    "assets": [
-                        {
-                            "id": a["id"],
-                            "sha256": a["sha256"],
-                            "revision": a["revision"],
-                            **(
-                                {"split": yolo_splits[a["id"]]}
-                                if export_format == "yolo"
-                                else {}
-                            ),
-                        }
-                        for a in assets_rows
-                    ],
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-        )
-    payload.seek(0)
-    filename = f"project-{project_id}-{export_format}.zip"
-    return StreamingResponse(
-        payload,
-        media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+            archive.writestr(
+                "manifest.json",
+                json.dumps(
+                    {
+                        "project_id": project_id,
+                        "exported_at": now_iso(),
+                        "approved_only": approved_only,
+                        "labels": [
+                            {
+                                "id": label["id"],
+                                "name": label["name"],
+                                "attributes_schema": json.loads(
+                                    label.get("attributes_schema_json") or "{}"
+                                ),
+                            }
+                            for label in labels
+                        ],
+                        "assets": [
+                            {
+                                "id": a["id"],
+                                "sha256": a["sha256"],
+                                "revision": a["revision"],
+                                **(
+                                    {"split": yolo_splits[a["id"]]}
+                                    if export_format == "yolo"
+                                    else {}
+                                ),
+                            }
+                            for a in assets_rows
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+            )
+    except BaseException:
+        destination.unlink(missing_ok=True)
+        raise
+    background_tasks.add_task(destination.unlink, missing_ok=True)
+    return FileResponse(destination, media_type="application/zip",
+                        filename=f"project-{project_id}-{export_format}.zip")
 
 
 def _validate_shape(shape_type: str, points: list[float], width: int, height: int) -> None:

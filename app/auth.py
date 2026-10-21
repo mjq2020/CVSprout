@@ -75,7 +75,7 @@ def actor_from_session_identity(value: str) -> Actor:
         f"{session_id}.{issued_at_text}".encode(),
         hashlib.sha256,
     ).hexdigest()
-    if not hmac.compare_digest(signature, expected):
+    if not hmac.compare_digest(signature.encode(), expected.encode()):
         raise HTTPException(401, "浏览器会话身份无效")
     return Actor(f"bootstrap-admin:{session_id[:12]}", "admin")
 
