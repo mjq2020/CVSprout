@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .auth import Actor, get_actor, password_change_required
 from .collaboration import guard_asset
 from .database import db, now_iso, one
+from .work_blocks import refresh_block
 
 router = APIRouter(prefix="/api/projects/{project_id}/review", tags=["review"])
 
@@ -86,18 +87,20 @@ def _item(project_id: int, target: ReviewTarget, payload: BatchReview, actor: Ac
         if target.expected_revision != asset["revision"]:
             return {**result, "status": "conflict", "code": "revision_changed", "message": "图片已变化，请刷新并重新检查后重试"}
         try:
-            guard_asset(conn, target.asset_id, actor, editable=False)
+            guard_asset(conn, target.asset_id, actor, editable=False,
+                        action="review" if payload.action in {"approve", "reject"} else "edit")
         except HTTPException as error:
             locked = error.status_code == 423
-            return {**result, "status": "conflict", "code": "locked" if locked else "busy",
-                    "message": "图片正由其他成员编辑，请稍后处理" if locked else "AI 正在标注这张图片，请等待完成后再处理"}
+            return {**result, "status": "forbidden" if error.status_code == 403 else "conflict",
+                    "code": "locked" if locked else "permission_denied" if error.status_code == 403 else "busy",
+                    "message": "图片正由其他成员或浏览器页面编辑，请稍后处理" if locked else str(error.detail)}
         allowed, new_status = TRANSITIONS[payload.action]
         if asset["review_status"] not in allowed:
             message = "只处理草稿、标注中或已退回的图片" if payload.action == "submit" else "只处理已提交的待审核图片；AI 初标不能直接通过"
             return {**result, "status": "skipped", "code": "state_not_allowed", "message": message}
         count = conn.execute("SELECT COUNT(*) FROM annotations WHERE asset_id=? AND deleted_at IS NULL", (target.asset_id,)).fetchone()[0]
-        if payload.action in {"submit", "approve"} and not count:
-            return {**result, "status": "skipped", "code": "no_annotations", "message": "没有有效标注，请先完成标注再提交审核"}
+        if payload.action in {"submit", "approve"} and not count and not asset["negative_confirmed"]:
+            return {**result, "status": "skipped", "code": "no_annotations", "message": "请先完成标注，或明确确认图片无目标"}
         if preview:
             return {**result, "status": "eligible", "code": "ready", "message": "可处理", "target_status": new_status}
         now = now_iso()
@@ -108,9 +111,10 @@ def _item(project_id: int, target: ReviewTarget, payload: BatchReview, actor: Ac
         conn.execute(
             """UPDATE assets SET review_status=?, review_reason=?, revision=revision+1, updated_at=?,
                lock_owner=CASE WHEN lock_owner=? THEN NULL ELSE lock_owner END,
-               lock_expires_at=CASE WHEN lock_owner=? THEN NULL ELSE lock_expires_at END
+               lock_expires_at=CASE WHEN lock_owner=? THEN NULL ELSE lock_expires_at END,
+               lock_token=CASE WHEN lock_owner=? THEN NULL ELSE lock_token END
                WHERE id=? AND project_id=? AND revision=?""",
-            (new_status, payload.reason, now, actor.id, actor.id, target.asset_id, project_id, target.expected_revision),
+            (new_status, payload.reason, now, actor.id, actor.id, actor.id, target.asset_id, project_id, target.expected_revision),
         )
         conn.execute(
             """INSERT INTO review_events(asset_id,from_status,to_status,actor,reason,created_at)
@@ -124,6 +128,7 @@ def _item(project_id: int, target: ReviewTarget, payload: BatchReview, actor: Ac
              json.dumps(audit_details, ensure_ascii=False), now),
         )
         updated = dict(conn.execute("SELECT * FROM assets WHERE id=?", (target.asset_id,)).fetchone())
+        refresh_block(conn, target.asset_id, actor)
         return {**result, "status": "succeeded", "code": "updated", "message": {"submit": "已提交审核", "approve": "审核已通过", "reject": "已退回修改"}[payload.action], "asset": updated}
 
 

@@ -14,6 +14,7 @@ from .auth import Actor, get_actor, require_admin
 from .collaboration import guard_asset
 from .config import settings
 from .database import db, now_iso, one
+from .work_blocks import refresh_project_blocks
 
 router = APIRouter(prefix="/api/projects/{project_id}/assets", tags=["assets"])
 logger = logging.getLogger(__name__)
@@ -113,7 +114,7 @@ def _item(project_id: int, target: DeleteTarget, actor: Actor, *, preview: bool)
         if asset["revision"] != target.expected_revision:
             return {**result, "status": "conflict", "code": "revision_changed", "message": "图片或标注已变化，请刷新并重新检查后再删除"}
         try:
-            guard_asset(conn, target.asset_id, actor, editable=False)
+            guard_asset(conn, target.asset_id, actor, editable=False, action="delete")
         except HTTPException as error:
             locked = error.status_code == 423
             return {**result, "status": "conflict", "code": "locked" if locked else "busy",
@@ -135,6 +136,7 @@ def _item(project_id: int, target: DeleteTarget, actor: Actor, *, preview: bool)
             (actor,action,resource_type,resource_id,project_id,payload_json,created_at) VALUES (?,?,?,?,?,?,?)""",
             (actor.id, "delete", "asset", str(target.asset_id), project_id, json.dumps(summary, ensure_ascii=False), now)).lastrowid
         conn.execute("DELETE FROM assets WHERE id=? AND project_id=? AND revision=?", (target.asset_id, project_id, target.expected_revision))
+        refresh_project_blocks(conn, project_id, actor)
         conn.execute("UPDATE projects SET updated_at=? WHERE id=?", (now, project_id))
     cleanup = _cleanup_media(asset, audit_id)
     return {**result, "status": "succeeded", "code": "deleted", "message": "已删除当前图片及标注", "media_cleanup": cleanup}

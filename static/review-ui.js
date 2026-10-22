@@ -189,6 +189,21 @@ function openReviewPicker() {
   });
 }
 
+export async function openWorkBlockSubmit(block, onResult) {
+  const deps = context;
+  const { state, api, notify } = deps;
+  const projectId = state.project.id, epoch = state.selectionEpoch, session = state.session;
+  const detail = await api(`/api/projects/${projectId}/work-blocks/${block.id}`);
+  if (state.project?.id !== projectId || state.selectionEpoch !== epoch || state.session !== session || state.currentSection !== "blocks") return;
+  const items = detail.items.filter(item => ["draft", "in_progress", "rejected"].includes(item.review_status));
+  if (!items.length) { await onResult?.(); notify("本块图片均已提交或审核通过，无需重复提交。"); return; }
+  openBatchReview("submit", {
+    assetIds: items.map(item => item.asset_id),
+    targets: items.map(item => ({ asset_id: item.asset_id, expected_revision: item.expected_revision })),
+    onResult,
+  });
+}
+
 function openBatchReview(action, options = {}) {
   const deps = context;
   const { state, api, jsonOptions, openModal, closeModal, notify, escapeHtml } = deps;
@@ -201,7 +216,7 @@ function openBatchReview(action, options = {}) {
   const selected = independent ? [...options.assetIds] : [...state.selectedAssetIds];
   if (!selected.length || selected.length > 500) return notify("请选择 1 至 500 张图片后再进行批量审核。", "warning");
   const current = () => state.project?.id === projectId && state.currentSection === section && state.selectionEpoch === epoch && state.session === session;
-  const renderPage = () => { if (current()) (section === "annotate" ? deps.renderWorkspace : section === "ai" ? deps.renderAiPage : deps.renderDataPage)(); };
+  const renderPage = () => { if (current()) (section === "annotate" ? deps.renderWorkspace : section === "ai" ? deps.renderAiPage : section === "blocks" ? deps.renderWorkBlocksPage : deps.renderDataPage)(); };
   let targets = options.targets || selected.map(id => ({ asset_id: id, expected_revision: state.assets.find(asset => asset.id === id)?.revision ?? 0 }));
   const jobRun = options.jobRun;
   const source = jobRun ? { source_job_id: jobRun.scope.source_job_id, source_job_generation: jobRun.scope.source_job_generation } : {};
@@ -355,6 +370,10 @@ function openBatchReview(action, options = {}) {
           items.filter(item => item.status === "succeeded").forEach(item => jobRun.submitted.add(item.asset_id));
         }
         await syncResult(items);
+        if (current()) {
+          try { await options.onResult?.(); }
+          catch (_) { notify("审核操作已完成，任务块进度暂未刷新。稍后点击刷新即可，无需重复提交。", "warning"); }
+        }
         if (!modalCurrent()) { notify(`批量操作已完成 ${response.counts.succeeded} 张；其他图片未处理，可返回原项目查看。`); return; }
         phase = "result";
         const resultNote = jobRun ? `本批新提交 ${response.counts.succeeded} 张。${remaining.length ? `另外 ${remaining.length} 张未重复提交，请查看下方原因。` : "本批全部提交完成。"}${options.nextBatch ? "下一批仍需预览并确认后才会提交。" : "如有需要处理的问题，可处理后重新打开本任务的提交入口。"}` : `已完成的图片已移出选择。${remaining.length ? `剩余 ${remaining.length} 张仍保持选中；检查原因后可重新检查范围，再决定是否重试。` : "全部处理完成，可以继续查看下一批图片。"}`;

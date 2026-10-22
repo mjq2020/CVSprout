@@ -103,6 +103,7 @@ CREATE TABLE IF NOT EXISTS assets (
     revision INTEGER NOT NULL DEFAULT 0,
     lock_owner TEXT,
     lock_expires_at TEXT,
+    lock_token TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL DEFAULT ''
 );
@@ -124,6 +125,39 @@ CREATE TABLE IF NOT EXISTS annotations (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS work_blocks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'available',
+    owner_key TEXT,
+    owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    owner_name TEXT NOT NULL DEFAULT '',
+    human_started INTEGER NOT NULL DEFAULT 0,
+    revision INTEGER NOT NULL DEFAULT 0,
+    claimed_at TEXT,
+    completed_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_work_blocks_project ON work_blocks(project_id,id);
+CREATE INDEX IF NOT EXISTS idx_work_blocks_owner ON work_blocks(owner_key,project_id);
+CREATE TABLE IF NOT EXISTS work_block_assets (
+    asset_id INTEGER PRIMARY KEY REFERENCES assets(id) ON DELETE CASCADE,
+    block_id INTEGER NOT NULL REFERENCES work_blocks(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_work_block_assets_block ON work_block_assets(block_id,position);
+CREATE TABLE IF NOT EXISTS work_block_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    block_id INTEGER NOT NULL REFERENCES work_blocks(id) ON DELETE CASCADE,
+    actor TEXT NOT NULL,
+    action TEXT NOT NULL,
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_work_block_events_block ON work_block_events(block_id,id);
 
 CREATE TABLE IF NOT EXISTS jobs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -427,6 +461,7 @@ LEGACY_COLUMNS: dict[str, dict[str, str]] = {
         "task_type": "TEXT NOT NULL DEFAULT 'mixed'",
         "keypoint_schema_json": "TEXT NOT NULL DEFAULT '{}'",
         "archived_at": "TEXT",
+        "work_blocks_enabled": "INTEGER NOT NULL DEFAULT 0",
     },
     "dataset_versions": {
         "task_type": "TEXT NOT NULL DEFAULT 'mixed'",
@@ -452,7 +487,9 @@ LEGACY_COLUMNS: dict[str, dict[str, str]] = {
         "revision": "INTEGER NOT NULL DEFAULT 0",
         "lock_owner": "TEXT",
         "lock_expires_at": "TEXT",
+        "lock_token": "TEXT",
         "updated_at": "TEXT NOT NULL DEFAULT ''",
+        "negative_confirmed": "INTEGER NOT NULL DEFAULT 0",
     },
     "annotations": {
         "keypoints_json": "TEXT NOT NULL DEFAULT '[]'",
@@ -660,6 +697,7 @@ def init_db() -> None:
         conn.execute("INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (9,?)", (now_iso(),))
         conn.execute("INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (10,?)", (now_iso(),))
         conn.execute("INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (11,?)", (now_iso(),))
+        conn.execute("INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (12,?)", (now_iso(),))
 
 
 @contextmanager

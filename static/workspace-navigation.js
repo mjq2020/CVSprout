@@ -1,6 +1,6 @@
 const workflow = [
   ["overview", "项目概览", "chart"], ["data", "导入与数据", "database"], ["ai", "AI 标注", "magic"],
-  ["annotate", "标注与审核", "polygon"], ["versions", "数据版本", "layers"], ["train", "训练与转换", "cpu"],
+  ["blocks", "标注任务块", "users"], ["annotate", "标注与审核", "polygon"], ["versions", "数据版本", "layers"], ["train", "训练与转换", "cpu"],
 ];
 const mobile = () => window.matchMedia("(max-width: 900px)").matches;
 let drawerOpen = false, initialized = false, returnFocus = null;
@@ -9,7 +9,7 @@ const read = (key, fallback) => { try { const value = sessionStorage.getItem(key
 const save = (key, value) => { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch (_) { /* Optional browser preference. */ } };
 
 export function currentProjectRoute() {
-  const match = location.hash.match(/^#\/projects\/(\d+)(?:\/(overview|data|ai|annotate|versions|train))?/);
+  const match = location.hash.match(/^#\/projects\/(\d+)(?:\/(overview|data|ai|blocks|annotate|versions|train))?/);
   return match ? { id: Number(match[1]), section: match[2] || "overview" } : null;
 }
 

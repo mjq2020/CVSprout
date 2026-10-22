@@ -27,7 +27,8 @@ from .review import router as review_router
 from .asset_management import router as asset_management_router
 from .security import browser_security, request_budget
 from .http_limits import RequestBodyLimit
-from .collaboration import active_job_for_assets, guard_asset, guard_job_targets
+from .collaboration import active_job_for_assets, guard_asset, guard_job_targets, foreign_edit_lock
+from .work_blocks import router as work_blocks_router, guard_block_asset, eligible_ai_asset_ids, refresh_block, owner_key
 from .task_types import validate_task_annotation
 from .database import all_rows, audit, db, init_db, now_iso, one
 from .dataset_versions import router as dataset_versions_router, build_project_export
@@ -96,11 +97,12 @@ async def lifespan(application: FastAPI):
                     await pipeline_task
 
 
-app = FastAPI(title="CVSprout 标注平台", version="0.20.0", lifespan=lifespan)
+app = FastAPI(title="CVSprout 标注平台", version="0.21.0", lifespan=lifespan)
 app.middleware("http")(browser_security)
 app.add_middleware(RequestBodyLimit, policy=request_budget)
 app.include_router(accounts_router)
 app.include_router(review_router)
+app.include_router(work_blocks_router)
 app.include_router(asset_management_router)
 app.include_router(analytics_router)
 app.include_router(dataset_versions_router)
@@ -136,12 +138,7 @@ def require_asset(asset_id: int) -> dict:
 
 
 def ensure_asset_write_access(asset: dict, actor: Actor) -> None:
-    if (
-        asset.get("lock_owner")
-        and asset["lock_owner"] != actor.id
-        and asset.get("lock_expires_at")
-        and asset["lock_expires_at"] > now_iso()
-    ):
+    if foreign_edit_lock(asset, actor):
         raise HTTPException(423, "图片正由其他成员编辑，请稍后重试")
 
 
@@ -588,12 +585,14 @@ async def upload_assets(
 @app.get("/api/projects/{project_id}/assets")
 def assets(
     project_id: int, status: str | None = None, review_status: str | None = None,
+    work_block_id: int | None = Query(default=None, gt=0),
     _: Actor = Depends(get_actor),
 ) -> list[dict]:
     require_project(project_id)
-    query = """SELECT a.*, COUNT(n.id) AS annotation_count
+    query = """SELECT a.*, b.block_id AS work_block_id, COUNT(n.id) AS annotation_count
                FROM assets a LEFT JOIN annotations n
                  ON n.asset_id = a.id AND n.deleted_at IS NULL
+               LEFT JOIN work_block_assets b ON b.asset_id=a.id
                WHERE a.project_id = ?"""
     params: tuple = (project_id,)
     if status:
@@ -602,6 +601,11 @@ def assets(
     if review_status:
         query += " AND a.review_status = ?"
         params += (review_status,)
+    if isinstance(work_block_id, int):
+        if not one("SELECT id FROM work_blocks WHERE id=? AND project_id=?", (work_block_id, project_id)):
+            raise HTTPException(404, "任务块不存在或不属于当前项目")
+        query += " AND b.block_id = ?"
+        params += (work_block_id,)
     query += " GROUP BY a.id ORDER BY a.id"
     return all_rows(query, params)
 
@@ -614,6 +618,8 @@ def asset_detail(asset_id: int, _: Actor = Depends(get_actor)) -> dict:
         (asset_id,),
     )
     asset["annotation_count"] = count["count"] if count else 0
+    block = one("SELECT block_id FROM work_block_assets WHERE asset_id=?", (asset_id,))
+    asset["work_block_id"] = block["block_id"] if block else None
     return asset
 
 
@@ -675,12 +681,16 @@ def acquire_asset_lock(asset_id: int, actor: Actor = Depends(get_actor)) -> dict
         if row is None:
             raise HTTPException(404, "图片已被删除，请刷新图片列表")
         asset = dict(row)
+        guard_block_asset(conn, asset, actor, action=(
+            "review" if asset["review_status"] in {"submitted", "approved"} and actor.role in {"admin", "reviewer"}
+            else "edit"))
         if asset["review_status"] in {"submitted", "approved"} and actor.role == "annotator":
             raise HTTPException(409, "图片已提交审核，标注员当前只读；需撤回或由审核员重新打开")
         cursor = conn.execute(
-            """UPDATE assets SET lock_owner = ?, lock_expires_at = ?
-               WHERE id = ? AND (lock_owner IS NULL OR lock_owner = ? OR lock_expires_at <= ?)""",
-            (actor.id, expires_at, asset_id, actor.id, now),
+            """UPDATE assets SET lock_owner = ?, lock_expires_at = ?, lock_token = ?
+               WHERE id = ? AND (lock_owner IS NULL OR (lock_owner = ? AND lock_token IS ?)
+                                  OR lock_expires_at <= ?)""",
+            (actor.id, expires_at, actor.edit_token, asset_id, actor.id, actor.edit_token, now),
         )
         if cursor.rowcount != 1:
             current = conn.execute(
@@ -697,11 +707,12 @@ def acquire_asset_lock(asset_id: int, actor: Actor = Depends(get_actor)) -> dict
 def release_asset_lock(asset_id: int, actor: Actor = Depends(get_actor)) -> dict:
     require_asset(asset_id)
     with db() as conn:
-        conn.execute(
-            "UPDATE assets SET lock_owner = NULL, lock_expires_at = NULL WHERE id = ? AND lock_owner = ?",
-            (asset_id, actor.id),
+        cursor = conn.execute(
+            """UPDATE assets SET lock_owner = NULL, lock_expires_at = NULL, lock_token = NULL
+               WHERE id = ? AND lock_owner = ? AND lock_token IS ?""",
+            (asset_id, actor.id, actor.edit_token),
         )
-    return {"released": True}
+    return {"released": cursor.rowcount == 1}
 
 
 @app.post("/api/assets/{asset_id}/workflow")
@@ -711,6 +722,25 @@ def update_asset_workflow(
     asset = require_asset(asset_id)
     if payload.expected_revision != asset["revision"]:
         raise HTTPException(409, "图片已被其他用户修改，请刷新后重试")
+    if payload.action == "confirm_empty":
+        with db() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            current = guard_asset(conn, asset_id, actor)
+            if current["revision"] != payload.expected_revision:
+                raise HTTPException(409, "图片已变化，请刷新后重新检查")
+            task = conn.execute("SELECT task_type FROM projects WHERE id=?", (current["project_id"],)).fetchone()[0]
+            if task == "classify":
+                raise HTTPException(422, "分类图片必须选择类别，不能确认为无目标")
+            if conn.execute("SELECT 1 FROM annotations WHERE asset_id=? AND deleted_at IS NULL", (asset_id,)).fetchone():
+                raise HTTPException(409, "图片已有标注对象，不能确认为无目标")
+            now = now_iso()
+            conn.execute("""UPDATE assets SET negative_confirmed=1,status='labeled',review_status='draft',
+                review_reason='',revision=revision+1,updated_at=? WHERE id=?""", (now, asset_id))
+            conn.execute("""INSERT INTO review_events(asset_id,from_status,to_status,actor,reason,created_at)
+                VALUES (?,?,'draft',?,'已确认图片无目标',?)""", (asset_id,current["review_status"],actor.id,now))
+            refresh_block(conn, asset_id, actor)
+        audit(actor.id, "confirm_empty", "asset_review", asset_id, asset["project_id"])
+        return {**require_asset(asset_id), "previous_status": asset["review_status"]}
     transitions = {
         "start": ({"draft", "rejected"}, "in_progress"),
         "submit": ({"draft", "in_progress", "rejected"}, "submitted"),
@@ -727,17 +757,15 @@ def update_asset_workflow(
         ensure_asset_write_access(asset, actor)
     if payload.action == "reject" and not payload.reason.strip():
         raise HTTPException(422, "驳回时必须填写原因")
-    if payload.action == "submit":
-        count = one(
-            "SELECT COUNT(*) AS count FROM annotations WHERE asset_id = ? AND deleted_at IS NULL",
-            (asset_id,),
-        )
-        if not count or not count["count"]:
-            raise HTTPException(409, "没有有效标注，不能提交审核")
     now = now_iso()
     with db() as conn:
         conn.execute("BEGIN IMMEDIATE")
-        guard_asset(conn, asset_id, actor, editable=False)
+        current = guard_asset(conn, asset_id, actor, editable=False, action=(
+            "review" if payload.action in {"approve", "reject"} else "reopen" if payload.action == "reopen" else "edit"))
+        if payload.action in {"submit", "approve"}:
+            count = conn.execute("SELECT COUNT(*) FROM annotations WHERE asset_id=? AND deleted_at IS NULL", (asset_id,)).fetchone()[0]
+            if not count and not current["negative_confirmed"]:
+                raise HTTPException(409, "请先完成标注，或明确确认图片无目标")
         cursor = conn.execute(
             """UPDATE assets SET review_status = ?, review_reason = ?, revision = revision + 1,
                updated_at = ? WHERE id = ? AND revision = ?""",
@@ -746,13 +774,14 @@ def update_asset_workflow(
         if cursor.rowcount != 1:
             raise HTTPException(409, "图片已被其他用户修改，请刷新后重试")
         if payload.action == "submit":
-            conn.execute("UPDATE assets SET lock_owner=NULL, lock_expires_at=NULL WHERE id=?", (asset_id,))
+            conn.execute("UPDATE assets SET lock_owner=NULL, lock_expires_at=NULL, lock_token=NULL WHERE id=?", (asset_id,))
         conn.execute(
             """INSERT INTO review_events
                (asset_id, from_status, to_status, actor, reason, created_at)
                VALUES (?, ?, ?, ?, ?, ?)""",
             (asset_id, asset["review_status"], target, actor.id, payload.reason, now),
         )
+        refresh_block(conn, asset_id, actor)
     audit(
         actor.id, payload.action, "asset_review", asset_id, asset["project_id"],
         {"from": asset["review_status"], "to": target, "reason": payload.reason},
@@ -826,13 +855,14 @@ def create_annotation(
             ),
         )
         revision_cursor = conn.execute(
-            """UPDATE assets SET status = 'labeled', review_status = 'draft',
+            """UPDATE assets SET status = 'labeled', review_status = 'draft', negative_confirmed = 0,
                revision = revision + 1, updated_at = ? WHERE id = ? AND revision = ?""",
             (now, asset_id, asset["revision"]),
         )
         if revision_cursor.rowcount != 1:
             raise HTTPException(409, "图片标注已被其他用户修改，请刷新后重试")
         annotation_id = cursor.lastrowid
+        refresh_block(conn, asset_id, actor)
     row = one(
         """SELECT n.*, l.name AS label_name, l.color AS label_color
            FROM annotations n JOIN labels l ON l.id = n.label_id
@@ -851,7 +881,7 @@ def update_annotation(
 ) -> dict:
     item = one(
         """SELECT n.*, a.project_id, a.width, a.height, a.review_status,
-                  a.lock_owner, a.lock_expires_at, a.revision AS asset_revision
+                  a.lock_owner, a.lock_expires_at, a.lock_token, a.revision AS asset_revision
            FROM annotations n JOIN assets a ON a.id = n.asset_id
            WHERE n.id = ? AND n.deleted_at IS NULL""",
         (annotation_id,),
@@ -893,10 +923,11 @@ def update_annotation(
         if cursor.rowcount != 1:
             raise HTTPException(409, "对象已被其他用户修改，请刷新后重试")
         conn.execute(
-            """UPDATE assets SET review_status = 'draft', revision = revision + 1,
+            """UPDATE assets SET review_status = 'draft', negative_confirmed = 0, revision = revision + 1,
                updated_at = ? WHERE id = ?""",
             (now, item["asset_id"]),
         )
+        refresh_block(conn, item["asset_id"], actor)
     audit(actor.id, "update", "annotation", annotation_id, item["project_id"])
     row = one(
         """SELECT n.*, l.name AS label_name, l.color AS label_color
@@ -915,7 +946,7 @@ def delete_annotation(
     actor: Actor = Depends(get_actor),
 ) -> dict:
     item = one(
-        """SELECT n.*, a.project_id, a.review_status, a.lock_owner, a.lock_expires_at, a.revision AS asset_revision
+        """SELECT n.*, a.project_id, a.review_status, a.lock_owner, a.lock_expires_at, a.lock_token, a.revision AS asset_revision
            FROM annotations n JOIN assets a ON a.id = n.asset_id
            WHERE n.id = ? AND n.deleted_at IS NULL""",
         (annotation_id,),
@@ -943,10 +974,11 @@ def delete_annotation(
             (item["asset_id"],),
         ).fetchone()[0]
         conn.execute(
-            """UPDATE assets SET status = ?, review_status = 'draft', revision = revision + 1,
+            """UPDATE assets SET status = ?, review_status = 'draft', negative_confirmed = 0, revision = revision + 1,
                updated_at = ? WHERE id = ?""",
             ("labeled" if remaining else "unlabeled", now, item["asset_id"]),
         )
+        refresh_block(conn, item["asset_id"], actor)
     audit(actor.id, "delete", "annotation", annotation_id, item["project_id"])
     return {"deleted": True, "asset_revision": require_asset(item["asset_id"])["revision"]}
 
@@ -1082,9 +1114,13 @@ def create_job(project_id: int, payload: JobCreate, actor: Actor = Depends(get_a
                 raise HTTPException(409, "请先重新打开已提交或审核通过的图片")
             eligible_assets = [row for row in eligible_assets if row["review_status"] not in {"submitted", "approved"}]
         frozen_ids = [row["id"] for row in eligible_assets]
-        guard_job_targets(conn, project_id, frozen_ids)
+        if selected is None:
+            frozen_ids = eligible_ai_asset_ids(conn, project_id, frozen_ids)
+        assist_owner = owner_key(actor) if payload.mode == "assist" and len(frozen_ids) == 1 else None
+        guard_job_targets(conn, project_id, frozen_ids, assist_owner_key=assist_owner)
         job_total = len(frozen_ids)
         settings_json = json.dumps({**json.loads(settings_json), "asset_ids": frozen_ids,
+                                    "assist_owner_key": assist_owner,
                                     "task_type": project["task_type"], "keypoint_schema": project["keypoint_schema"]}, ensure_ascii=False)
         auto_added_labels: list[str] = []
         if concept_provider:
@@ -1198,6 +1234,9 @@ def retry_job(job_id: int, actor: Actor = Depends(get_actor)) -> dict:
         if row["status"] not in {"failed", "cancelled"}:
             raise HTTPException(409, "任务已被重试或仍在运行")
         config = json.loads(row["settings_json"])
+        assist_owner = config.get("assist_owner_key")
+        if assist_owner is not None and assist_owner != owner_key(actor):
+            raise HTTPException(403, "只有发起单图辅助的成员可以重试此任务")
         if config.get("include_reviewed"):
             require_reviewer(actor)
         requested = config.get("asset_ids")
@@ -1206,7 +1245,7 @@ def retry_job(job_id: int, actor: Actor = Depends(get_actor)) -> dict:
         if not config.get("include_reviewed"):
             targets = [asset for asset in targets if asset["review_status"] not in {"submitted", "approved"}]
         target_ids = [asset["id"] for asset in targets]
-        guard_job_targets(conn, row["project_id"], target_ids, exclude=job_id)
+        guard_job_targets(conn, row["project_id"], target_ids, exclude=job_id, assist_owner_key=assist_owner)
         config["asset_ids"] = target_ids
         conn.execute("DELETE FROM job_asset_results WHERE job_id=?", (job_id,))
         conn.execute(

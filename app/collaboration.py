@@ -24,14 +24,22 @@ def active_job_for_assets(conn: sqlite3.Connection, project_id: int, asset_ids: 
     return None
 
 
-def guard_asset(conn: sqlite3.Connection, asset_id: int, actor: Actor, *, editable: bool = True) -> dict:
+def foreign_edit_lock(asset: dict, actor: Actor) -> bool:
+    return bool(asset.get("lock_owner") and asset.get("lock_expires_at")
+                and asset["lock_expires_at"] > now_iso()
+                and (asset["lock_owner"] != actor.id or asset.get("lock_token") != actor.edit_token))
+
+
+def guard_asset(conn: sqlite3.Connection, asset_id: int, actor: Actor, *, editable: bool = True,
+                action: str = "edit") -> dict:
     row = conn.execute("SELECT * FROM assets WHERE id = ?", (asset_id,)).fetchone()
     if row is None:
         raise HTTPException(404, "图片不存在")
     asset = dict(row)
-    if (asset["lock_owner"] and asset["lock_owner"] != actor.id
-            and asset["lock_expires_at"] and asset["lock_expires_at"] > now_iso()):
-        raise HTTPException(423, "图片正在由其他协作者编辑，请稍后重试")
+    if foreign_edit_lock(asset, actor):
+        raise HTTPException(423, "图片正在由其他协作者或浏览器页面编辑，请稍后重试")
+    from .work_blocks import guard_block_asset
+    guard_block_asset(conn, asset, actor, action=action)
     job = active_job_for_assets(conn, asset["project_id"], [asset_id])
     if job:
         raise HTTPException(409, f"图片正在由 AI 任务 #{job} 处理，请等待完成后校正")
@@ -40,9 +48,12 @@ def guard_asset(conn: sqlite3.Connection, asset_id: int, actor: Actor, *, editab
     return asset
 
 
-def guard_job_targets(conn: sqlite3.Connection, project_id: int, asset_ids: list[int], *, exclude: int | None = None) -> None:
+def guard_job_targets(conn: sqlite3.Connection, project_id: int, asset_ids: list[int], *, exclude: int | None = None,
+                      assist_owner_key: str | None = None) -> None:
     if not asset_ids:
         raise HTTPException(409, "没有可处理的图片")
+    from .work_blocks import guard_block_ai
+    guard_block_ai(conn, project_id, asset_ids, assist_owner_key=assist_owner_key)
     conflict = active_job_for_assets(conn, project_id, asset_ids, exclude)
     if conflict:
         raise HTTPException(409, f"所选图片与 AI 任务 #{conflict} 重叠，请选择其他图片或等待任务结束")

@@ -1,4 +1,4 @@
-import { state, icon, api, jsonOptions, escapeHtml, canEditCurrentAsset, notify, renderWorkspace, refreshInspector, refreshShapes, refreshWorkflowState, refreshCanvasStatus, saveAnnotation, defaultAttributes, drawDraft, setSaveFeedback } from "./app.js?v=0.20.0";
+import { state, icon, api, jsonOptions, escapeHtml, canEditCurrentAsset, notify, renderWorkspace, refreshInspector, refreshShapes, refreshWorkflowState, refreshCanvasStatus, saveAnnotation, defaultAttributes, drawDraft, setSaveFeedback } from "./app.js?v=0.21.0";
 /* Task-specific annotation controls; the shared workspace owns state and persistence. */
 const TASK_LABELS = { mixed: "检测 / 分割", detect: "目标检测", segment: "实例分割", classify: "图片分类", pose: "关键点" };
 const TASK_GUIDANCE = {
@@ -183,9 +183,9 @@ function applyTaskUpdate(updated, kind) {
   const index = state.annotations.findIndex(item => item.id === updated.id);
   if (index >= 0) state.annotations[index] = updated;
   if (kind === "classification" || state.selectedAnnotation?.id === updated.id) state.selectedAnnotation = updated;
-  state.asset.revision = updated.asset_revision; state.asset.review_status = "draft";
+  state.asset.revision = updated.asset_revision; state.asset.review_status = "draft"; state.asset.negative_confirmed = false;
   const asset = state.assets.find(item => item.id === state.asset.id);
-  if (asset) { asset.revision = updated.asset_revision; asset.review_status = "draft"; }
+  if (asset) { asset.revision = updated.asset_revision; asset.review_status = "draft"; asset.negative_confirmed = false; }
 }
 async function persistTaskEdit(pending) {
   if (!taskContextCurrent(pending) || !canEditCurrentAsset() || state.workflowBusy || state.pendingObjectEdit || state.advancedAnnotationDirty) return null;

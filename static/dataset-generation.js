@@ -1,4 +1,4 @@
-import { datasetSplitControlsMarkup, bindDatasetSplitControls, estimatedSplitCounts } from "./dataset-ui.js?v=0.20.0";
+import { datasetSplitControlsMarkup, bindDatasetSplitControls, estimatedSplitCounts } from "./dataset-ui.js?v=0.21.0";
 
 const METHODS = [
   { type: "horizontal_flip", name: "水平翻转", group: "方向变化", description: "把图片左右镜像，模拟目标朝向不同的情况。", usage: "适合左右朝向都可能出现的物体。", risk: "文字、左右手或有方向含义的类别可能改变语义；关键点需配置左右对应关系。" },

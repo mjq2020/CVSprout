@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 
 from .config import settings
 from .database import all_rows, audit, db, now_iso, one
+from .work_blocks import guard_block_ai, refresh_block
 from .providers import get_provider
 from .annotation_inference import (filter_predictions, inference_hints, prepare_inference,
                                    valid_prediction as _valid_prediction)
@@ -160,6 +161,8 @@ async def run_annotation_job(job_id: int, worker_id: str = "embedded") -> None:
                 ).fetchone()
                 if not ownership:
                     return
+                guard_block_ai(conn, job["project_id"], [asset["id"]],
+                               assist_owner_key=config.get("assist_owner_key") if job["mode"] == "assist" else None)
                 current = dict(conn.execute("SELECT * FROM assets WHERE id=?", (asset["id"],)).fetchone())
                 if current["revision"] != asset["revision"] or (current["lock_owner"] and current["lock_expires_at"] > now_iso()):
                     raise RuntimeError("图片在推理期间被修改或锁定，已拒绝覆盖，请重试")
@@ -208,10 +211,11 @@ async def run_annotation_job(job_id: int, worker_id: str = "embedded") -> None:
                     (job_id, asset["id"], len(accepted)),
                 )
                 conn.execute(
-                    """UPDATE assets SET status = ?, review_status = 'draft',
+                    """UPDATE assets SET status = ?, review_status = 'draft', negative_confirmed = 0,
                        revision = revision + 1, updated_at = ? WHERE id = ?""",
                     ("labeled" if active_count else "unlabeled", now_iso(), asset["id"]),
                 )
+                refresh_block(conn, asset["id"])
                 conn.execute(
                     """UPDATE jobs SET processed = ?, created_count = ?, progress_message = ?
                        WHERE id = ?""",

@@ -1,19 +1,20 @@
-import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.20.0";
-import { renderUsersPage } from "./accounts-ui.js?v=0.20.0";
-import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.20.0";
-import { mountAuthScreen } from "./auth-ui.js?v=0.20.0";
-import { renderAccountPage } from "./security-ui.js?v=0.20.0";
-import { bindAssetManagement } from "./asset-management-ui.js?v=0.20.0";
-import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview } from "./review-ui.js?v=0.20.0";
-import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.20.0";
-import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.20.0";
-import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.20.0";
-import { mountOverviewTraining } from "./overview-training.js?v=0.20.0";
-import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.20.0";
-import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.20.0";
-import { mountCanvasGuides } from "./canvas-guides.js?v=0.20.0";
-import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.20.0";
-import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.20.0";
+import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.21.0";
+import { renderUsersPage } from "./accounts-ui.js?v=0.21.0";
+import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.21.0";
+import { mountAuthScreen } from "./auth-ui.js?v=0.21.0";
+import { renderAccountPage } from "./security-ui.js?v=0.21.0";
+import { bindAssetManagement } from "./asset-management-ui.js?v=0.21.0";
+import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.21.0";
+import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.21.0";
+import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.21.0";
+import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.21.0";
+import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.21.0";
+import { mountOverviewTraining } from "./overview-training.js?v=0.21.0";
+import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.21.0";
+import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.21.0";
+import { mountCanvasGuides } from "./canvas-guides.js?v=0.21.0";
+import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.21.0";
+import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.21.0";
 
 const app = document.querySelector("#app");
 const modalRoot = document.querySelector("#modal-root");
@@ -42,6 +43,12 @@ const state = {
   annotationPanelRestore: null,
   inspectorCollapsed: window.innerWidth < 760,
   assets: [],
+  workBlocks: { enabled: false, blocks: [], unassigned_count: 0 },
+  workBlockFilter: "mine",
+  workBlocksRequest: 0,
+  activeWorkBlockId: null,
+  activeWorkBlock: null,
+  legacyReviewAssetId: null,
   annotations: [],
   models: [],
   jobs: [],
@@ -132,6 +139,8 @@ function createBrowserActorId() {
 
 const actorId = sessionStorage.getItem("visionforge-actor-id") || createBrowserActorId();
 sessionStorage.setItem("visionforge-actor-id", actorId);
+// Created for this page, never persisted: duplicated tabs must not share a lease.
+const editorToken = globalThis.crypto?.randomUUID?.() || createBrowserActorId();
 
 // Keep each multipart request small enough to recover and retry independently.
 // A few bounded parallel requests also let the server validate images off the
@@ -192,6 +201,10 @@ function escapeHtml(value = "") {
 }
 
 async function api(path, options = {}) {
+  const legacyAssetList = (options.method || "GET").toUpperCase() === "GET" && state.currentSection === "annotate"
+    && state.legacyReviewAssetId && /^\/api\/projects\/\d+\/assets(?:\?|$)/.test(path);
+  if (legacyAssetList) path = `/api/assets/${state.legacyReviewAssetId}`;
+  path = scopeWorkBlockRequest(path, state, options.method || "GET");
   const requestSession = state.session;
   const assertSessionCurrent = () => {
     if (state.session === requestSession) return;
@@ -200,6 +213,7 @@ async function api(path, options = {}) {
   };
   const headers = new Headers(options.headers || {});
   headers.set("X-Actor-ID", actorId);
+  headers.set("X-Edit-Token", editorToken);
   headers.set("X-MDP-Client", "browser");
   let response;
   try { response = await fetch(path, { ...options, headers, credentials: "same-origin" }); }
@@ -233,7 +247,7 @@ async function api(path, options = {}) {
     }
     const technicalMessage = message;
     if (Array.isArray(responseBody?.detail)) message = "填写的信息不符合要求，请检查必填项、数值范围和格式。";
-    else if (response.status === 423) message = "这张图片正由其他成员编辑，请先处理下一张，稍后再回来。";
+    else if (response.status === 423) message = "这张图片正由其他成员或页面编辑，请先处理下一张，稍后再回来。";
     else if (!/[\u4e00-\u9fff]/.test(message)) message = ({403:"当前账号没有这项操作的权限，请联系管理员。",404:"未找到这项数据，可能已被移除。请返回列表刷新。",413:"上传的文件太大，请减少文件数量或拆分后重试。",429:"操作过于频繁，请稍后重试。"})[response.status] || "操作未完成。请检查填写的信息；如果仍然失败，可展开技术详情并联系管理员。";
     const error = new Error(message);
     error.status = response.status;
@@ -244,7 +258,7 @@ async function api(path, options = {}) {
   if (response.status === 204) return null;
   const data = await response.json();
   assertSessionCurrent();
-  return data;
+  return legacyAssetList ? [data] : data;
 }
 
 function jsonOptions(method, body) {
@@ -283,7 +297,7 @@ function topbar(active = "projects") {
 async function route() {
   if (state.currentSection === "annotate" && state.asset && state.authReady && !state.session?.must_change_password
       && (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft())) {
-    history.replaceState(null, "", `#/projects/${state.project.id}/annotate?asset=${state.asset.id}`);
+    history.replaceState(null, "", annotationBlockURL(state.project.id, state.activeWorkBlockId, state.asset.id));
     closeWorkspaceNavigation();
     notify(state.savingAnnotation || state.workflowBusy ? "正在保存，请完成后再切换页面。" : "还有未保存的标注，请先完成或按 Esc 取消草稿，再切换页面。", "warning");
     return;
@@ -308,7 +322,7 @@ async function route() {
     return renderAccountPage();
   }
   if (location.hash === "#/account") return renderAccountPage();
-  const match = location.hash.match(/^#\/projects\/(\d+)(?:\/(overview|data|annotate|ai|versions|train))?/);
+  const match = location.hash.match(/^#\/projects\/(\d+)(?:\/(overview|data|blocks|annotate|ai|versions|train))?/);
   if (match) {
     const section = match[2] || "overview";
     const params = new URLSearchParams(location.hash.split("?")[1] || "");
@@ -617,6 +631,7 @@ function resetProjectInteraction(projectId, section) {
   state.workflowBusy = false; state.reviewBatchToken = null;
   const changedProject = state.project?.id !== projectId;
   state.currentSection = section;
+  state.activeWorkBlockId = null; state.activeWorkBlock = null; state.legacyReviewAssetId = null;
   if (section !== "annotate") state.asset = null;
   state.annotations = [];
   state.selectedAnnotation = null;
@@ -630,6 +645,8 @@ function resetProjectInteraction(projectId, section) {
   state.lockOwned = false;
   state.readOnly = false;
   if (changedProject) {
+    state.workBlocks = { enabled: false, blocks: [], unassigned_count: 0 };
+    state.workBlockFilter = "mine";
     state.asset = null;
     state.activeLabel = null;
     state.assetFilter = "all";
@@ -698,7 +715,7 @@ async function loadProjectSection(projectId, section, routeEpoch = state.selecti
   }
   app.innerHTML = `<div class="app-shell">${topbar()}<main class="dashboard"><div class="dashboard-inner"><div class="skeleton" style="height:70vh"></div></div></main></div>`;
   try {
-    const [project, assets, jobs, models, analytics, versions, training] = await Promise.all([
+    const [project, assets, jobs, models, analytics, versions, training, workBlocks] = await Promise.all([
       api(`/api/projects/${projectId}`),
       api(`/api/projects/${projectId}/assets`),
       api(`/api/projects/${projectId}/jobs`),
@@ -706,10 +723,12 @@ async function loadProjectSection(projectId, section, routeEpoch = state.selecti
       safeApi(`/api/projects/${projectId}/analytics`, null),
       safeApi(`/api/projects/${projectId}/versions`, []),
       section === "train" ? pipelineApi(trainingListURL(projectId, state.trainingPage.page, state.trainingFilters) + '&include_availability=false').catch(() => ({runs:[],total:0,counts:{},_loadError:'训练记录暂时无法加载，正在自动重试。'})) : Promise.resolve({ availability: {}, runs: [] }),
+      api(`/api/projects/${projectId}/work-blocks`),
     ]);
     if (routeEpoch !== state.selectionEpoch) return;
     state.project = project;
     state.assets = assets;
+    state.workBlocks = workBlocks;
     state.jobs = jobs;
     state.models = models;
     state.analytics = analytics || fallbackAnalytics(project, assets);
@@ -731,6 +750,11 @@ async function loadProjectSection(projectId, section, routeEpoch = state.selecti
       openUploadModal();
     }
     if (section === "ai" || section === "overview") startJobPolling();
+    if (section === "blocks") {
+      state.pollTimer = setInterval(() => {
+        if (state.currentSection === "blocks" && state.project?.id === projectId && !document.hidden && !modalRoot.children.length) void refreshWorkBlocks().catch(() => {});
+      }, 10000);
+    }
     if (section === "train") { startPipelinePolling(); void refreshTrainingEnvironment(); }
   } catch (error) {
     if (routeEpoch !== state.selectionEpoch) return;
@@ -740,11 +764,32 @@ async function loadProjectSection(projectId, section, routeEpoch = state.selecti
 
 function renderProjectSection(section = state.currentSection) {
   state.currentSection = section;
+  if (section === "blocks") return renderWorkBlocksPage();
   if (section === "data") return renderDataPage();
   if (section === "ai") return renderAiPage();
   if (section === "versions") return renderVersionsPage();
   if (section === "train") return renderTrainingPage();
   return renderProjectOverview();
+}
+
+async function refreshWorkBlocks() {
+  const projectId = state.project.id, epoch = state.selectionEpoch;
+  const request = ++state.workBlocksRequest;
+  const blocks = await api(`/api/projects/${projectId}/work-blocks`);
+  if (request !== state.workBlocksRequest || state.project?.id !== projectId || state.selectionEpoch !== epoch || state.currentSection !== "blocks") return;
+  state.workBlocks = blocks;
+  renderWorkBlocksPage();
+}
+
+function renderWorkBlocksPage() {
+  const scroll = document.querySelector(".project-page")?.scrollTop || 0;
+  app.innerHTML = projectPageShell("blocks", workBlocksMarkup({ state, isAdmin, escapeHtml, icon }));
+  document.querySelector(".project-page").scrollTop = scroll;
+  bindCommonProjectEvents();
+  bindWorkBlocks({ state, api, jsonOptions, openModal, closeModal, notify, escapeHtml,
+    refresh: refreshWorkBlocks, render: renderWorkBlocksPage,
+    submitBlock: block => openWorkBlockSubmit(block, refreshWorkBlocks),
+  });
 }
 
 function completionPercent() {
@@ -828,6 +873,7 @@ function renderDataPage() {
   const visible = filtered.slice(0, state.assetRenderLimit);
   app.innerHTML = projectPageShell("data", `
     <div class="page-head compact-head"><div><div class="eyebrow">图片与标注</div><h1>数据管理</h1><p class="page-subtitle">导入图片并运行 AI 标注；检查结果后可批量提交审核，审核员可批量通过或退回。</p></div><div class="page-head-actions"><button class="btn ghost" id="data-export" ${state.assets.length ? "" : "disabled"}>${icon("download")}下载当前数据</button><button class="btn primary" id="data-upload">${icon("upload")}导入数据</button></div></div>
+    <div class="work-block-entry"><span>${state.workBlocks.enabled ? `已启用任务块，领取后仅修改自己负责的图片。${state.workBlocks.unassigned_count ? `还有 ${state.workBlocks.unassigned_count} 张未分块。` : ""}` : "多人协作时，可以将图片分成任务块，由成员独立领取。"}</span><a class="btn ghost link-btn" href="#/projects/${state.project.id}/blocks">${state.workBlocks.enabled ? "我的任务 / 领取" : "管理任务块"}</a></div>
     ${reviewQueueMarkup(state, canReview())}
     <section class="data-toolbar surface"><div class="search data-search">${icon("search")}<input id="data-search" aria-label="按文件名搜索图片" placeholder="按文件名搜索" value="${escapeHtml(state.dataSearch)}" /></div><select id="data-status" aria-label="状态筛选"><option value="all">全部状态</option><option value="unlabeled" ${state.dataStatus === "unlabeled" ? "selected" : ""}>未标注</option><option value="labeled" ${state.dataStatus === "labeled" ? "selected" : ""}>已标注</option><option value="draft" ${state.dataStatus === "draft" ? "selected" : ""}>草稿</option><option value="in_progress" ${state.dataStatus === "in_progress" ? "selected" : ""}>标注中</option><option value="submitted" ${state.dataStatus === "submitted" ? "selected" : ""}>待审核</option><option value="approved" ${state.dataStatus === "approved" ? "selected" : ""}>已通过</option><option value="rejected" ${state.dataStatus === "rejected" ? "selected" : ""}>已退回</option></select><span class="data-result-count">${filtered.length.toLocaleString()} / ${state.assets.length.toLocaleString()} 张</span><div class="toolbar-spacer"></div><button class="btn ghost" id="select-visible">选择全部 ${filtered.length} 张结果</button><button class="btn ghost" id="clear-selection" ${state.selectedAssetIds.size ? "" : "disabled"}>清除选择</button><button class="btn primary" id="annotate-selection" ${state.selectedAssetIds.size ? "" : "disabled"}>${icon("magic")}AI 标注 ${state.selectedAssetIds.size || ""}</button>${isAdmin() ? `<button class="btn ghost danger" id="delete-selected-assets" ${!state.selectedAssetIds.size || state.selectedAssetIds.size > 500 ? "disabled" : ""} title="每次最多删除 500 张图片">${icon("trash")}删除所选</button>` : ""}</section>
     <div id="selection-slot">${dataSelectionMarkup()}</div>
@@ -1012,9 +1058,9 @@ async function downloadArtifact(url, fallbackName = "download") {
   } finally { progressNotice.remove(); }
 }
 
-import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.20.0";
-import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.20.0";
-import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.20.0";
+import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.21.0";
+import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.21.0";
+import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.21.0";
 
 const trainingChartViews = new Map();
 const trainingDetailViews = new Map();
@@ -1910,7 +1956,7 @@ function startPipelinePolling() {
 
 function bindCommonProjectEvents() {
   revealActiveProjectTab();
-  bindReviewPage({ state, api, jsonOptions, openModal, closeModal, notify, escapeHtml, renderDataPage, canReview, renderAiPage, renderWorkspace, loadAnnotations, refreshWorkflowState, refreshInspector });
+  bindReviewPage({ state, api, jsonOptions, openModal, closeModal, notify, escapeHtml, renderDataPage, renderWorkBlocksPage, canReview, renderAiPage, renderWorkspace, loadAnnotations, refreshWorkflowState, refreshInspector });
   bindAssetManagement({ state, api, jsonOptions, openModal, closeModal, notify, escapeHtml, renderDataPage, isAdmin });
 }
 
@@ -1927,6 +1973,27 @@ async function loadWorkspace(projectId, requestedAssetId = null, routeEpoch = st
   app.innerHTML = `<div class="app-shell">${topbar()}<main class="dashboard"><div class="dashboard-inner"><div class="skeleton" style="height:70vh"></div></div></main></div>`;
   resetProjectInteraction(projectId, "annotate");
   try {
+    const workBlocks = await api(`/api/projects/${projectId}/work-blocks`);
+    if (routeEpoch !== state.selectionEpoch) return;
+    state.workBlocks = workBlocks;
+    const params = new URLSearchParams(location.hash.split("?")[1] || "");
+    let blockId = Number(params.get("block")) || null;
+    if (workBlocks.enabled && !blockId && requestedAssetId) {
+      const requested = await api(`/api/assets/${requestedAssetId}`);
+      if (routeEpoch !== state.selectionEpoch) return;
+      blockId = requested.work_block_id;
+      if (!blockId && requested.project_id === projectId && ["submitted", "approved"].includes(requested.review_status)) state.legacyReviewAssetId = requestedAssetId;
+    }
+    if (workBlocks.enabled && !blockId && !state.legacyReviewAssetId) {
+      location.replace(`#/projects/${projectId}/blocks`);
+      return;
+    }
+    if (blockId) {
+      const block = await api(`/api/projects/${projectId}/work-blocks/${blockId}`);
+      if (routeEpoch !== state.selectionEpoch) return;
+      state.activeWorkBlockId = block.id; state.activeWorkBlock = block;
+      history.replaceState(null, "", annotationBlockURL(projectId, block.id, requestedAssetId));
+    }
     const [project, assets, models, jobs, auditLogs] = await Promise.all([
       api(`/api/projects/${projectId}`), api(`/api/projects/${projectId}/assets`), api("/api/models"), api(`/api/projects/${projectId}/jobs`), api(`/api/projects/${projectId}/audit-logs?limit=100`),
     ]);
@@ -1934,7 +2001,9 @@ async function loadWorkspace(projectId, requestedAssetId = null, routeEpoch = st
     state.project = project; state.assets = assets; state.models = models; state.jobs = jobs; state.auditLogs = auditLogs;
     state.activeLabel = project.labels[0] || null; state.tool = "select"; state.poseDraft = null; state.keypointPlacement = null; state.inspectorTab = "objects";
     state.asset = assets.find(asset => asset.id === requestedAssetId) || assets[0] || null;
-    if (state.asset) await acquireAssetLock(state.asset.id, routeEpoch);
+    state.selectedAssetIds = new Set(); state.assetFilter = "all";
+    if (state.legacyReviewAssetId) { state.readOnly = true; state.readOnlyReason = "历史图片仍可审核。若需修改，请重新打开后由管理员将图片加入任务块。"; }
+    else if (state.asset) await acquireAssetLock(state.asset.id, routeEpoch);
     if (routeEpoch !== state.selectionEpoch) return;
     renderWorkspace();
     if (state.asset) await loadAnnotations(state.asset.id, routeEpoch);
@@ -1943,7 +2012,7 @@ async function loadWorkspace(projectId, requestedAssetId = null, routeEpoch = st
       openUploadModal();
     }
     startJobPolling(); startCollaborationPolling();
-  } catch (error) { renderLoadError(error); }
+  } catch (error) { if (routeEpoch === state.selectionEpoch) renderLoadError(error); }
 }
 
 function renderWorkspace() {
@@ -1965,6 +2034,8 @@ function renderWorkspace() {
   app.innerHTML = `<div class="app-shell annotation-shell ${state.annotationFocus ? "is-focus" : ""}">${topbar()}${projectSubnav("annotate")}
     <main class="workspace annotation-workspace ${state.queueCollapsed ? "queue-collapsed" : ""} ${state.inspectorCollapsed ? "inspector-collapsed" : ""}">
         <div class="workspace-toolbar manual-workspace-toolbar">
+          ${state.activeWorkBlock ? `<div class="annotation-block-scope"><a href="#/projects/${project.id}/blocks">任务块</a><strong>${escapeHtml(state.activeWorkBlock.name)}</strong><span>仅显示本块 ${state.assets.length} 张图片 · ${escapeHtml(state.activeWorkBlock.owner_name || "尚未领取")}</span><span>${BLOCK_STATUS[state.activeWorkBlock.status] || ""}</span>${!state.activeWorkBlock.is_mine ? `<span>查看模式${canReview() ? "，可审核已提交图片" : "，领取或转交后才能修改"}</span>` : ""}<a href="#/projects/${project.id}/blocks">交回 / 查看进度</a></div>` : ""}
+          ${state.legacyReviewAssetId ? `<div class="annotation-block-scope"><strong>历史图片审核</strong><span>仅显示当前图片；需要重新标注时，请先将图片加入任务块。</span><a href="#/projects/${project.id}/blocks">管理任务块</a></div>` : ""}
           <div class="annotation-session-row">
             <button class="btn ghost panel-toggle" id="toggle-queue" aria-controls="asset-queue" aria-expanded="${!state.queueCollapsed}" aria-label="图片队列" title="展开或收起图片队列">${icon("folder")}<span>图片队列</span></button>
             <div class="asset-stepper"><button class="tool" id="previous-asset" title="上一张 (A / ←)" aria-label="上一张" ${!filteredAssets.length ? "disabled" : ""}>${icon("arrowLeft")}</button><span title="${escapeHtml(state.asset?.filename || "未选择图片")}">${state.asset ? `${currentIndex < 0 ? "—" : currentIndex + 1} / ${filteredAssets.length}` : "0 / 0"}</span><button class="tool" id="next-asset" title="下一张 (D / →)" aria-label="下一张" ${!filteredAssets.length ? "disabled" : ""}>${icon("arrowRight")}</button></div>
@@ -1980,7 +2051,7 @@ function renderWorkspace() {
         </div>
 
       <aside class="workspace-panel asset-panel" id="asset-queue">
-        <div class="panel-header"><span class="panel-title">图片队列</span><span class="counter">${project.labeled_count || 0} / ${project.asset_count || 0}</span></div>
+        <div class="panel-header"><span class="panel-title">${state.activeWorkBlockId ? "本块图片" : "图片队列"}</span><span class="counter">${state.activeWorkBlockId ? state.assets.filter(asset => asset.status === "labeled").length : project.labeled_count || 0} / ${state.activeWorkBlockId ? state.assets.length : project.asset_count || 0}</span></div>
         <div class="asset-filter"><select id="annotation-filter" aria-label="图片队列筛选"><option value="all">全部图片</option><option value="unlabeled" ${state.assetFilter === "unlabeled" ? "selected" : ""}>未标注</option><option value="labeled" ${state.assetFilter === "labeled" ? "selected" : ""}>已标注</option><option value="submitted" ${state.assetFilter === "submitted" ? "selected" : ""}>待审核</option><option value="approved" ${state.assetFilter === "approved" ? "selected" : ""}>已通过</option><option value="rejected" ${state.assetFilter === "rejected" ? "selected" : ""}>已驳回</option></select></div>
         <div class="asset-list">${filteredAssets.length ? `${visibleAssets.map(assetItem).join("")}${remainingAssets ? `<button class="load-more-assets" id="load-more-assets">再显示 ${Math.min(200, remainingAssets)} 张 <small>剩余 ${remainingAssets.toLocaleString()} 张</small></button>` : ""}` : `<div class="empty-state" style="padding:45px 10px;border:0"><p>当前筛选没有图片</p></div>`}</div>
         <div class="asset-footer"><button class="btn ghost" id="upload-assets">${icon("upload")}上传数据集</button></div>
@@ -2017,7 +2088,7 @@ function renderWorkspace() {
 }
 
 function assetItem(asset) {
-  return `<div class="asset-item ${state.asset?.id === asset.id ? "active" : ""}" data-asset-id="${asset.id}"><div class="thumb"><img loading="lazy" decoding="async" src="/api/assets/${asset.id}/thumbnail?size=160" onerror="this.onerror=null;this.src='/api/assets/${asset.id}/image'" />${asset.status === "labeled" ? `<span class="done">${icon("check")}</span>` : ""}</div><div><div class="asset-name">${escapeHtml(asset.filename)}</div><div class="asset-info">${asset.annotation_count} 个对象 · ${asset.width}×${asset.height}</div><span class="review-mini ${asset.review_status}">${reviewStatusName(asset.review_status)}</span>${asset.lock_owner && asset.lock_expires_at > new Date().toISOString() ? `<span class="collaborator-badge">${asset.lock_owner === (state.session?.actor || actorId) ? "我正在校正" : `协作中 · ${escapeHtml(asset.lock_owner.split(":")[1] || asset.lock_owner)}`}</span>` : ""}</div></div>`;
+  return `<div class="asset-item ${state.asset?.id === asset.id ? "active" : ""}" data-asset-id="${asset.id}"><div class="thumb"><img loading="lazy" decoding="async" src="/api/assets/${asset.id}/thumbnail?size=160" onerror="this.onerror=null;this.src='/api/assets/${asset.id}/image'" />${asset.status === "labeled" ? `<span class="done">${icon("check")}</span>` : ""}</div><div><div class="asset-name">${escapeHtml(asset.filename)}</div><div class="asset-info">${asset.annotation_count} 个对象 · ${asset.width}×${asset.height}</div><span class="review-mini ${asset.review_status}">${reviewStatusName(asset.review_status)}</span>${asset.lock_owner && asset.lock_expires_at > new Date().toISOString() ? `<span class="collaborator-badge">${asset.lock_owner === (state.session?.actor || actorId) ? state.asset?.id === asset.id && state.lockOwned ? "我正在校正" : "我的其他页面正在校正" : `协作中 · ${escapeHtml(asset.lock_owner.split(":")[1] || asset.lock_owner)}`}</span>` : ""}</div></div>`;
 }
 
 function refreshAssetQueueItem(assetId) {
@@ -2028,7 +2099,7 @@ function refreshAssetQueueItem(assetId) {
     document.querySelector(`[data-asset-id="${assetId}"]`)?.addEventListener("click", () => selectAsset(assetId));
   }
   const counter = document.querySelector(".asset-panel .counter");
-  if (counter) counter.textContent = `${state.project.labeled_count || 0} / ${state.project.asset_count || 0}`;
+  if (counter) counter.textContent = state.activeWorkBlockId ? `${state.assets.filter(asset => asset.status === "labeled").length} / ${state.assets.length}` : `${state.project.labeled_count || 0} / ${state.project.asset_count || 0}`;
 }
 
 function reviewStatusName(status) {
@@ -2080,11 +2151,15 @@ function workflowControlsMarkup() {
   if (!state.asset) return "";
   const status = state.asset.review_status;
   const busy = state.workflowBusy || state.savingAnnotation;
+  const ownBlock = !state.activeWorkBlock || state.activeWorkBlock.is_mine;
+  if (status === "approved" && state.activeWorkBlock?.status === "completed") return `<span class="hint">本块已完成${isAdmin() ? "，如需修改请到任务块重新打开" : "，只读"}</span>`;
   if (["draft", "in_progress", "rejected"].includes(status)) {
-    const reason = state.saveFeedback.status === "error" ? "请先重试保存或重新加载结果" : hasAnnotationDraft() ? "请先完成当前草稿" : !state.annotations.length ? "请先完成标注" : !state.lockOwned ? "当前图片暂不可编辑" : "";
-    return `<button class="btn ghost workflow-action" data-action="submit" ${busy || reason ? "disabled" : ""}>${state.workflowBusy ? "正在提交…" : "提交审核"}</button>${reason ? `<span class="workflow-reason">${reason}</span>` : ""}`;
+    const emptyAllowed = projectTask() !== "classify";
+    const reason = state.saveFeedback.status === "error" ? "请先重试保存或重新加载结果" : hasAnnotationDraft() ? "请先完成当前草稿" : !ownBlock ? "仅任务负责人可提交" : !state.annotations.length && !(emptyAllowed && state.asset.negative_confirmed) ? emptyAllowed ? "请标注目标，或确认无目标" : "请先选择图片类别" : !state.lockOwned ? "当前图片暂不可编辑" : "";
+    const emptyControl = emptyAllowed && !state.annotations.length && !state.asset.negative_confirmed && ownBlock ? `<button class="btn ghost workflow-action" data-action="confirm_empty" ${busy || !canEditCurrentAsset() || hasAnnotationDraft() || state.saveFeedback.status === "error" ? "disabled" : ""}>确认无目标</button>` : !state.annotations.length && state.asset.negative_confirmed ? `<span class="hint">已确认无目标</span>` : "";
+    return `${emptyControl}<button class="btn ghost workflow-action" data-action="submit" ${busy || reason ? "disabled" : ""}>${state.workflowBusy ? "正在提交…" : "提交审核"}</button>${reason ? `<span class="workflow-reason">${reason}</span>` : ""}`;
   }
-  if (status === "submitted" && !canReview()) return `<button class="btn ghost workflow-action" data-action="reopen" ${busy ? "disabled" : ""}>撤回并修改</button>`;
+  if (status === "submitted" && !canReview()) return ownBlock ? `<button class="btn ghost workflow-action" data-action="reopen" ${busy ? "disabled" : ""}>撤回并修改</button>` : `<span class="hint">等待审核，只读</span>`;
   if (status === "submitted") return `<button class="btn primary workflow-action" data-action="approve" ${busy ? "disabled" : ""}>审核通过</button><button class="btn danger workflow-action" data-action="reject" ${busy ? "disabled" : ""}>退回修改</button><button class="btn ghost workflow-action" data-action="reopen" ${busy ? "disabled" : ""}>撤回审核</button>`;
   if (status === "approved" && !canReview()) return `<span class="hint">已通过审核，只读</span>`;
   if (status === "approved") return `<button class="btn ghost workflow-action" data-action="reopen" ${busy ? "disabled" : ""}>重新打开修改</button>`;
@@ -2155,6 +2230,7 @@ function shapesMarkup() {
 function canEditCurrentAsset() {
   return Boolean(
     state.asset && state.lockOwned && !state.readOnly && !state.savingAnnotation && !state.workflowBusy
+    && !state.legacyReviewAssetId && (!state.activeWorkBlock || state.activeWorkBlock.is_mine)
     && !["submitted", "approved"].includes(state.asset.review_status)
   );
 }
@@ -2728,7 +2804,7 @@ async function finishShapeEdit(event) {
     if (!current()) return;
     const index = state.annotations.findIndex(item => item.id === updated.id);
     state.annotations[index] = updated; state.selectedAnnotation = updated;
-    state.asset.revision = updated.asset_revision; state.asset.review_status = "draft";
+    state.asset.revision = updated.asset_revision; state.asset.review_status = "draft"; state.asset.negative_confirmed = false;
     setSaveFeedback("saved"); refreshWorkflowState();
   } catch (error) {
     if (!current()) return;
@@ -2825,7 +2901,7 @@ async function saveAnnotation(shapeType, points, keypoints = [], labelId = null)
     state.pendingAnnotation = null;
     state.annotations.push(annotation); state.selectedAnnotation = annotation; state.selectionIntent = false;
     const asset = state.assets.find(item => item.id === assetId);
-    asset.status = "labeled"; asset.annotation_count += 1; asset.revision = annotation.asset_revision; asset.review_status = "draft"; state.asset = asset;
+    asset.status = "labeled"; asset.annotation_count += 1; asset.revision = annotation.asset_revision; asset.review_status = "draft"; asset.negative_confirmed = false; state.asset = asset;
     state.project.labeled_count = state.assets.filter(item => item.status === "labeled").length;
     refreshAssetQueueItem(assetId); setSaveFeedback("saved");
     return annotation;
@@ -2869,6 +2945,7 @@ function preloadNearbyAssets(assetId) {
 
 async function selectAsset(assetId) {
   if (state.asset?.id === assetId) return;
+  if (!state.assets.some(asset => asset.id === assetId)) return;
   if (state.savingAnnotation || state.workflowBusy) return notify("正在保存或更新审核状态，请稍候。", "warning");
   if (hasAnnotationDraft()) return notify("当前还有未完成的标注，请先完成或按 Esc 取消，再切换图片。", "warning");
   const selectionEpoch = ++state.selectionEpoch;
@@ -2881,7 +2958,7 @@ async function selectAsset(assetId) {
   state.reviewEvents = []; state.saveFeedback = { status:"idle", message:"" };
   state.pendingAnnotation = null; state.pendingTaskEdit = null; state.pendingObjectEdit = null; state.selectionIntent = false; state.advancedAnnotationDirty = false; state.advancedDraft = null;
   if (!state.asset) return;
-  history.replaceState(null, "", `#/projects/${state.project.id}/annotate?asset=${assetId}`);
+  history.replaceState(null, "", annotationBlockURL(state.project.id, state.activeWorkBlockId, assetId));
   await acquireAssetLock(assetId, selectionEpoch);
   if (selectionEpoch !== state.selectionEpoch || state.asset?.id !== assetId) return;
   renderWorkspace(); await loadAnnotations(assetId, selectionEpoch);
@@ -2889,6 +2966,7 @@ async function selectAsset(assetId) {
 
 async function acquireAssetLock(assetId, selectionEpoch = state.selectionEpoch, quiet = false) {
   clearInterval(state.lockTimer); state.lockTimer = null; state.lockOwned = false; state.readOnly = false; state.readOnlyReason = "";
+  if (state.legacyReviewAssetId) { state.readOnly = true; state.readOnlyReason = "请由管理员将这张历史图片加入任务块后再修改。"; return false; }
   try {
     const lock = await api(`/api/assets/${assetId}/lock`, { method: "POST" });
     if (selectionEpoch !== state.selectionEpoch || state.asset?.id !== assetId) {
@@ -3041,9 +3119,9 @@ async function persistObjectLabel(pending) {
     const index = state.annotations.findIndex(item => item.id === updated.id);
     if (index >= 0) state.annotations[index] = updated;
     state.selectedAnnotation = updated; state.selectionIntent = true; state.pendingObjectEdit = null;
-    state.asset.revision = updated.asset_revision; state.asset.review_status = "draft";
+    state.asset.revision = updated.asset_revision; state.asset.review_status = "draft"; state.asset.negative_confirmed = false;
     const asset = state.assets.find(item => item.id === state.asset.id);
-    if (asset) { asset.revision = updated.asset_revision; asset.review_status = "draft"; }
+    if (asset) { asset.revision = updated.asset_revision; asset.review_status = "draft"; asset.negative_confirmed = false; }
     setSaveFeedback("saved"); refreshAssetQueueItem(state.asset.id);
     return true;
   } catch (error) {
@@ -3156,6 +3234,14 @@ async function updateWorkflow(action) {
   if (!state.asset || state.workflowBusy || state.savingAnnotation) return;
   if (hasAnnotationDraft()) return notify("请先完成或取消当前草稿，再更新审核状态。", "warning");
   if (action === "submit" && state.saveFeedback.status === "error") return notify("修改尚未确认保存，请先重试保存或重新加载已保存结果。", "error");
+  if (action === "confirm_empty") {
+    const assetId = state.asset.id, revision = state.asset.revision;
+    openModal({ title: "确认图片中没有待标注目标", subtitle: "请检查整张图片。AI 没有检出目标，不等于图片中没有目标。", body: `<p>确认“${escapeHtml(state.asset.filename)}”中没有本项目需要标注的目标。确认后仍需提交审核。</p>`, submitText: "确认无目标", onSubmit: async () => {
+      if (state.asset?.id !== assetId || state.asset.revision !== revision) throw new Error("图片已更新，请关闭窗口并重新检查。");
+      await performWorkflow("confirm_empty", ""); closeModal();
+    } });
+    return;
+  }
   if (action === "reject") {
     openModal({ title: "退回图片，说明修改要求", subtitle: "标注员会看到这段反馈，修改后重新提交审核。", body: `<div class="field"><label for="reject-reason">需要修改的地方</label><textarea id="reject-reason" placeholder="例如：右侧还有一位行人未标注，请补上；左侧轮廓需要贴近边缘。" autofocus></textarea></div>`, submitText: "退回修改", onSubmit: async () => {
       const reason = document.querySelector("#reject-reason").value.trim();
@@ -3190,11 +3276,17 @@ async function performWorkflow(action, reason) {
       await acquireAssetLock(assetId, selectionEpoch);
       if (!isCurrent()) return;
     }
-    notify({ submit: "已提交，等待审核员确认。可以继续检查下一张。", approve: "审核已通过，可用于生成训练数据版本。", reject: "已退回修改，标注员可以看到你的反馈。", reopen: "已恢复为可修改状态，完成修改后请再次提交审核。", start: "已开始标注" }[action] || "状态已更新");
+    notify({ submit: "已提交，等待审核员确认。可以继续检查下一张。", approve: "审核已通过，可用于生成训练数据版本。", reject: "已退回修改，标注员可以看到你的反馈。", reopen: "已恢复为可修改状态，完成修改后请再次提交审核。", start: "已开始标注", confirm_empty: "已确认无目标，请提交审核。" }[action] || "状态已更新");
     try {
       const events = await api(`/api/assets/${assetId}/review-events`);
       if (isCurrent()) state.reviewEvents = events;
     } catch (_) { /* optional */ }
+    if (state.activeWorkBlockId && isCurrent()) {
+      try {
+        const block = await api(`/api/projects/${projectId}/work-blocks/${state.activeWorkBlockId}`);
+        if (isCurrent()) state.activeWorkBlock = block;
+      } catch (_) { /* The collaboration refresh will retry block progress. */ }
+    }
     if (isCurrent()) {
       continueReview = ["approve", "reject"].includes(action) && shouldContinueReview();
       renderWorkspace();
@@ -3227,7 +3319,7 @@ async function deleteSelectedAnnotation() {
     state.annotations = state.annotations.filter(item => item.id !== annotation.id); state.selectedAnnotation = null; state.selectionIntent = false;
     if (annotation.shape_type === "classification") state.activeLabel = null;
     const asset = state.assets.find(item => item.id === assetId) || state.asset;
-    const updates = { annotation_count: state.annotations.length, revision: result.asset_revision, review_status: "draft", status: state.annotations.length ? "labeled" : "unlabeled" };
+    const updates = { negative_confirmed: false, annotation_count: state.annotations.length, revision: result.asset_revision, review_status: "draft", status: state.annotations.length ? "labeled" : "unlabeled" };
     Object.assign(asset, updates); Object.assign(state.asset, updates);
     state.project.labeled_count = state.assets.filter(item => item.status === "labeled").length;
     refreshAssetQueueItem(assetId); setSaveFeedback("saved"); deleted = true;
@@ -3257,7 +3349,7 @@ async function saveSelectedAnnotation() {
     if (!current()) return;
     const index = state.annotations.findIndex(item => item.id === updated.id);
     if (index >= 0) state.annotations[index] = updated;
-    state.selectedAnnotation = updated; state.asset.revision = updated.asset_revision; state.asset.review_status = "draft";
+    state.selectedAnnotation = updated; state.asset.revision = updated.asset_revision; state.asset.review_status = "draft"; state.asset.negative_confirmed = false;
     state.advancedAnnotationDirty = false; state.advancedDraft = null;
     saved = true; setSaveFeedback("saved");
   } catch (error) { if (current()) setSaveFeedback("error", error instanceof SyntaxError ? "高级属性格式不正确，请修正后点击“应用高级修改”。" : error.message); }
@@ -3602,6 +3694,12 @@ function openAiModal(preselectedAssetIds = null) {
       const hints = scope === "current" && mode === "assist" && state.assistPoints.length ? { points: state.assistPoints, label: state.activeLabel?.name } : null;
       return { model_id: selectedModel, prompt, target_labels: targetLabels, mode, asset_ids: scopedAssetIds, hint_annotation_id: interactive && state.selectedAnnotation ? state.selectedAnnotation.id : null, hints, replace_existing_auto: sourceModal.querySelector("#replace-auto").checked, confidence_threshold: Number(sourceModal.querySelector("#confidence").value) / 100, include_reviewed: sourceModal.querySelector("#include-reviewed").checked };
   };
+  const workBlockAiProblem = () => {
+    if (!state.activeWorkBlock?.human_started) return "";
+    const scope = document.querySelector('input[name="scope"]:checked')?.value;
+    const model = matchingModels.find(item => item.id === selectedModel);
+    return state.activeWorkBlock.is_mine && scope === "current" && model?.modes.includes("assist") && canEditCurrentAsset() ? "" : "已领取的任务块不接受批量 AI 覆盖。负责人可在当前图片使用半自动辅助；这里仍可预览效果。";
+  };
   const updateScopeSummary = () => {
     const model = matchingModels.find(item => item.id === selectedModel);
     const requiresCurrent = model && (!model.modes.includes("auto") || ["interactive_segmentation", "local_sam2"].includes(model.provider_type));
@@ -3611,7 +3709,7 @@ function openAiModal(preselectedAssetIds = null) {
     const eligible = eligibleAssets();
     const skipped = scopeAssets().length - eligible.length;
     const reviewed = document.querySelector("#include-reviewed").checked ? eligible.filter(asset => ["submitted", "approved"].includes(asset.review_status)).length : 0;
-    const problem = scopeProblem();
+    const problem = scopeProblem() || workBlockAiProblem();
     document.querySelector("#ai-scope-summary").innerHTML = `<strong>${problem ? "暂时无法启动" : `将处理 ${eligible.length} 张图片`}</strong><span>${escapeHtml(problem || `${skipped ? `已跳过 ${skipped} 张待审核或已通过图片。` : ""}${reviewed ? `${reviewed} 张图片的审核状态会重置，需要重新提交审核。` : "完成后请检查结果，再提交审核。"}`)}</span>`;
     const submit = sourceModal.querySelector("#modal-submit");
     submit.disabled = Boolean(problem || previewState.busy);
@@ -3666,6 +3764,8 @@ function openAiModal(preselectedAssetIds = null) {
     }, onSubmit: async () => {
       if (!modalCurrent()) throw new Error("页面已切换，请关闭此窗口，在当前项目重新开始 AI 标注。");
       if (previewState.busy) throw new Error("请等待预览完成，再启动正式标注。");
+      const blockProblem = workBlockAiProblem();
+      if (blockProblem) throw new Error(blockProblem);
       const payload = readAiPayload();
       const { prompt, target_labels: targetLabels, asset_ids: scopedAssetIds } = payload;
       const assetId = state.asset?.id;
@@ -3908,15 +4008,30 @@ function startCollaborationPolling() {
     polling=true;
     try {
       const epoch = state.selectionEpoch;
-      const assets=await api(`/api/projects/${projectId}/assets`);
+      const [assets, block] = await Promise.all([
+        api(`/api/projects/${projectId}/assets`),
+        state.activeWorkBlockId ? api(`/api/projects/${projectId}/work-blocks/${state.activeWorkBlockId}`) : Promise.resolve(null),
+      ]);
       if(epoch !== state.selectionEpoch || hasAnnotationDraft() || annotationOverlayOpen() || state.project?.id!==projectId || state.currentSection!=="annotate" || state.workflowBusy || state.savingAnnotation || state.shapeEdit || state.drawing || state.polygon.length || state.poseDraft) return;
       const available = new Set(assets.map(item => item.id));
+      const blockChanged = block && (block.revision !== state.activeWorkBlock?.revision || block.status !== state.activeWorkBlock?.status || block.is_mine !== state.activeWorkBlock?.is_mine);
+      if (block) {
+        const lostOwnership = state.activeWorkBlock?.is_mine && !block.is_mine;
+        state.activeWorkBlock = block;
+        if (lostOwnership) {
+          clearInterval(state.lockTimer); state.lockTimer = null; state.lockOwned = false;
+          state.readOnly = true; state.readOnlyReason = "任务块已交回或转交给其他成员，当前仅供查看。";
+          notify(state.readOnlyReason, "warning");
+        }
+      }
       const removed = state.assets.some(item => !available.has(item.id));
       const asset=assets.find(item=>item.id===state.asset?.id), changed=asset && asset.revision!==state.asset.revision;
       state.assets=assets; if(asset) state.asset=asset;
       state.selectedAssetIds = new Set([...state.selectedAssetIds].filter(id => available.has(id)));
-      state.project.asset_count = assets.length;
-      state.project.labeled_count = assets.filter(item => item.status === "labeled").length;
+      if (!state.activeWorkBlockId && !state.legacyReviewAssetId) {
+        state.project.asset_count = assets.length;
+        state.project.labeled_count = assets.filter(item => item.status === "labeled").length;
+      }
       if (state.asset && !asset) {
         clearInterval(state.lockTimer); state.lockTimer = null;
         state.lockOwned = false; state.asset = null; state.annotations = []; state.selectedAnnotation = null;
@@ -3926,18 +4041,18 @@ function startCollaborationPolling() {
         if (assets.length) await selectAsset(assets[0].id);
         else {
           state.selectionEpoch += 1;
-          history.replaceState(null, "", `#/projects/${projectId}/annotate`);
+          history.replaceState(null, "", annotationBlockURL(projectId, state.activeWorkBlockId));
           renderWorkspace();
         }
         return;
       }
       if(changed) await loadAnnotations(asset.id);
       if (epoch !== state.selectionEpoch || state.currentSection !== "annotate" || state.project?.id !== projectId) return;
-      if(state.asset && state.handedOffAssetId !== state.asset.id && !state.lockOwned && !["submitted","approved"].includes(state.asset.review_status)) {
+      if(state.asset && !state.legacyReviewAssetId && (!state.activeWorkBlock || state.activeWorkBlock.is_mine) && state.handedOffAssetId !== state.asset.id && !state.lockOwned && !["submitted","approved"].includes(state.asset.review_status)) {
         await acquireAssetLock(state.asset.id,state.selectionEpoch,true);
         if(state.lockOwned) renderWorkspace();
       }
-      if (removed) renderWorkspace();
+      if (removed || blockChanged) renderWorkspace();
       else assets.slice(0,state.assetRenderLimit).forEach(item=>refreshAssetQueueItem(item.id));
     } catch(_) { /* Retry on the next collaborative refresh. */ }
     finally { polling=false; }
@@ -3955,7 +4070,7 @@ window.addEventListener("beforeunload", event => {
 });
 window.addEventListener("pagehide", () => {
   if (!state.lockOwned || !state.asset) return;
-  fetch(`/api/assets/${state.asset.id}/lock`, { method: "DELETE", headers: { "X-Actor-ID": actorId }, credentials: "same-origin", keepalive: true });
+  fetch(`/api/assets/${state.asset.id}/lock`, { method: "DELETE", headers: { "X-Actor-ID": actorId, "X-Edit-Token": editorToken, "X-MDP-Client": "browser" }, credentials: "same-origin", keepalive: true });
 });
 document.addEventListener("keydown", event => {
   const chip = event.target.closest?.(".label-chip");

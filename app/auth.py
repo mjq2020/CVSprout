@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import re
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 
 from fastapi import Cookie, Header, HTTPException, Request
@@ -21,6 +22,7 @@ class Actor:
     username: str = ""
     must_change_password: bool = False
     session_id: str | None = None
+    edit_token: str | None = None
 
 
 def password_change_required() -> HTTPException:
@@ -80,7 +82,7 @@ def actor_from_session_identity(value: str) -> Actor:
     return Actor(f"bootstrap-admin:{session_id[:12]}", "admin")
 
 
-def get_actor(
+def _resolve_actor(
     request: Request,
     authorization: str | None = Header(default=None),
     x_actor_id: str | None = Header(default=None),
@@ -124,6 +126,19 @@ def get_actor(
     else:
         message = "请使用独立账号登录" if settings.auth_mode == "accounts" else "需要 Bearer Token"
         raise HTTPException(401, message, headers={"WWW-Authenticate": "Bearer"})
+
+
+def get_actor(
+    request: Request,
+    authorization: str | None = Header(default=None),
+    x_actor_id: str | None = Header(default=None),
+    mdp_session: str | None = Cookie(default=None),
+) -> Actor:
+    actor = _resolve_actor(request, authorization, x_actor_id, mdp_session)
+    token = request.headers.get("x-edit-token")
+    if token is not None and not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", token):
+        raise HTTPException(400, "编辑页面身份无效，请刷新页面")
+    return replace(actor, edit_token=token)
 
 
 def require_reviewer(actor: Actor) -> None:

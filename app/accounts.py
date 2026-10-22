@@ -224,7 +224,7 @@ def _delete_sessions(conn, sessions) -> int:
     rows = list(sessions)
     for session in rows:
         owner = f"user:{session['username']}:{session['token_hash'][:12]}"
-        conn.execute("UPDATE assets SET lock_owner=NULL,lock_expires_at=NULL WHERE lock_owner=?", (owner,))
+        conn.execute("UPDATE assets SET lock_owner=NULL,lock_expires_at=NULL,lock_token=NULL WHERE lock_owner=?", (owner,))
         conn.execute("DELETE FROM user_sessions WHERE token_hash=?", (session["token_hash"],))
     return len(rows)
 

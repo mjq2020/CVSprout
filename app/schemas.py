@@ -194,7 +194,7 @@ class AnnotationUpdate(BaseModel):
 
 
 class AssetWorkflowUpdate(BaseModel):
-    action: Literal["start", "submit", "approve", "reject", "reopen"]
+    action: Literal["start", "submit", "approve", "reject", "reopen", "confirm_empty"]
     expected_revision: int = Field(ge=0)
     reason: str = Field(default="", max_length=1000)
 
