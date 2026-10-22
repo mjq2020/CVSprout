@@ -1,21 +1,21 @@
-import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.21.3";
-import { renderUsersPage } from "./accounts-ui.js?v=0.21.3";
-import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.21.3";
-import { mountAuthScreen } from "./auth-ui.js?v=0.21.3";
-import { renderAccountPage } from "./security-ui.js?v=0.21.3";
-import { bindAssetManagement } from "./asset-management-ui.js?v=0.21.3";
-import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.21.3";
-import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.21.3";
-import { loadProjectWorkBlocks } from "./project-api.js?v=0.21.3";
-import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.21.3";
-import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.21.3";
-import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.21.3";
-import { mountOverviewTraining } from "./overview-training.js?v=0.21.3";
-import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.21.3";
-import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.21.3";
-import { mountCanvasGuides } from "./canvas-guides.js?v=0.21.3";
-import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.21.3";
-import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.21.3";
+import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.22.0";
+import { renderUsersPage } from "./accounts-ui.js?v=0.22.0";
+import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.22.0";
+import { mountAuthScreen } from "./auth-ui.js?v=0.22.0";
+import { renderAccountPage } from "./security-ui.js?v=0.22.0";
+import { bindAssetManagement } from "./asset-management-ui.js?v=0.22.0";
+import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.22.0";
+import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.22.0";
+import { loadProjectWorkBlocks } from "./project-api.js?v=0.22.0";
+import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.22.0";
+import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.22.0";
+import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.22.0";
+import { mountOverviewTraining } from "./overview-training.js?v=0.22.0";
+import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.22.0";
+import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.22.0";
+import { mountCanvasGuides } from "./canvas-guides.js?v=0.22.0";
+import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.22.0";
+import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.22.0";
 
 const app = document.querySelector("#app");
 const modalRoot = document.querySelector("#modal-root");
@@ -289,12 +289,8 @@ function renderLoadError(error) {
 function topbar(active = "projects") {
   const workerOnline = state.health?.annotation_workers?.status === "online";
   const route = currentProjectRoute(), project = route && state.project?.id === route.id ? state.project : null;
-  const contextName = route ? project?.name || "正在读取项目…" : ({ models: "标注模型服务", users: "用户管理", account: "账号与安全" })[state.currentSection] || "项目工作台";
-  return `${workspaceNavigationMarkup({ session: state.session, project, admin: isAdmin(), active: state.currentSection === "account" ? "account" : active, icon, escapeHtml })}<header class="topbar workspace-topbar">
-    ${navigationToggleMarkup(icon)}<div class="workspace-context">${route ? `<a href="#/" class="workspace-back" aria-label="返回所有项目" title="返回所有项目">${icon("arrowLeft")}</a>` : ""}<div><strong title="${escapeHtml(contextName)}">${escapeHtml(contextName)}</strong>${project ? `<small>${project.asset_count || 0} 张图片 · ${escapeHtml(TASK_LABELS[projectTask()] || "视觉标注")}</small>` : '<small>CVSprout · 数据工作台</small>'}</div></div>
-    <div class="topbar-spacer"></div><span class="session-identity">${escapeHtml(state.session?.display_name || (state.authMode === "disabled" ? "开发管理员" : "管理员"))}<small>${{admin:"管理员",annotator:"标注员",reviewer:"审核员"}[state.session?.role] || ""}</small></span>
-    <div class="system-status"><span class="status-dot ${workerOnline ? "" : "warning"}"></span>${workerOnline ? "标注服务正常" : "标注服务暂未就绪"}</div><details class="account-menu"><summary class="avatar" aria-label="账户菜单" title="账户菜单">${escapeHtml(state.session?.display_name?.slice(0,1) || "VF")}</summary><div class="account-popover"><strong>${escapeHtml(state.session?.display_name || "开发管理员")}</strong><span>${{admin:"管理员",annotator:"标注员",reviewer:"审核员"}[state.session?.role] || "开发模式"}</span>${state.session?.user_id ? `<a class="account-security-link" href="#/account">账号与安全</a>` : ""}${state.authMode !== "disabled" ? `<button id="session-button">退出登录</button>` : ""}</div></details>
-  </header>`;
+  const pageName = route ? ({ overview: "项目概览", data: "导入与数据", ai: "AI 标注", blocks: "标注任务块", annotate: "标注与审核", versions: "数据版本", train: "训练与转换" })[route.section] : ({ models: "标注模型服务", users: "用户管理", account: "账号与安全" })[state.currentSection] || "项目工作台";
+  return `${workspaceNavigationMarkup({ session: state.session, project, admin: isAdmin(), active: state.currentSection === "account" ? "account" : active, authMode: state.authMode, workerOnline, taskLabel: project ? TASK_LABELS[projectTask()] || "视觉标注" : "", icon, escapeHtml })}<header class="topbar workspace-topbar">${navigationToggleMarkup(icon)}<div class="workspace-context"><strong>${escapeHtml(pageName)}</strong></div></header>`;
 }
 
 async function route() {
@@ -1117,9 +1113,9 @@ async function downloadArtifact(url, fallbackName = "download") {
   } finally { progressNotice.remove(); }
 }
 
-import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.21.3";
-import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.21.3";
-import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.21.3";
+import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.22.0";
+import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.22.0";
+import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.22.0";
 
 const trainingChartViews = new Map();
 const trainingDetailViews = new Map();

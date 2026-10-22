@@ -6,7 +6,7 @@
 .generation-steps button { display:flex; align-items:center; justify-content:center; gap:9px; background:none; border:0; border-bottom:3px solid transparent; padding:12px 5px 16px; font-weight:600; font-size:13px; color:var(--muted); cursor:pointer; }
 .generation-steps button span { display:grid; place-items:center; width:25px; height:25px; flex-shrink:0; border:1px solid var(--line); border-radius:50%; font-size:12px; }
 .generation-steps button.active { color:var(--brand); border-bottom-color:var(--brand); }
-.generation-steps button.active span { background:var(--brand); color:white; border-color:var(--brand); }
+.generation-steps button.active span { background:var(--brand-fill); color:var(--on-accent); border-color:var(--brand-fill); }
 .generation-steps button:disabled { cursor:default; color:var(--muted); opacity:.65; }
 .generation-position { font-size:12px; color:var(--muted); margin:0 0 9px; }
 #dataset-generation h3 { font-size:19px; margin:0 0 8px; line-height:1.5; font-weight:650; }
@@ -21,7 +21,7 @@
 .generation-amount .field { margin-bottom:12px; }
 .generation-amount .hint { font-size:12px; line-height:1.7; }
 .generation-amount-feedback { font-size:12px; line-height:1.7; padding:9px 11px; background:var(--panel-2); border-left:2px solid var(--brand); }
-.generation-amount-feedback.generation-error { border-left-color:var(--danger); background:#fff5f5; }
+.generation-amount-feedback.generation-error { border-left-color:var(--danger); background:var(--danger-soft); }
 .generation-training-count { font-size:12px; line-height:1.8; margin:20px 0 8px; }
 .generation-training-count strong { color:var(--text); font-weight:600; }
 .generation-options-feedback { display:flex; gap:12px; flex-wrap:wrap; align-items:center; color:var(--muted); font-size:13px; }
@@ -31,15 +31,15 @@
 .generation-method-group > legend { font-size:13px; color:var(--muted); padding:0 0 8px; font-weight:650; }
 .generation-methods { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; gap:12px; }
 .generation-method { border:1px solid var(--line); border-radius:8px; overflow:hidden; }
-.generation-method:has(input[data-operation]:checked) { border-color:#9aaefb; }
+.generation-method:has(input[data-operation]:checked) { border-color:var(--brand-line); }
 .generation-method-label { display:flex; align-items:flex-start; gap:10px; padding:14px; cursor:pointer; }
 .generation-method-label > input { width:16px; height:16px; margin:3px 0 0; flex-shrink:0; accent-color:var(--brand); }
 .generation-method-label strong { display:block; font-size:14px; margin-bottom:5px; }
 .generation-method-label span > span { display:block; font-size:12px; line-height:1.7; color:var(--muted); }
-.generation-method-settings { border-top:1px solid var(--line-soft); padding:0 14px 14px; background:#fafbfe; font-size:12px; }
+.generation-method-settings { border-top:1px solid var(--line-soft); padding:0 14px 14px; background:var(--panel-2); font-size:12px; }
 .generation-method-settings p { line-height:1.7; margin:10px 0; }
 .generation-method-settings label { display:flex; flex-direction:column; gap:6px; color:var(--muted); font-size:12px; }
-.generation-method-settings input[type=number] { width:100%; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:6px; color:var(--text); background:white; }
+.generation-method-settings input[type=number] { width:100%; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:6px; color:var(--text); background:var(--panel); }
 .generation-risk { color:var(--warning); }
 .generation-unavailable { color:var(--warning); margin:0; padding:0 14px 14px 40px; font-size:12px; line-height:1.6; }
 .generation-parameter-pair { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
@@ -61,7 +61,7 @@
 .generation-confirmation dd { margin:0; line-height:1.7; overflow-wrap:anywhere; }
 .generation-preview-toolbar { display:flex; flex-wrap:wrap; align-items:end; gap:12px; border-top:1px solid var(--line); padding-top:18px; margin-top:20px; }
 .generation-preview-toolbar > label { display:flex; flex:1; min-width:180px; flex-direction:column; gap:7px; font-size:12px; color:var(--muted); }
-.generation-preview-toolbar select { width:100%; min-width:0; max-width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:7px; background:white; color:var(--text); }
+.generation-preview-toolbar select { width:100%; min-width:0; max-width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:7px; background:var(--panel); color:var(--text); }
 .generation-preview-caption { margin:16px 0 12px; font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
 .generation-preview-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
 .generation-preview-grid figure { margin:0; min-width:0; }
@@ -89,7 +89,7 @@
 .generation-augmentation-layout { display:grid; grid-template-columns:360px minmax(0,1fr); gap:24px; align-items:start; }
 .generation-augmentation-controls { min-width:0; padding-right:12px; }
 .generation-augmentation-controls :is(input,select,summary,.generation-method-label) { scroll-margin-top:58px; scroll-margin-bottom:16px; }
-.generation-live-jump { position:sticky; top:0; z-index:2; display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; margin:0 0 14px; padding:10px 12px; border:1px solid #c7d8f0; background:#edf4ff; color:#30578c; border-radius:6px; font-size:12px; cursor:pointer; box-shadow:0 3px 0 white; }
+.generation-live-jump { position:sticky; top:0; z-index:2; display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; margin:0 0 14px; padding:10px 12px; border:1px solid var(--info-line); background:var(--brand-soft); color:var(--info); border-radius:6px; font-size:12px; cursor:pointer; box-shadow:0 3px 0 var(--panel); }
 .generation-live-jump strong { font-weight:600; white-space:nowrap; }
 .generation-return-settings { margin-top:10px; }
 .is-preview-sticky .generation-live-jump, .is-preview-sticky .generation-return-settings { display:none; }
@@ -113,10 +113,10 @@
 .generation-live-preview .generation-preview-toolbar { border:0; padding:0; margin:12px 0 10px; gap:10px; }
 .generation-live-preview .generation-preview-toolbar > label { min-width:0; }
 .generation-live-preview .generation-preview-toolbar > button { flex-shrink:0; height:36px; font-size:12px; }
-.generation-live-status { display:flex; gap:8px; align-items:center; padding:8px 10px; background:var(--brand-soft); font-size:12px; line-height:1.6; margin:10px 0; color:#3152b9; }
+.generation-live-status { display:flex; gap:8px; align-items:center; padding:8px 10px; background:var(--brand-soft); font-size:12px; line-height:1.6; margin:10px 0; color:var(--brand); }
 .generation-live-status .spinner { width:14px; height:14px; flex-shrink:0; }
 .generation-live-status > span:last-of-type { flex:1; min-width:0; }
-.generation-live-status.error { background:#fff3ed; color:#914c24; }
+.generation-live-status.error { background:var(--warning-soft); color:var(--warning); }
 .generation-live-status .mini-action { flex-shrink:0; }
 .generation-live-caption { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:12px 0; font-size:12px; color:var(--muted); }
 .generation-live-caption > span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

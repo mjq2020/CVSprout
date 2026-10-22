@@ -1,8 +1,8 @@
 .data-card-delete { display:flex; justify-content:flex-end; padding:0 10px 10px; }
 .data-card-delete .btn { padding:5px 8px; min-height:30px; font-size:12px; }
 .data-card-delete .icon { width:14px; height:14px; }
-.asset-delete-summary { padding:14px 16px; border:1px solid #e6c3c9; border-radius:9px; background:#fff7f8; margin-bottom:16px; line-height:1.6; }
-.asset-delete-summary strong { font-size:16px; color:#912338; }
+.asset-delete-summary { padding:14px 16px; border:1px solid var(--danger-line); border-radius:9px; background:var(--danger-soft); margin-bottom:16px; line-height:1.6; }
+.asset-delete-summary strong { font-size:16px; color:var(--danger); }
 .asset-delete-summary p { margin:8px 0 0; font-size:13px; }
 .asset-delete-items { display:flex; flex-direction:column; gap:8px; max-height:340px; overflow:auto; }
 .asset-delete-item { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px; border:1px solid var(--line); border-radius:8px; }
@@ -10,9 +10,9 @@
 .asset-delete-item strong { font-size:13px; overflow-wrap:anywhere; }
 .asset-delete-item span { color:var(--muted); font-size:12px; line-height:1.5; }
 .asset-delete-item > span { flex-shrink:0; }
-.asset-delete-item.succeeded > span { color:#237752; }
-.asset-delete-item.conflict > span { color:#a04b1b; }
-.btn.delete-confirm-button { color:white; background:#b42339; border-color:#b42339; }
-.btn.delete-confirm-button:hover { color:white; background:#951d30; border-color:#951d30; }
+.asset-delete-item.succeeded > span { color:var(--success); }
+.asset-delete-item.conflict > span { color:var(--warning); }
+.btn.delete-confirm-button { color:var(--on-accent); background:var(--danger-fill); border-color:var(--danger-fill); }
+.btn.delete-confirm-button:hover { color:var(--on-accent); background:var(--danger-fill-hover); border-color:var(--danger-fill-hover); }
 .asset-check:focus-within { outline:3px solid var(--brand); outline-offset:3px; }
 @media(max-width:640px) { .asset-delete-item { gap:8px; } .asset-delete-item > span { max-width:5em; } }

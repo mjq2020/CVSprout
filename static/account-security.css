@@ -31,7 +31,7 @@
 .member-actions { display: flex; gap: 8px; align-items: center; }
 .member-more { position: relative; font-size: 12px; }
 .member-more summary { cursor: pointer; padding: 9px; list-style: none; border: 1px solid var(--line); border-radius: 6px; white-space: nowrap; }
-.member-more > div { position: absolute; right: 0; top: 100%; min-width: 160px; z-index: 9; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: white; box-shadow: 0 8px 22px #1c305222; }
+.member-more > div { position: absolute; right: 0; top: 100%; min-width: 160px; z-index: 9; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: 0 8px 22px var(--shadow-color); }
 .member-more button, .member-more a { display: block; border: 0; background: transparent; color: var(--text); text-align: left; padding: 10px; width: 100%; cursor: pointer; border-radius: 4px; font-size: 12px; text-decoration: none; }
 .member-more button:hover { color: var(--brand); background: var(--panel-2); }
 .member-table { overflow: visible; }

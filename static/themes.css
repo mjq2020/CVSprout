@@ -1,0 +1,160 @@
+/* Application chrome follows the chosen theme; image pixels and annotation
+   category colors are intentionally independent of these interface tokens. */
+:root,
+html[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f5f7fa;
+  --panel: #ffffff;
+  --panel-2: #f6f8fb;
+  --panel-3: #edf1f6;
+  --line: #dbe2ea;
+  --line-soft: #e9edf2;
+  --line-strong: #a8b7c9;
+  --text: #243247;
+  --text-secondary: #465970;
+  --muted: #5e6e84;
+  --muted-2: #5e6e84;
+  --brand: #365cf5;
+  --brand-2: #294ad1;
+  --brand-soft: #edf2ff;
+  --brand-line: #b9c9f5;
+  --brand-fill: #365cf5;
+  --brand-fill-hover: #294ad1;
+  --on-accent: #ffffff;
+  --blue: #315b93;
+  --info: #315b93;
+  --info-soft: #edf4ff;
+  --info-line: #cadbf0;
+  --success: #147355;
+  --success-soft: #eaf6ef;
+  --success-line: #b8dac9;
+  --warning: #865b12;
+  --warning-soft: #fff6e4;
+  --warning-line: #e6cc9d;
+  --danger: #b52e46;
+  --danger-soft: #fff0f3;
+  --danger-soft-hover: #ffe3e9;
+  --danger-line: #e9bfc7;
+  --danger-fill: #b42339;
+  --danger-fill-hover: #951d30;
+  --purple: #6b4ca2;
+  --purple-soft: #f2edfb;
+  --track: #e1e7ef;
+  --scroll-thumb: #afbdce;
+  --overlay: rgba(23, 36, 58, .42);
+  --shadow-color: rgba(23, 36, 58, .13);
+  --shadow-soft: rgba(23, 36, 58, .055);
+  --focus-ring: rgba(54, 92, 245, .22);
+  --danger-ring: rgba(181, 46, 70, .18);
+  --chart-training: #2459bf;
+  --chart-validation: #aa5a15;
+  --auth-illustration-background: #edf3fb;
+  --auth-illustration-grid: #d7e2f2;
+  --auth-illustration-ground: #d9e5f2;
+  --ui-control-bg: var(--panel-2);
+  --ui-hover-line: var(--line-strong);
+  --ui-focus-color: var(--brand);
+  --ui-card-shadow: 0 2px 8px var(--shadow-soft);
+  --ui-card-hover-shadow: 0 4px 14px var(--shadow-soft);
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #191d24;
+  --panel: #222831;
+  --panel-2: #282f3a;
+  --panel-3: #303947;
+  --line: #3b4553;
+  --line-soft: #303946;
+  --line-strong: #64758b;
+  --text: #e5eaf1;
+  --text-secondary: #c5cfdd;
+  --muted: #a6b2c2;
+  --muted-2: #a6b2c2;
+  --brand: #8daaff;
+  --brand-2: #b1c5ff;
+  --brand-soft: #28385c;
+  --brand-line: #526da2;
+  --brand-fill: #496de8;
+  --brand-fill-hover: #3f62d8;
+  --blue: #afcbff;
+  --info: #afcbff;
+  --info-soft: #26364b;
+  --info-line: #475f82;
+  --success: #7cdbb4;
+  --success-soft: #203b32;
+  --success-line: #386b57;
+  --warning: #edc37d;
+  --warning-soft: #3b3223;
+  --warning-line: #6b5734;
+  --danger: #ff9bad;
+  --danger-soft: #412a32;
+  --danger-soft-hover: #50313c;
+  --danger-line: #784452;
+  --danger-fill: #b6354d;
+  --danger-fill-hover: #982d43;
+  --purple: #cfb7ff;
+  --purple-soft: #352e49;
+  --track: #3b4656;
+  --scroll-thumb: #5c6b7e;
+  --overlay: rgba(5, 9, 15, .68);
+  --shadow-color: rgba(0, 0, 0, .32);
+  --shadow-soft: rgba(0, 0, 0, .14);
+  --focus-ring: rgba(141, 170, 255, .27);
+  --danger-ring: rgba(255, 155, 173, .2);
+  --chart-training: #94b5ff;
+  --chart-validation: #efb674;
+  --auth-illustration-background: #2b3646;
+  --auth-illustration-grid: #3c4c61;
+  --auth-illustration-ground: #38495f;
+}
+
+html { background: var(--bg); color: var(--text); }
+body { background: var(--bg); color: var(--text); }
+input, textarea, select { color: var(--text); caret-color: var(--text); }
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
+input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color: var(--brand-fill); }
+select option, select optgroup { color: var(--text); background: var(--panel); }
+::selection { color: var(--text); background: var(--brand-soft); }
+
+/* Bright blue text and a solid button have separate contrast requirements. */
+.btn.primary,
+.brand-mark,
+.project-nav-links a.active .step-index,
+.wizard-section-title > span,
+.thumb .done {
+  color: var(--on-accent);
+  background: var(--brand-fill);
+  border-color: var(--brand-fill);
+}
+.btn.primary:hover,
+:where(.app-shell:not(.annotation-shell), .modal) .btn.primary:not(:disabled):hover {
+  color: var(--on-accent);
+  background: var(--brand-fill-hover);
+  border-color: var(--brand-fill-hover);
+}
+.btn.delete-confirm-button {
+  color: var(--on-accent);
+  background: var(--danger-fill);
+  border-color: var(--danger-fill);
+}
+.btn.delete-confirm-button:hover {
+  color: var(--on-accent);
+  background: var(--danger-fill-hover);
+  border-color: var(--danger-fill-hover);
+}
+.btn.primary:focus-visible, .btn.delete-confirm-button:focus-visible { outline-color: var(--brand); }
+.runtime-banner.healthy { background: var(--success-soft); border-color: var(--success-line); }
+.runtime-banner.healthy > span { color: var(--success); background: var(--success-soft); }
+.job-status.completed { color: var(--success); }
+.training-loss-chart text { fill: var(--muted); }
+.training-loss-chart .loss-grid, .chart-grid { stroke: var(--line); }
+.training-loss-chart .training { stroke: var(--chart-training); }
+.training-loss-chart .validation { stroke: var(--chart-validation); }
+.training-chart-legend span::before { border-color: var(--chart-training); }
+.training-chart-legend .validation::before { border-color: var(--chart-validation); }
+.chart-line { filter: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .btn, .project-card, .data-asset-card { transition: none; }
+}

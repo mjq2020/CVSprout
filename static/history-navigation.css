@@ -13,7 +13,7 @@
 .history-pagination { flex-wrap:wrap; gap:10px; color:var(--muted); font-size:12px; }
 .history-page-label { white-space:nowrap; font-variant-numeric:tabular-nums; }
 .history-pagination .btn { min-width:32px; min-height:34px; padding:6px 9px; font-size:12px; }
-.history-pagination [aria-current=page] { color:var(--brand); background:var(--brand-soft); border-color:#b8c8ff; font-weight:650; }
+.history-pagination [aria-current=page] { color:var(--brand); background:var(--brand-soft); border-color:var(--brand-line); font-weight:650; }
 .history-ellipsis { min-width:14px; text-align:center; }
 .history-footer { display:flex; justify-content:flex-end; margin:16px 0 4px; }
 .history-no-results { width:100%; }

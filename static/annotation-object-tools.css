@@ -1,7 +1,7 @@
 .inspector-object-actions { display: flex; align-items: center; gap: 6px; }
 .annotation-delete-action { display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; }
-.annotation-delete-action:not(:disabled) { color: #b42339; border-color: #ebbdc4; background: #fff5f6; }
-.annotation-delete-action:not(:disabled):hover { color: #981b30; background: #ffe5e9; border-color: #dc97a3; }
+.annotation-delete-action:not(:disabled) { color: var(--danger); border-color: var(--danger-line); background: var(--danger-soft); }
+.annotation-delete-action:not(:disabled):hover { color: var(--danger); background: var(--danger-soft-hover); border-color: var(--danger-line); }
 .annotation-delete-action svg { width: 15px; height: 15px; flex-shrink: 0; }
 .annotation-delete-action:disabled { cursor: not-allowed; }
 .canvas-svg .label-chip { pointer-events: all; cursor: pointer; }

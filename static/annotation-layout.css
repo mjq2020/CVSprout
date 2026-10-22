@@ -1,11 +1,9 @@
 /* Annotation chrome stays compact so the image is the main working surface. */
 html:has(.annotation-shell), body:has(.annotation-shell), #app:has(> .annotation-shell) { min-width: 0; }
 .app-shell.annotation-shell:has(> .workspace-navigation) {
-  grid-template-rows: 46px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
 }
 .annotation-shell > .workspace-topbar {
-  height: 46px;
-  min-height: 46px;
   padding: 0 14px;
   gap: 10px;
 }
@@ -112,7 +110,7 @@ html:has(.annotation-shell), body:has(.annotation-shell), #app:has(> .annotation
   overflow-y: auto;
   scrollbar-width: thin;
   border-right: 1px solid var(--line);
-  background: #f8faff;
+  background: var(--panel-2);
 }
 .annotation-tool-rail .manual-tool-group,
 .annotation-tool-rail .annotation-ai-points {
@@ -141,15 +139,15 @@ html:has(.annotation-shell), body:has(.annotation-shell), #app:has(> .annotation
   padding: 5px 1px;
   border: 1px solid transparent;
   border-radius: 6px;
-  color: #52647f;
+  color: var(--text-secondary);
   font-size: 10px;
   font-weight: 550;
   line-height: 1.2;
   white-space: nowrap;
 }
-.annotation-tool-rail .btn:hover { color: var(--brand); background: #edf3ff; border-color: #d5e1fa; }
+.annotation-tool-rail .btn:hover { color: var(--brand); background: var(--brand-soft); border-color: var(--brand-line); }
 .annotation-tool-rail .btn.active,
-.annotation-tool-rail .btn[aria-pressed="true"] { color: var(--brand); border-color: #a8bafb; background: #eaf0ff; }
+.annotation-tool-rail .btn[aria-pressed="true"] { color: var(--brand); border-color: var(--brand-line); background: var(--brand-soft); }
 .annotation-tool-rail .btn:disabled { opacity: .4; }
 .annotation-tool-rail .btn .icon { width: 19px; height: 19px; flex: 0 0 auto; }
 .annotation-tool-rail kbd { display: none; }
@@ -215,14 +213,14 @@ html:has(.annotation-shell), body:has(.annotation-shell), #app:has(> .annotation
   min-height: 27px;
   min-width: 27px;
   padding: 3px 6px;
-  color: #52647f;
+  color: var(--text-secondary);
   background: transparent;
-  border: 1px solid #dbe2eb;
+  border: 1px solid var(--line);
   font-size: 11px;
 }
 .annotation-canvas-footer .zoom-control button:hover,
-.annotation-canvas-footer .zoom-control button[aria-pressed="true"] { color: var(--brand); background: var(--brand-soft); border-color: #a8bafb; }
-.annotation-canvas-footer #zoom-value { min-width: 39px; color: #52647f; font-size: 11px; }
+.annotation-canvas-footer .zoom-control button[aria-pressed="true"] { color: var(--brand); background: var(--brand-soft); border-color: var(--brand-line); }
+.annotation-canvas-footer #zoom-value { min-width: 39px; color: var(--text-secondary); font-size: 11px; }
 
 .app-shell.annotation-shell.is-focus:has(> .workspace-navigation) {
   grid-template-columns: minmax(0, 1fr);
@@ -232,13 +230,18 @@ html:has(.annotation-shell), body:has(.annotation-shell), #app:has(> .annotation
 .annotation-shell.is-focus > .workspace-navigation,
 .annotation-shell.is-focus > .navigation-backdrop { display: none; }
 .app-shell.annotation-shell.is-focus:has(> .workspace-navigation) > main { grid-column: 1; grid-row: 1; }
-.annotation-workspace #toggle-focus[aria-pressed="true"] { color: var(--brand); background: var(--brand-soft); border-color: #a8bafb; }
+.annotation-workspace #toggle-focus[aria-pressed="true"] { color: var(--brand); background: var(--brand-soft); border-color: var(--brand-line); }
 
 @media (max-width: 1200px) {
   .annotation-workspace .annotation-session-row { gap: 5px; padding-right: 8px; padding-left: 8px; }
   .annotation-workspace .manual-label-picker > span { display: none; }
   .annotation-workspace .manual-label-picker select { width: 130px; }
   .annotation-canvas-footer #canvas-status-hint { display: none; }
+}
+@media (max-width: 900px) {
+  .annotation-shell > .workspace-topbar { height: 44px; min-height: 44px; }
+  .app-shell.annotation-shell:has(> .workspace-navigation) { grid-template-rows: 44px minmax(0, 1fr); }
+  .app-shell.annotation-shell.is-focus:has(> .workspace-navigation) { grid-template-rows: minmax(0, 1fr); }
 }
 @media (min-width: 761px) and (max-width: 1100px) {
   .annotation-workspace .annotation-session-row #toggle-focus > span { display: none; }

@@ -389,7 +389,9 @@ Compose 使用 `visionforge-data`、`visionforge-models` 持久卷；这些旧�
 | [static/index.html](../static/index.html) | 页面根节点、样式与主脚本入口、静态资源版本 |
 | [static/app.js](../static/app.js) | 路由、会话、API 请求、项目页面、画布、保存、单图审核、轮询与通用弹窗 |
 | [static/project-api.js](../static/project-api.js) | 任务块接口的版本兼容判断，区分旧服务缺接口与真实业务错误 |
-| [static/workspace-navigation.js](../static/workspace-navigation.js) | 工作区导航、手机抽屉、项目内标签页及其状态保存 |
+| [static/workspace-navigation.js](../static/workspace-navigation.js) | 项目上下文与工作流导航、底部服务状态/主题/账号入口、手机抽屉、键盘焦点与项目内标签页状态保存 |
+| [static/theme.js](../static/theme.js) | 首屏前应用浅色/深色/跟随系统偏好，处理本地保存、系统变化和跨标签页同步；存储受限时仍可切换 |
+| [static/themes.css](../static/themes.css) | 双主题语义色、表面、文字、表单、状态与图表配色；保留图片及标注类别原色 |
 | [static/history-navigation.js](../static/history-navigation.js) | 历史记录分页与导航状态辅助 |
 | [static/setup-ui.js](../static/setup-ui.js) | 首次管理员设置和基础模型下载面板 |
 | [static/auth-ui.js](../static/auth-ui.js) | 登录、注册申请及相关表单状态 |
@@ -410,7 +412,7 @@ Compose 使用 `visionforge-data`、`visionforge-models` 持久卷；这些旧�
 | [static/overview-training.js](../static/overview-training.js) | 项目总览中的训练摘要和最近记录 |
 | [static/conversion-ui.js](../static/conversion-ui.js) | 转换格式说明、选项表单、参数校验与设置摘要 |
 
-`static/` 中的 CSS 按账号、导航、画布、审核、任务块、数据版本、训练等界面拆分；`styles.css` 提供基础样式，其他样式由 `index.html` 统一加载。更新交互模块时需保持导入和资源版本一致，避免浏览器混用旧文件。
+`static/` 中的 CSS 按账号、导航、画布、审核、任务块、数据版本、训练等界面拆分；`styles.css` 提供基础样式，其他样式由 `index.html` 统一加载，`themes.css` 最后定义语义色。`theme.js` 在样式前同步执行，首次绘制就应用已保存的偏好；切换只更新根元素属性，不重建业务页面或画布。更新交互模块时需保持导入和资源版本一致，避免浏览器混用旧文件。
 
 ## 启动、运维与开发工具
 
