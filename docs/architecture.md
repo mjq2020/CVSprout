@@ -1,5 +1,7 @@
 # 架构与开发
 
+完整的业务模块、功能边界、角色权限及后端/前端源码索引见[模块与功能说明](modules-and-features.md)。本页重点说明进程分工与开发约定。
+
 代码保持单仓库，先以模块和进程划分职责，兼容现有业务接口。
 
 项目显示名和发行包名统一为 CVSprout。为兼容旧版，保留 MDP_* 配置、独立推理服务的 VISIONFORGE_* 配置、内部鉴权头、持久卷键名以及既有导出数据字段。已有部署改名时的卷迁移说明见 operations.md。
@@ -17,7 +19,7 @@
 | 部署导出 | app/deployment.py | 权重、标签、配置、运行代码与脚本打包 |
 | 训练绘图字体 | app/plot_fonts.py | 准备本地字体，避免隐式联网下载阻塞训练 |
 
-Web 安装 requirements/web.txt，不安装 torch / ultralytics / transformers。模型探测和预览经内部 HTTP 转给 worker。CPU worker 与 GPU worker 分别使用独立依赖文件；RKNN/TensorRT 保留可选环境，不作为首次启动条件。
+Web 安装 requirements/web.txt，不安装 torch / ultralytics / transformers。本地模型探测和预览经内部 HTTP 转给 worker，远程模型预览由 Web 直接请求已配置的服务。CPU worker 与 GPU worker 分别使用独立依赖文件；RKNN/TensorRT 保留可选环境，不作为首次启动条件。
 
 SQLite 及媒体、数据版本、训练产物位于同一台主机的持久卷。内部凭证由共享数据卷原子创建，仅由同 UID 的服务读取。worker 的 RPC 使用固定操作白名单，预测只允许读取媒体目录中的文件。
 

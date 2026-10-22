@@ -152,6 +152,7 @@ git pull
 
 ## 文档
 
+- [模块与功能说明](docs/modules-and-features.md)：业务功能、角色权限、数据流和源码索引
 - [生产部署与上线审查](docs/production.md)
 - [安装、GPU 检查与故障排查](docs/installation.md)
 - [远程服务器使用方式](docs/remote-server.md)
