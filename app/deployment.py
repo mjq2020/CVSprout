@@ -17,16 +17,27 @@ router = APIRouter(prefix="/api", tags=["deployment"])
 
 @router.get("/training-runs/{run_id}/deployment")
 def bundle(run_id: int, actor: Actor = Depends(get_actor)):
-    from .training import _require_training_run, _validated_artifact, _parse_json, _file_sha256
-    run = _require_training_run(run_id)
+    from .training import _validated_artifact, _parse_json, _file_sha256
+    from .database import db
+    with db() as conn:
+        conn.execute("BEGIN")
+        row = conn.execute("SELECT * FROM training_runs WHERE id=?", (run_id,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "训练记录不存在")
+        run = dict(row)
+        labels = [dict(row) for row in conn.execute(
+            "SELECT category_index,name FROM dataset_version_labels WHERE version_id=? ORDER BY category_index",
+            (run["version_id"],))]
     if run["status"] != "completed":
         raise HTTPException(409, "训练完成后才能下载部署包")
     path = _validated_artifact(run.get("artifact_path"), "训练", _parse_json(run.get("artifact_metadata_json")))
     config = _parse_json(run["settings_json"])
-    from .database import all_rows
-    labels = all_rows("SELECT category_index,name FROM dataset_version_labels WHERE version_id=? ORDER BY category_index", (run["version_id"],))
+    try:
+        checksum = _file_sha256(path)
+    except FileNotFoundError as exc:
+        raise HTTPException(409, "训练文件或所属项目已被删除，请刷新后重试") from exc
     manifest = {"schema_version": 1, "task": run["task"], "image_size": config.get("image_size", 640),
-                "sha256": _file_sha256(path), "run_id": run_id, "labels": labels,
+                "sha256": checksum, "run_id": run_id, "labels": labels,
                 "preprocessing": "Ultralytics pinned runtime handles task-specific preprocessing and postprocessing",
                 "outputs": "Ultralytics Results.summary; coordinates are pixels in the original image"}
     temporary = tempfile.NamedTemporaryFile(prefix="cvsprout-deploy-", suffix=".zip", delete=False)
@@ -50,6 +61,9 @@ def bundle(run_id: int, actor: Actor = Depends(get_actor)):
                     archive.write(source, source.name)
         return FileResponse(destination, media_type="application/zip", filename=f"cvsprout-model-{run_id}.zip",
                             background=BackgroundTask(destination.unlink, missing_ok=True))
+    except FileNotFoundError as exc:
+        destination.unlink(missing_ok=True)
+        raise HTTPException(409, "部署包所需文件已被删除或缺失，请刷新后重试") from exc
     except BaseException:
         destination.unlink(missing_ok=True)
         raise

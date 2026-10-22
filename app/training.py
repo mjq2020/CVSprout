@@ -32,6 +32,7 @@ from .worker_client import on_worker
 from . import conversion_support as conversion_tools
 from .database import all_rows, audit, db, now_iso, one
 from .dataset_versions import build_version_export
+from .file_responses import pinned_file_response
 from .schemas import (
     ConversionCreate,
     ConversionRetryCreate,
@@ -1022,6 +1023,10 @@ def create_training_run(
     }
     now = now_iso()
     with db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        if not conn.execute("SELECT 1 FROM dataset_versions WHERE id=? AND project_id=?",
+                            (payload.version_id, project_id)).fetchone():
+            raise HTTPException(404, "项目或数据集版本已被删除，请返回项目列表")
         cursor = conn.execute(
             """INSERT INTO training_runs
                (project_id, version_id, name, model_arch, task, status, total_epochs,
@@ -1314,8 +1319,11 @@ def _validated_artifact(path_value: str | None, kind: str, metadata: dict | None
     if allowed_root not in path.parents or not path.is_file():
         raise HTTPException(409, f"{kind}产物文件不存在")
     if metadata and metadata.get("sha256"):
-        if path.stat().st_size != metadata.get("size_bytes") or _file_sha256(path) != metadata["sha256"]:
-            raise HTTPException(409, f"{kind}产物 SHA-256 校验失败，文件可能已损坏或被替换")
+        try:
+            if path.stat().st_size != metadata.get("size_bytes") or _file_sha256(path) != metadata["sha256"]:
+                raise HTTPException(409, f"{kind}产物 SHA-256 校验失败，文件可能已损坏或被替换")
+        except FileNotFoundError as exc:
+            raise HTTPException(409, f"{kind}产物文件已被删除，请刷新后重试") from exc
     return path
 
 
@@ -1327,7 +1335,7 @@ def download_training_artifact(
     if run["status"] != "completed":
         raise HTTPException(409, "训练尚未完成")
     path = _validated_artifact(run.get("artifact_path"), "训练", _parse_json(run.get("artifact_metadata_json")))
-    return FileResponse(path, media_type="application/octet-stream", filename=f"training-{run_id}-best.pt")
+    return pinned_file_response(path, filename=f"training-{run_id}-best.pt")
 
 
 @router.get("/training-runs/{run_id}/conversions")
@@ -1392,6 +1400,9 @@ def create_conversion(
     resource_json = _validate_conversion_config(run, payload)
     settings_json = payload.model_dump()
     with db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        if not conn.execute("SELECT 1 FROM training_runs WHERE id=?", (run_id,)).fetchone():
+            raise HTTPException(404, "训练记录或所属项目已被删除，请返回项目列表")
         cursor = conn.execute(
             """INSERT INTO model_conversions
                (training_run_id, format, status, settings_json, max_retries,
@@ -1646,7 +1657,7 @@ def download_conversion_artifact(
         raise HTTPException(409, "模型转换尚未完成")
     path = _validated_artifact(conversion.get("artifact_path"), "转换", _parse_json(conversion.get("artifact_metadata_json")))
     suffix = CONVERSION_SUFFIXES[conversion["format"]]
-    return FileResponse(
+    return pinned_file_response(
         path,
         media_type="application/octet-stream",
         filename=f"conversion-{conversion_id}{suffix}",

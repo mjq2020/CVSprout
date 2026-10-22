@@ -1,4 +1,4 @@
-import { state, icon, api, jsonOptions, escapeHtml, canEditCurrentAsset, notify, renderWorkspace, refreshInspector, refreshShapes, refreshWorkflowState, refreshCanvasStatus, saveAnnotation, defaultAttributes, drawDraft, setSaveFeedback } from "./app.js?v=0.21.2";
+import { state, icon, api, jsonOptions, escapeHtml, canEditCurrentAsset, notify, renderWorkspace, refreshInspector, refreshShapes, refreshWorkflowState, refreshCanvasStatus, saveAnnotation, defaultAttributes, drawDraft, setSaveFeedback } from "./app.js?v=0.21.3";
 /* Task-specific annotation controls; the shared workspace owns state and persistence. */
 const TASK_LABELS = { mixed: "检测 / 分割", detect: "目标检测", segment: "实例分割", classify: "图片分类", pose: "关键点" };
 const TASK_GUIDANCE = {

@@ -1,21 +1,21 @@
-import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.21.2";
-import { renderUsersPage } from "./accounts-ui.js?v=0.21.2";
-import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.21.2";
-import { mountAuthScreen } from "./auth-ui.js?v=0.21.2";
-import { renderAccountPage } from "./security-ui.js?v=0.21.2";
-import { bindAssetManagement } from "./asset-management-ui.js?v=0.21.2";
-import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.21.2";
-import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.21.2";
-import { loadProjectWorkBlocks } from "./project-api.js?v=0.21.2";
-import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.21.2";
-import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.21.2";
-import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.21.2";
-import { mountOverviewTraining } from "./overview-training.js?v=0.21.2";
-import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.21.2";
-import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.21.2";
-import { mountCanvasGuides } from "./canvas-guides.js?v=0.21.2";
-import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.21.2";
-import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.21.2";
+import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.21.3";
+import { renderUsersPage } from "./accounts-ui.js?v=0.21.3";
+import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.21.3";
+import { mountAuthScreen } from "./auth-ui.js?v=0.21.3";
+import { renderAccountPage } from "./security-ui.js?v=0.21.3";
+import { bindAssetManagement } from "./asset-management-ui.js?v=0.21.3";
+import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.21.3";
+import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.21.3";
+import { loadProjectWorkBlocks } from "./project-api.js?v=0.21.3";
+import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.21.3";
+import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.21.3";
+import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.21.3";
+import { mountOverviewTraining } from "./overview-training.js?v=0.21.3";
+import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.21.3";
+import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.21.3";
+import { mountCanvasGuides } from "./canvas-guides.js?v=0.21.3";
+import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.21.3";
+import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.21.3";
 
 const app = document.querySelector("#app");
 const modalRoot = document.querySelector("#modal-root");
@@ -470,6 +470,7 @@ function renderProjectResults() {
       await loadDashboard();
     } catch (error) { button.disabled = false; notify(error.message, "error"); }
   });
+  document.querySelectorAll("[data-delete-project]").forEach(button => button.onclick = () => openProjectDeleteModal(Number(button.dataset.deleteProject)));
 }
 
 function projectCard(project) {
@@ -486,8 +487,58 @@ function projectCard(project) {
     <div class="project-progress-label"><span>已标注 <strong>${project.labeled_count} / ${project.asset_count}</strong></span><strong>${percent}%</strong></div>
     <div class="dataset-progress" role="progressbar" aria-label="已标注比例" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}"><span class="approved" style="width:${approved}%"></span><span style="width:${Math.max(0, percent - approved)}%"></span></div>
     <div class="project-review-counts"><span>${project.label_count} 个类别</span><span>${project.submitted_count || 0} 待审核</span><span class="approved-count">${project.approved_count || 0} 已通过</span></div>
-    <div class="project-card-actions">${state.projectsArchived ? `<button class="btn primary" data-archive-project="${project.id}">恢复项目</button><a class="btn ghost link-btn" href="${base}/overview">查看项目</a>` : `<a class="btn primary link-btn" href="${base}/${nextSection}">${icon(nextSection === "ai" ? "magic" : "arrowRight")}${nextLabel}</a>${nextSection !== "data" ? `<button class="btn ghost" data-upload-project="${project.id}">${icon("upload")}导入数据</button>` : ""}${isAdmin() ? `<button class="project-archive-action" data-archive-project="${project.id}" aria-label="归档项目 ${escapeHtml(project.name)}" title="收起项目，可从归档列表恢复">归档</button>` : ""}`}</div></div>
+    <div class="project-card-actions">${state.projectsArchived ? `<button class="btn primary" data-archive-project="${project.id}">恢复项目</button><a class="btn ghost link-btn" href="${base}/overview">查看项目</a>` : `<a class="btn primary link-btn" href="${base}/${nextSection}">${icon(nextSection === "ai" ? "magic" : "arrowRight")}${nextLabel}</a>${nextSection !== "data" ? `<button class="btn ghost" data-upload-project="${project.id}">${icon("upload")}导入数据</button>` : ""}${isAdmin() ? `<button class="project-archive-action" data-archive-project="${project.id}" aria-label="归档项目 ${escapeHtml(project.name)}" title="收起项目，可从归档列表恢复">归档</button>` : ""}`}${isAdmin() ? `<button class="project-delete-action" data-delete-project="${project.id}" aria-label="永久删除项目 ${escapeHtml(project.name)}">删除</button>` : ""}</div></div>
   </article>`;
+}
+
+function openProjectDeleteModal(projectId) {
+  if (!isAdmin()) return notify("只有管理员可以删除项目", "error");
+  const project = state.projects.find(item => item.id === projectId);
+  if (!project) return notify("项目列表已更新，请刷新后重试", "warning");
+  const name = project.name, epoch = state.selectionEpoch, session = state.session;
+  const hash = location.hash, archived = state.projectsArchived, request = dashboardRequest;
+  let input, submit, pending = false, disposed = false;
+  const current = () => !disposed && input?.isConnected && document.querySelector("#project-delete-name") === input &&
+    isAdmin() && state.authReady && state.session === session && state.selectionEpoch === epoch &&
+    state.currentSection === "projects" && location.hash === hash && state.projectsArchived === archived &&
+    dashboardRequest === request && state.projects.some(item => item.id === projectId && item.name === name);
+  const updateSubmit = () => { submit.disabled = pending || !current() || input.value !== name; };
+  openModal({ title: "永久删除项目", subtitle: "删除后无法恢复，请确认项目名称。", submitText: "永久删除项目",
+    body: `<div class="modal-warning project-delete-warning">此操作将永久删除项目中的图片、标注、数据块、数据版本，以及训练和模型转换的记录与结果，无法撤销。</div>
+      <p>将要删除的项目：</p><code class="project-delete-confirm-name">${escapeHtml(name)}</code>
+      <div class="field"><label for="project-delete-name">请输入项目完整名称以确认</label><input type="text" id="project-delete-name" name="project-delete-confirmation" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="project-delete-hint" autofocus /><div class="hint" id="project-delete-hint">须与上方名称完全一致，包括大小写和空格。输入前请确认已备份需要的数据。</div></div>
+      <p class="hint">如项目仍有排队或运行中的任务，或有人正在编辑标注，请先结束任务和编辑，再删除项目。</p>`,
+    onReady: () => {
+      input = document.querySelector("#project-delete-name"); submit = document.querySelector("#modal-submit");
+      input.value = ""; submit.classList.remove("primary"); submit.classList.add("danger");
+      input.addEventListener("input", updateSubmit); input.addEventListener("change", updateSubmit);
+      const handleSubmit = submit.onclick;
+      submit.onclick = async () => {
+        updateSubmit();
+        if (submit.disabled) return;
+        try { await handleSubmit(); }
+        finally { if (input.isConnected) updateSubmit(); }
+      };
+      updateSubmit();
+    },
+    onClose: () => { disposed = true; },
+    onSubmit: async () => {
+      if (pending) return;
+      if (!current()) throw new Error("页面或项目已更新，请重新打开删除确认窗口");
+      if (input.value !== name) throw new Error("项目名称不一致，请输入完整名称后再删除");
+      pending = true; updateSubmit();
+      try {
+        const result = await api(`/api/projects/${projectId}`, jsonOptions("DELETE", { confirmation_name: input.value }));
+        if (!current()) return;
+        state.projects = state.projects.filter(item => item.id !== projectId);
+        closeModal();
+        if (result?.cleanup?.status === "pending" || result?.cleanup?.pending_count > 0) notify("项目已删除，部分文件待管理员清理", "warning");
+        else notify("项目已删除");
+        await loadDashboard();
+      } catch (error) { if (current()) throw error; }
+      finally { pending = false; }
+    },
+  });
 }
 
 function openProjectModal() {
@@ -1066,9 +1117,9 @@ async function downloadArtifact(url, fallbackName = "download") {
   } finally { progressNotice.remove(); }
 }
 
-import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.21.2";
-import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.21.2";
-import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.21.2";
+import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.21.3";
+import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.21.3";
+import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.21.3";
 
 const trainingChartViews = new Map();
 const trainingDetailViews = new Map();

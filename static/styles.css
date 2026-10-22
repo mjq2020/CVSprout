@@ -698,9 +698,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .dataset-progress span.approved { background: var(--success); }
 .project-review-counts { display: flex; gap: 18px; color: var(--muted); font-size: 12px; }
 .approved-count { color: var(--success); }
-.project-card-actions { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--line-soft); margin-top: 20px; padding-top: 17px; }
+.project-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; border-top: 1px solid var(--line-soft); margin-top: 20px; padding-top: 17px; }
 .project-archive-action { padding: 8px 2px; margin-left: auto; border: 0; color: var(--muted); background: transparent; cursor: pointer; font-size: 12px; }
 .project-archive-action:hover { color: var(--brand); }
+.project-delete-action { padding: 8px 2px; border: 0; color: var(--danger); background: transparent; cursor: pointer; font-size: 12px; }
+.project-delete-action:hover { text-decoration: underline; }
+.project-delete-confirm-name { display: block; margin: 8px 0 18px; padding: 12px; border: 1px solid var(--line); border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.project-delete-warning { color: var(--danger); }
 .empty-state { background: var(--panel); }
 .empty-state strong { color: var(--text); display: block; margin-bottom: 8px; }
 .account-menu { position: relative; }

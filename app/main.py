@@ -25,6 +25,7 @@ from .analytics import router as analytics_router
 from .accounts import router as accounts_router
 from .review import router as review_router
 from .asset_management import router as asset_management_router
+from .project_deletion import router as project_deletion_router
 from .security import browser_security, request_budget
 from .http_limits import RequestBodyLimit
 from .collaboration import active_job_for_assets, guard_asset, guard_job_targets, foreign_edit_lock
@@ -97,13 +98,14 @@ async def lifespan(application: FastAPI):
                     await pipeline_task
 
 
-app = FastAPI(title="CVSprout 标注平台", version="0.21.2", lifespan=lifespan)
+app = FastAPI(title="CVSprout 标注平台", version="0.21.3", lifespan=lifespan)
 app.middleware("http")(browser_security)
 app.add_middleware(RequestBodyLimit, policy=request_budget)
 app.include_router(accounts_router)
 app.include_router(review_router)
 app.include_router(work_blocks_router)
 app.include_router(asset_management_router)
+app.include_router(project_deletion_router)
 app.include_router(analytics_router)
 app.include_router(dataset_versions_router)
 app.include_router(training_router)
@@ -542,6 +544,8 @@ async def upload_assets(
                 )
         with db() as conn:
             conn.execute("BEGIN IMMEDIATE")
+            if not conn.execute("SELECT 1 FROM projects WHERE id=?", (project_id,)).fetchone():
+                raise HTTPException(404, "项目已被删除，请返回项目列表")
             for image in stored:
                 duplicate = conn.execute(
                     "SELECT id FROM assets WHERE project_id = ? AND sha256 = ?",
@@ -1103,6 +1107,8 @@ def create_job(project_id: int, payload: JobCreate, actor: Actor = Depends(get_a
     settings_json = json.dumps(config, ensure_ascii=False)
     with db() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        if not conn.execute("SELECT 1 FROM projects WHERE id=?", (project_id,)).fetchone():
+            raise HTTPException(404, "项目已被删除，请返回项目列表")
         selected = set(payload.asset_ids) if payload.asset_ids is not None else None
         eligible_assets = [dict(row) for row in conn.execute("SELECT * FROM assets WHERE project_id=? ORDER BY id", (project_id,))
                            if (selected is None or row["id"] in selected)]

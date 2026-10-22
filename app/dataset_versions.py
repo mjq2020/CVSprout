@@ -489,6 +489,8 @@ def create_version(
         # this short write transaction.
         with db() as conn:
             conn.execute("BEGIN IMMEDIATE")
+            if not conn.execute("SELECT 1 FROM projects WHERE id=?", (project_id,)).fetchone():
+                raise HTTPException(404, "项目已被删除，请返回项目列表")
             next_number = int(
                 conn.execute(
                     "SELECT COALESCE(MAX(version_number), 0) + 1 FROM dataset_versions WHERE project_id = ?",
@@ -739,23 +741,24 @@ def _polygon_area(points: list[float]) -> float:
 
 
 def _load_snapshot_rows(version_id: int) -> tuple[dict, list[dict], list[dict], list[dict]]:
-    version = _require_version(version_id)
-    labels = all_rows(
-        "SELECT * FROM dataset_version_labels WHERE version_id = ? ORDER BY category_index",
-        (version_id,),
-    )
-    assets = all_rows(
-        "SELECT * FROM dataset_version_assets WHERE version_id = ? ORDER BY id",
-        (version_id,),
-    )
-    annotations = all_rows(
-        """SELECT n.*, a.split, a.original_asset_id, l.category_index
-           FROM dataset_version_annotations n
-           JOIN dataset_version_assets a ON a.id = n.version_asset_id
-           JOIN dataset_version_labels l ON l.id = n.version_label_id
-           WHERE n.version_id = ? ORDER BY n.id""",
-        (version_id,),
-    )
+    # A project can be deleted while an export is being assembled. Keep all
+    # metadata from one read snapshot; missing media is checked by the exporter.
+    with db() as conn:
+        conn.execute("BEGIN")
+        row = conn.execute("SELECT * FROM dataset_versions WHERE id=?", (version_id,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "数据集版本不存在")
+        version = dict(row)
+        labels = [dict(row) for row in conn.execute(
+            "SELECT * FROM dataset_version_labels WHERE version_id = ? ORDER BY category_index", (version_id,))]
+        assets = [dict(row) for row in conn.execute(
+            "SELECT * FROM dataset_version_assets WHERE version_id = ? ORDER BY id", (version_id,))]
+        annotations = [dict(row) for row in conn.execute(
+            """SELECT n.*, a.split, a.original_asset_id, l.category_index
+               FROM dataset_version_annotations n
+               JOIN dataset_version_assets a ON a.id = n.version_asset_id
+               JOIN dataset_version_labels l ON l.id = n.version_label_id
+               WHERE n.version_id = ? ORDER BY n.id""", (version_id,))]
     return version, labels, assets, annotations
 
 

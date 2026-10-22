@@ -63,11 +63,13 @@
 
 ### 3. 项目工作台与项目总览
 
-项目列表支持按名称搜索、任务类型筛选和排序，显示图片预览、标注进度及待审核数量。管理员可创建项目、定义任务类型与类别，并将暂时不用的项目归档或恢复。
+项目列表支持按名称搜索、任务类型筛选和排序，显示图片预览、标注进度及待审核数量。管理员可创建项目、定义任务类型与类别，并将暂时不用的项目归档或恢复。普通及归档列表均可永久删除项目，须完整输入项目名称确认；后端再次核对名称与权限，并检查正在执行或排队的任务、图片编辑占用及计算资源租约。
 
 项目总览汇总图片、标注、类别和审核进度，显示正在执行的 AI 任务、训练统计与最近训练记录，并提供下一步操作入口。项目内部按数据、任务块、标注与审核、AI 标注、数据版本、训练等页面组织流程。
 
 归档用于整理项目列表，不删除数据，也不代表自动停止任务或把所有接口改成只读。具体任务块操作还会检查项目是否已归档。
+
+永久删除通过事务移除项目关联记录，随后清理其图片、冻结版本与训练/转换产物；保留审计记录、共享基础模型及其他项目。清理失败会记录待处理文件并明确反馈，不会把已提交的删除误报成失败。操作说明见 [删除项目](user-guide.md#删除项目)，后端实现为 [project_deletion.py](../app/project_deletion.py)。
 
 ### 4. 类别与任务定义
 
@@ -276,7 +278,7 @@ RKNN 支持按目标芯片配置浮点或 INT8、均值/标准差、量化算法
 |---|---|
 | 查看共享项目、图片、模型目录、任务和产物 | 已登录成员；接口仍检查相应记录是否存在和可访问 |
 | 上传图片、人工标注、领取与提交任务块 | 已登录成员；修改块内图片需为负责人，且通过编辑和状态检查 |
-| 创建/归档项目、维护类别、删除图片、配置模型和管理用户 | 管理员 |
+| 创建/归档/永久删除项目、维护类别、删除图片、配置模型和管理用户 | 管理员 |
 | 创建任务块、分配/转交任务块、重新打开已完成块 | 管理员 |
 | 主动交回未完成任务块 | 当前负责人或管理员，需符合块状态和版本条件 |
 | 审核图片、预览/创建数据版本、创建/重试训练和转换 | 审核员或管理员 |
@@ -341,6 +343,8 @@ Compose 使用 `visionforge-data`、`visionforge-models` 持久卷；这些旧�
 | [app/http_limits.py](../app/http_limits.py) | 对实际接收的请求体实施大小限制，供平台和独立推理服务复用 |
 | [app/storage.py](../app/storage.py) | 图片解码校验、ZIP 图片读取、内容哈希及媒体落盘 |
 | [app/asset_management.py](../app/asset_management.py) | 批量删除预览、逐图校验、删除及媒体清理结果 |
+| [app/project_deletion.py](../app/project_deletion.py) | 项目名称确认、管理员权限与任务占用检查、关联数据删除及文件清理审计 |
+| [app/file_responses.py](../app/file_responses.py) | 固定模型下载文件，保留分段下载并避免项目删除中断已开始的下载 |
 | [app/task_types.py](../app/task_types.py) | 任务允许的形状、关键点顺序/数量/可见性及坐标规则 |
 | [app/collaboration.py](../app/collaboration.py) | 图片写入、审核、删除、编辑占用和 AI 冲突的公共检查 |
 | [app/work_blocks.py](../app/work_blocks.py) | 分块、领取、归属、转交、交回、完成、返工和 AI 范围保护 |
@@ -444,6 +448,7 @@ Compose 使用 `visionforge-data`、`visionforge-models` 持久卷；这些旧�
 | 首次设置、身份与会话 | `/api/setup`、`/api/login`、`/api/session` |
 | 注册、成员与个人安全 | `/api/register`、`/api/registration-requests`、`/api/users`、`/api/account` |
 | 项目、类别与图片 | `/api/projects`、`/api/projects/{id}/labels`、`/api/projects/{id}/assets` |
+| 永久删除项目 | `DELETE /api/projects/{id}`，JSON 请求体为 `{"confirmation_name":"项目完整名称"}`，仅管理员 |
 | 图片编辑与审核 | `/api/assets/{id}/lock`、`/annotations`、`/workflow`、`/review-events`；标注对象更新使用 `/api/annotations/{id}` |
 | 任务块 | `/api/projects/{id}/work-blocks` 及领取、交回、分配、返工子接口 |
 | 批量审核 | `/api/projects/{id}/review/preview`、`/api/projects/{id}/review/batch` |
