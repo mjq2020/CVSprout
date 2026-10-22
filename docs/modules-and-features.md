@@ -1,6 +1,6 @@
 # CVSprout 模块与功能说明
 
-本文描述 **0.22.1** 已实现的模块、主要功能、数据流和源码入口，供首次使用者了解产品，也供开发者定位代码。具体操作步骤见[用户指南](user-guide.md)，安装命令见 [README](../README.md)。功能、配置或权限发生变化时，应同步维护本文。
+本文描述 **0.23.0** 已实现的模块、主要功能、数据流和源码入口，供首次使用者了解产品，也供开发者定位代码。具体操作步骤见[用户指南](user-guide.md)，安装命令见 [README](../README.md)。功能、配置或权限发生变化时，应同步维护本文。
 
 ## 阅读导航
 
@@ -169,14 +169,14 @@
 | Grounding DINO Tiny | 本地文本引导目标检测 | 下载目录中的固定权重与配置 |
 | SAM 3 | 本地分割能力 | 自行准备符合模型使用条件的权重及所需源码，不在一键下载目录中 |
 | SAM2.1 Tiny | 本地交互式分割 | 下载对应权重，结合点或框提示 |
-| Ultralytics 权重 | 支持检测、分割、分类或关键点的本地训练与推理 | 下载 YOLO26 Nano 对应任务权重，或由管理员导入可信 `.pt` 文件 |
+| Ultralytics 权重 | 支持检测、分割、分类或关键点的本地训练与推理 | 训练默认按需下载 YOLOv8 / YOLO11 / YOLO26；可提前下载或由管理员导入兼容 `.pt` 文件 |
 | 自定义远程模型 | 检测、分割、分类、关键点或交互分割协议适配 | 在模型服务中配置对应协议 |
 
 基础模型下载使用固定来源、大小和 SHA-256 校验，并支持中断后续传。导入权重不会覆盖同名文件。模型文件与第三方组件有独立的许可信息，见[第三方说明](../THIRD_PARTY_NOTICES.md)。
 
-网页下载目录当前提供 Grounding DINO Tiny、SAM2.1 Tiny 和 YOLO26 Nano 检测/分割/分类/关键点共六项；目录中存在某个模型不代表本机已经下载或具备运行条件。
+网页下载目录当前提供 Grounding DINO Tiny、SAM2.1 Tiny，以及 YOLOv8 / YOLO11 / YOLO26 的 15 个训练模型，共 17 项；目录中存在某个模型不代表本机已经下载或具备运行条件。
 
-主要实现：[model_downloads.py](../app/model_downloads.py)、[providers](../app/providers)、[setup-ui.js](../static/setup-ui.js)。
+主要实现：[model_downloads.py](../app/model_downloads.py)、[training_models.py](../app/training_models.py)、[providers](../app/providers)、[setup-ui.js](../static/setup-ui.js)。
 
 ### 11. AI 预览与后台标注
 
@@ -222,12 +222,15 @@ GPU 忙时，后台任务等待资源并维持租约，交互预览给出可重�
 
 ### 14. 训练任务与监控
 
-训练页面从数据版本和本地模型目录创建任务，先检查任务、类别和模型兼容性，再选择训练参数及 CPU 或可用 GPU。创建时记录数据版本哈希、基础权重哈希、后端版本和参数，便于追溯结果。
+训练页面从数据版本、内置模型和本地权重目录创建任务，先检查任务、类别和模型兼容性，再选择训练参数及 CPU 或可用 GPU。内置 YOLOv8、YOLO11、YOLO26 各提供检测 Nano/Small 和分割、分类、关键点 Nano，无需预先安装权重。创建时记录数据版本哈希、初始化方式、基础权重哈希或架构配置、后端版本和参数，便于追溯结果。
 
 训练后端使用 Ultralytics，支持上述检测、实例分割、分类和关键点任务，不是任意 PyTorch 脚本或大语言模型的训练平台，也不负责训练 Grounding DINO/SAM。训练和验证划分都需具备适用的有效标注，创建训练前会检查。
 
 | 功能 | 说明 |
 |---|---|
+| 预训练与从零训练 | 默认使用预训练权重；关闭后从模型结构生成随机参数，历史配置与复用参数保留该选择 |
+| 按需下载 | worker 在分配 GPU 前下载缺少的官方权重，固定来源、大小与 SHA-256，显示进度，支持取消和失败重试续传 |
+| 上传自己的权重 | 管理员在训练弹窗上传兼容 `.pt` 文件，检查真实任务后选择模型；保留已填参数，同名不覆盖 |
 | 参数配置 | 按任务和模型能力设置轮次、图片尺寸、batch、优化器、学习率、种子、早停、AMP 等参数，服务端检查范围和兼容性 |
 | 训练列表 | 按状态、任务或名称/模型搜索，分页查看，保留当前选中记录 |
 | 实时监控 | 展示运行状态、进度、逐轮 loss、评估指标、日志及错误信息 |
@@ -239,7 +242,7 @@ GPU 忙时，后台任务等待资源并维持租约，交互预览给出可重�
 
 资源选择提供均衡、性能优先、显存友好等策略，用于选择设备；显存友好不会自动减小 batch 或改写训练参数。训练器自身的在线增强与版本生成时的离线增强是两套配置。
 
-主要实现：[training.py](../app/training.py)、[training-navigation.js](../static/training-navigation.js)、[training-charts.js](../static/training-charts.js)、[overview-training.js](../static/overview-training.js)。
+主要实现：[training.py](../app/training.py)、[training_models.py](../app/training_models.py)、[模型清单](../model-catalog/models.json)、[training-navigation.js](../static/training-navigation.js)、[training-charts.js](../static/training-charts.js)、[overview-training.js](../static/overview-training.js)。
 
 ### 15. 模型转换
 
@@ -359,6 +362,7 @@ Compose 使用 `visionforge-data`、`visionforge-models` 持久卷；这些旧�
 | [app/dataset_versions.py](../app/dataset_versions.py) | 数据选择、版本预览与快照、划分、版本图片读取及导出 |
 | [app/dataset_augmentation.py](../app/dataset_augmentation.py) | 增强操作、确定性生成、几何与标注同步变换 |
 | [app/training.py](../app/training.py) | 模型目录与资源、训练/转换接口、执行队列、租约恢复、日志指标和产物 |
+| [app/training_models.py](../app/training_models.py) | 官方训练模型清单、按需下载、共享下载锁及取消与续传 |
 | [app/plot_fonts.py](../app/plot_fonts.py) | 为训练绘图准备本地字体，减少隐式联网依赖 |
 | [app/conversion_support.py](../app/conversion_support.py) | 转换环境与能力探测、格式参数、校准及部署说明辅助 |
 | [app/conversion_runner.py](../app/conversion_runner.py) | 执行专用转换流程，特别是独立环境中的 RKNN 转换 |

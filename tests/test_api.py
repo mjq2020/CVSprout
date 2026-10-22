@@ -907,10 +907,13 @@ class ApiFlowTest(unittest.TestCase):
         self.assertIn(
             "rectangle_to_polygon", result["tasks"]["segment"]["transformations"]
         )
-        self.assertEqual(result["tasks"]["detect"]["model_ids"], ["yolo-test.pt"])
-        self.assertEqual(
-            result["tasks"]["segment"]["model_ids"], ["yolo-test-seg.pt"]
-        )
+        for task, local_id in (("detect", "yolo-test.pt"), ("segment", "yolo-test-seg.pt")):
+            compatible_ids = result["tasks"][task]["model_ids"]
+            self.assertIn(local_id, compatible_ids)
+            self.assertCountEqual(compatible_ids, [model["id"] for model in models
+                                                  if model["task"] == task and model["available"]])
+        self.assertIn("yolo11n.pt", result["tasks"]["detect"]["model_ids"])
+        self.assertIn("yolov8n-seg.pt", result["tasks"]["segment"]["model_ids"])
 
     def test_training_retry_lineage_logs_metrics_and_explicit_task(self) -> None:
         project_id, version_id, _ = self.create_training_version_fixture(
@@ -1533,8 +1536,7 @@ class ApiFlowTest(unittest.TestCase):
         self.assertEqual(after_stale_runner["claimed_by"], "worker:second")
         self.assertEqual(after_stale_runner["claim_generation"], 2)
 
-        # Regression for the former missing comma in the failure UPDATE: a real runner
-        # exception must be persisted as failed instead of escaping and leaving running.
+        # Missing weights fail during preparation without leaving the task running.
         with db() as conn:
             failed_cursor = conn.execute(
                 """INSERT INTO training_runs
@@ -1560,7 +1562,27 @@ class ApiFlowTest(unittest.TestCase):
         )
         self.assertEqual(failed["status"], "failed")
         self.assertIn("基础模型", failed["error"])
+        self.assertEqual(failed["progress_message"], "模型准备失败")
+        failure_logs = self.client.get(f"/api/training-runs/{failed_id}/logs").json()["logs"]
+        self.assertEqual(failure_logs[-1]["event"], "model_preparation_failed")
+
+        # Keep coverage of failures after the compute lease is acquired, including
+        # the former missing comma in that failure UPDATE and resource cleanup.
+        with db() as conn:
+            conn.execute("UPDATE training_runs SET status='running',error=NULL WHERE id=?", (failed_id,))
+        with (
+            patch.object(training_module, "_prepare_training_model", return_value=Path("fixture.pt")),
+            patch.object(training_module, "_prepare_training_dataset", side_effect=RuntimeError("数据集导出失败")),
+            patch.object(training_module.logger, "exception"),
+        ):
+            training_module._run_with_lease(
+                "training_runs", failed_id, "worker:failure", 1, training_module.run_training,
+            )
+        failed = one("SELECT status,error,progress_message FROM training_runs WHERE id=?", (failed_id,))
+        self.assertEqual(failed["status"], "failed")
+        self.assertIn("数据集导出失败", failed["error"])
         self.assertEqual(failed["progress_message"], "训练失败")
+        self.assertIsNone(one("SELECT * FROM pipeline_resource_leases WHERE task_type='training' AND task_id=?", (failed_id,)))
         failure_logs = self.client.get(f"/api/training-runs/{failed_id}/logs").json()["logs"]
         self.assertEqual(failure_logs[-1]["event"], "failed")
 

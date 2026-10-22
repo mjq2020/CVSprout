@@ -21,14 +21,16 @@ def main() -> None:
         models.mkdir()
         (root / "yolo").mkdir()
         os.environ.update(
-            MDP_DATA_DIR=str(root / "data"), MDP_AUTH_MODE="disabled",
+            MDP_DATA_DIR=str(root / "data"), MDP_MODELS_DIR=str(models), MDP_AUTH_MODE="disabled",
             MDP_EMBEDDED_WORKER="false", MDP_EMBEDDED_PIPELINE_WORKER="false",
+            MDP_WORKER_URL="", MDP_PUBLIC_ORIGIN="", MDP_COOKIE_SECURE="false",
             MDP_TRAINING_ENABLED="true", MDP_MODEL_DEVICE="cpu",
             MDP_TRAINING_MODEL_DIRS=str(models),
             MDP_TRAINING_BASE_MODEL=str(models / "absent.pt"),
             MDP_TRAINING_SEGMENTATION_MODEL=str(models / "absent-seg.pt"),
             YOLO_OFFLINE="true", YOLO_AUTOINSTALL="false",
             YOLO_CONFIG_DIR=str(root / "yolo"), OMP_NUM_THREADS="2", MKL_NUM_THREADS="2",
+            CUDA_VISIBLE_DEVICES="",
         )
         import torch
         from fastapi.testclient import TestClient

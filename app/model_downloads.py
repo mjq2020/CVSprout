@@ -18,28 +18,44 @@ from .config import BASE_DIR, settings
 router = APIRouter(prefix="/api/model-downloads", tags=["models"])
 
 
+class ModelDownloadCancelled(RuntimeError):
+    """The consumer cancelled a download without discarding its partial file."""
+
+
+def check_cancelled(cancelled=None):
+    if cancelled is not None and cancelled():
+        raise ModelDownloadCancelled("模型下载已取消，已下载的部分会保留供下次续传。")
+
+
 def catalog():
     return json.loads((BASE_DIR / "model-catalog" / "models.json").read_text())
 
 
-def digest(path):
+def digest(path, cancelled=None):
     h = hashlib.sha256()
     with path.open("rb") as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
+            check_cancelled(cancelled)
             h.update(block)
     return h.hexdigest()
 
 
 def destination(relative):
     root = settings.models_dir.resolve()
-    path = (root / relative).resolve()
+    candidate = root / relative
+    for component in (candidate, *candidate.parents):
+        if component == root:
+            break
+        if component.is_symlink():
+            raise ValueError("模型保存路径不能经过符号链接。")
+    path = candidate.resolve()
     if root not in path.parents:
         raise ValueError("Model destination outside model directory")
     return path
 
 
 def state_dir():
-    path = settings.models_dir / ".downloads"
+    path = destination(".downloads")
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -52,20 +68,26 @@ def write_state(model_id, **value):
     os.replace(temporary, path)
 
 
-def download_file(item, progress):
+def download_file(item, progress, cancelled=None):
+    check_cancelled(cancelled)
     path = destination(item["path"])
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_file():
-        if digest(path) == item["sha256"]:
+        if path.stat().st_size == item["size"] and digest(path, cancelled) == item["sha256"]:
             progress(item["size"])
             return
         raise ValueError(f"{path.name} 已存在且内容不同；请先移走该文件，避免覆盖自己的权重。")
+    if path.exists():
+        raise ValueError(f"{path.name} 已存在且不是普通文件，请先检查模型目录。")
     partial = path.with_name(path.name + ".part")
+    if partial.is_symlink() or (partial.exists() and not partial.is_file()):
+        raise ValueError("模型续传文件不是普通文件，请先检查模型目录。")
     start = partial.stat().st_size if partial.exists() else 0
     if start > item["size"]:
         partial.unlink()
         start = 0
     if start < item["size"]:
+        check_cancelled(cancelled)
         with httpx.stream("GET", item["url"], headers={"Range": f"bytes={start}-"} if start else {},
                           follow_redirects=True, timeout=60, trust_env=False,
                           proxy=os.getenv("MDP_DOWNLOAD_PROXY") or None) as response:
@@ -74,20 +96,24 @@ def download_file(item, progress):
             if append and not response.headers.get("content-range", "").startswith(f"bytes {start}-"):
                 raise ValueError("下载服务器返回的续传位置不正确，请重试。")
             downloaded = start if append else 0
-            with partial.open("ab" if append else "wb") as stream:
+            flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | (os.O_APPEND if append else os.O_TRUNC)
+            with os.fdopen(os.open(partial, flags, 0o600), "ab" if append else "wb") as stream:
                 for block in response.iter_bytes(1024 * 1024):
+                    check_cancelled(cancelled)
                     downloaded += len(block)
                     if downloaded > item["size"]:
                         raise ValueError("下载文件超出清单记录大小")
                     stream.write(block)
                     progress(downloaded)
-    if partial.stat().st_size != item["size"] or digest(partial) != item["sha256"]:
+    check_cancelled(cancelled)
+    if partial.stat().st_size != item["size"] or digest(partial, cancelled) != item["sha256"]:
         partial.unlink(missing_ok=True)
         raise ValueError("模型完整性校验失败，请重新下载。")
     try:
+        check_cancelled(cancelled)
         os.link(partial, path)
     except FileExistsError:
-        if not path.is_file() or digest(path) != item["sha256"]:
+        if path.is_symlink() or not path.is_file() or path.stat().st_size != item["size"] or digest(path, cancelled) != item["sha256"]:
             raise ValueError(f"{path.name} 在下载期间被创建，已保留该文件；请重命名后重试。")
     partial.unlink(missing_ok=True)
 

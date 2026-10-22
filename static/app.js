@@ -1,22 +1,22 @@
-import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.22.1";
-import { renderUsersPage } from "./accounts-ui.js?v=0.22.1";
-import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.22.1";
-import { mountAuthScreen } from "./auth-ui.js?v=0.22.1";
-import { renderAccountPage } from "./security-ui.js?v=0.22.1";
-import { bindAssetManagement } from "./asset-management-ui.js?v=0.22.1";
-import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.22.1";
-import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.22.1";
-import { loadProjectWorkBlocks } from "./project-api.js?v=0.22.1";
-import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.22.1";
-import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.22.1";
-import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.22.1";
-import { mountOverviewTraining } from "./overview-training.js?v=0.22.1";
-import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.22.1";
-import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.22.1";
-import { mountCanvasGuides } from "./canvas-guides.js?v=0.22.1";
-import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.22.1";
-import { beginWorkspaceLoad, cancelWorkspaceLoad } from "./workspace-feedback.js?v=0.22.1";
-import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.22.1";
+import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.23.0";
+import { renderUsersPage } from "./accounts-ui.js?v=0.23.0";
+import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.23.0";
+import { mountAuthScreen } from "./auth-ui.js?v=0.23.0";
+import { renderAccountPage } from "./security-ui.js?v=0.23.0";
+import { bindAssetManagement } from "./asset-management-ui.js?v=0.23.0";
+import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.23.0";
+import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.23.0";
+import { loadProjectWorkBlocks } from "./project-api.js?v=0.23.0";
+import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.23.0";
+import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.23.0";
+import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.23.0";
+import { mountOverviewTraining } from "./overview-training.js?v=0.23.0";
+import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.23.0";
+import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.23.0";
+import { mountCanvasGuides } from "./canvas-guides.js?v=0.23.0";
+import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.23.0";
+import { beginWorkspaceLoad, cancelWorkspaceLoad } from "./workspace-feedback.js?v=0.23.0";
+import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.23.0";
 
 const app = document.querySelector("#app");
 const modalRoot = document.querySelector("#modal-root");
@@ -1210,9 +1210,9 @@ async function downloadArtifact(url, fallbackName = "download") {
   } finally { progressNotice.remove(); }
 }
 
-import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.22.1";
-import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.22.1";
-import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.22.1";
+import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.23.0";
+import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.23.0";
+import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.23.0";
 
 const trainingChartViews = new Map();
 const trainingDetailViews = new Map();
@@ -1376,7 +1376,10 @@ function normalizeTrainingModel(model, index = 0) {
     task,
     tasks: Array.isArray(model.tasks) ? model.tasks : [task],
     family: model.family || "YOLO",
-    available: model.available !== false && model.exists !== false,
+    available: typeof model.available === "boolean" ? model.available : model.exists !== false,
+    installed: typeof model.installed === "boolean" ? model.installed : model.exists !== undefined ? model.exists !== false : model.source !== "builtin",
+    source: model.source || "local",
+    supports_scratch: model.supports_scratch === true,
     defaults: model.defaults || {},
   };
 }
@@ -1421,8 +1424,8 @@ function trainingReadiness() {
       isAdmin() ? { href: "#/models", label: "准备训练模型" } : null);
   }
   if (!availability.available) return blocked("environment", backendReason || "训练环境暂时无法检查，请联系管理员检查依赖与服务配置，再刷新重试。");
-  if (!hasWorker) return blocked("worker", "训练权重已就绪，但没有在线的训练执行服务。请联系管理员启动 worker，或检查训练功能是否启用，再刷新重试。");
-  return { ready: true, runtimeHealthy: true, status: "ready", reason: "数据与训练服务已就绪，首次训练可使用推荐模型和默认参数。", action: null };
+  if (!hasWorker) return blocked("worker", "训练模型可用，但没有在线的训练执行服务。请联系管理员启动 worker，或检查训练功能是否启用，再刷新重试。");
+  return { ready: true, runtimeHealthy: true, status: "ready", reason: "数据与训练服务已就绪。默认使用预训练权重，未安装的官方权重会在首次训练时自动下载。", action: null };
 }
 
 const trainingBackgroundConversions = new Map();
@@ -1525,7 +1528,7 @@ function trainingTaskCapabilityCard(task) {
 function trainingCatalogModelCard(model) {
   const task = trainingTaskInfo(model.task);
   const size = model.parameters || model.parameter_count ? `${formatCompactNumber(model.parameters || model.parameter_count)} 参数` : model.size_bytes ? formatBytes(model.size_bytes) : "本地权重";
-  return `<article class="catalog-model ${model.available ? "" : "unavailable"}" title="${escapeHtml(model.reason || model.description || "")}"><div><strong>${escapeHtml(model.name)}</strong>${model.recommended ? `<span>推荐</span>` : ""}</div><p>${escapeHtml(model.family)} · ${escapeHtml(task.short)} · ${escapeHtml(size)}</p><small>${model.available ? "可训练" : escapeHtml(model.reason || "当前不可用")}</small></article>`;
+  return `<article class="catalog-model ${model.available ? "" : "unavailable"}" title="${escapeHtml(model.reason || model.description || "")}"><div><strong>${escapeHtml(model.name)}</strong>${model.recommended ? `<span>推荐</span>` : ""}</div><p>${escapeHtml(model.family)} · ${escapeHtml(task.short)} · ${escapeHtml(size)}</p><small>${model.available ? escapeHtml(trainingInitializationLabel(model)) : escapeHtml(model.reason || "当前不可用")}</small></article>`;
 }
 
 function trainingLicenseMarkup() {
@@ -1637,7 +1640,7 @@ function trainingRunDetails(run, version) {
   const artifact = run.artifact || {};
   const parentId = run.lineage?.parent_run_id || run.parent_run_id;
   const resolvedDevice = run.resource?.resolved_device || run.resource?.requested_device || settings.device || "auto";
-  return `<details class="pipeline-details" data-pipeline-detail="run-settings-${run.id}"><summary>训练参数与技术信息</summary><div class="run-detail-grid"><section><div class="detail-heading">${icon("branch")}数据与训练来源</div><dl class="run-properties"><div><dt>冻结版本</dt><dd>${escapeHtml(version?.name || `V${run.version_id}`)}</dd></div><div><dt>内容哈希</dt><dd><code>${escapeHtml(settings.version_content_hash?.slice(0, 16) || version?.content_hash?.slice(0, 16) || "—")}</code></dd></div><div><dt>基础权重哈希</dt><dd><code>${escapeHtml(settings.base_model_sha256?.slice(0, 16) || "—")}</code></dd></div><div><dt>配置哈希</dt><dd><code>${escapeHtml(run.config_hash?.slice(0, 16) || "—")}</code></dd></div><div><dt>重试记录</dt><dd>${parentId ? `Run #${parentId} → ` : ""}Run #${run.id}</dd></div><div><dt>创建时间</dt><dd>${formatDateTime(run.created_at)}</dd></div><div><dt>开始 / 结束</dt><dd>${formatDateTime(run.started_at)} / ${formatDateTime(run.finished_at)}</dd></div>${artifact.sha256 ? `<div><dt>训练权重校验</dt><dd><code>${escapeHtml(artifact.sha256.slice(0, 16))}</code></dd></div>` : ""}</dl></section><section><div class="detail-heading">${icon("sliders")}训练参数</div><dl class="run-properties"><div><dt>训练轮数 / 每批图片数</dt><dd>${run.total_epochs || settings.epochs || "—"} / ${settings.batch_size ?? "—"}</dd></div><div><dt>图像尺寸</dt><dd>${settings.image_size || settings.imgsz || "—"}</dd></div><div><dt>设备 / 策略</dt><dd>${escapeHtml(resolvedDevice)} / ${escapeHtml(settings.resource_profile || "balanced")}</dd></div><div><dt>优化器 / LR</dt><dd>${escapeHtml(settings.optimizer || "auto")} / ${settings.lr0 ?? "auto"}</dd></div><div><dt>权重衰减</dt><dd>${settings.weight_decay ?? "—"}</dd></div><div><dt>随机种子</dt><dd>${settings.seed ?? "—"}${settings.deterministic ? " · 可复现" : ""}</dd></div><div><dt>早停 / 重试</dt><dd>${settings.patience ?? "—"} / ${run.lineage?.max_retries ?? run.max_retries ?? "—"}</dd></div></dl></section></div></details><details class="pipeline-details" data-training-log-detail="${run.id}" data-pipeline-detail="run-log-${run.id}"><summary>原始运行日志（排查问题时查看）</summary><section class="run-log-section"><div class="detail-heading"><span>${icon("terminal")}运行日志</span><button class="mini-action" data-refresh-logs="${run.id}">${icon("refresh")}刷新</button></div>${renderTrainingLogConsole(run)}</section></details>`;
+  return `<details class="pipeline-details" data-pipeline-detail="run-settings-${run.id}"><summary>训练参数与技术信息</summary><div class="run-detail-grid"><section><div class="detail-heading">${icon("branch")}数据与训练来源</div><dl class="run-properties"><div><dt>冻结版本</dt><dd>${escapeHtml(version?.name || `V${run.version_id}`)}</dd></div><div><dt>内容哈希</dt><dd><code>${escapeHtml(settings.version_content_hash?.slice(0, 16) || version?.content_hash?.slice(0, 16) || "—")}</code></dd></div><div><dt>初始化方式</dt><dd>${settings.pretrained === false ? "从零训练（随机初始化）" : "使用预训练权重"}</dd></div><div><dt>基础权重哈希</dt><dd><code>${escapeHtml(settings.base_model_sha256?.slice(0, 16) || "—")}</code></dd></div><div><dt>配置哈希</dt><dd><code>${escapeHtml(run.config_hash?.slice(0, 16) || "—")}</code></dd></div><div><dt>重试记录</dt><dd>${parentId ? `Run #${parentId} → ` : ""}Run #${run.id}</dd></div><div><dt>创建时间</dt><dd>${formatDateTime(run.created_at)}</dd></div><div><dt>开始 / 结束</dt><dd>${formatDateTime(run.started_at)} / ${formatDateTime(run.finished_at)}</dd></div>${artifact.sha256 ? `<div><dt>训练权重校验</dt><dd><code>${escapeHtml(artifact.sha256.slice(0, 16))}</code></dd></div>` : ""}</dl></section><section><div class="detail-heading">${icon("sliders")}训练参数</div><dl class="run-properties"><div><dt>训练轮数 / 每批图片数</dt><dd>${run.total_epochs || settings.epochs || "—"} / ${settings.batch_size ?? "—"}</dd></div><div><dt>图像尺寸</dt><dd>${settings.image_size || settings.imgsz || "—"}</dd></div><div><dt>设备 / 策略</dt><dd>${escapeHtml(resolvedDevice)} / ${escapeHtml(settings.resource_profile || "balanced")}</dd></div><div><dt>优化器 / LR</dt><dd>${escapeHtml(settings.optimizer || "auto")} / ${settings.lr0 ?? "auto"}</dd></div><div><dt>权重衰减</dt><dd>${settings.weight_decay ?? "—"}</dd></div><div><dt>随机种子</dt><dd>${settings.seed ?? "—"}${settings.deterministic ? " · 可复现" : ""}</dd></div><div><dt>早停 / 重试</dt><dd>${settings.patience ?? "—"} / ${run.lineage?.max_retries ?? run.max_retries ?? "—"}</dd></div></dl></section></div></details><details class="pipeline-details" data-training-log-detail="${run.id}" data-pipeline-detail="run-log-${run.id}"><summary>原始运行日志（排查问题时查看）</summary><section class="run-log-section"><div class="detail-heading"><span>${icon("terminal")}运行日志</span><button class="mini-action" data-refresh-logs="${run.id}">${icon("refresh")}刷新</button></div>${renderTrainingLogConsole(run)}</section></details>`;
 }
 
 function conversionRow(item) {
@@ -1697,66 +1700,187 @@ function openTrainingModal(templateRun = null) {
   const initialTask = requestedTask;
   const selectedDevice = settings.device || state.trainingResources?.default_device || "auto";
   const formats = availableConversionFormats();
+  let form = null, modelForm = null;
   openModal({ title: templateRun ? "复用训练配置" : "开始新训练", subtitle: "选择审核后的数据版本和推荐模型。提交后将在后台训练，可以离开页面。", wide: true, body: `
     <section class="wizard-section"><div class="wizard-section-title"><span>1</span><div><strong>选择训练数据</strong><small>使用已保存的数据版本，之后修改标注不会影响本次训练</small></div></div><div class="form-grid"><div class="field"><label>数据版本</label><select id="train-version">${state.versions.map(item => `<option value="${item.id}" ${item.id === version.id ? "selected" : ""}>${escapeHtml(item.name || `V${item.version_number || item.id}`)} · ${item.asset_count || 0} 张 / ${item.annotation_count || 0} 标注</option>`).join("")}</select></div><div class="field"><label>训练名称</label><input type="text" id="train-name" maxlength="100" value="${escapeHtml(templateRun ? `${templateRun.name || "训练"}（重新训练）` : `${state.project.name} 第 ${Number(state.training.total || 0) + 1} 次训练`)}" /></div></div><details class="pipeline-details"><summary>训练任务（已按数据版本选择）</summary><div class="training-task-grid">${trainingTaskChoices(initialTask)}</div></details><div class="training-compatibility" id="training-compatibility"></div></section>
-    <section class="wizard-section"><div class="wizard-section-title"><span>2</span><div><strong>选择起始模型</strong><small>已选好当前可用的推荐模型。它已有基础识别能力，将继续学习你的数据。</small></div></div><div class="training-model-picker" id="training-model-picker"></div><div class="hint" id="train-model-hint"></div></section>
+    <section class="wizard-section"><div class="wizard-section-title"><span>2</span><div><strong>选择起始模型</strong><small>默认使用预训练权重，缺少的官方权重会在开始训练后自动下载。</small></div></div><div class="training-model-picker" id="training-model-picker"></div><div class="training-initialization"><label class="check-line"><input id="train-pretrained" type="checkbox" ${settings.pretrained === false ? "" : "checked"} aria-describedby="train-pretrained-help"/>使用预训练权重（推荐）</label><p class="hint" id="train-pretrained-help"></p></div><p class="hint training-model-feedback" id="train-model-hint" role="status"></p>${isAdmin() ? `<details class="pipeline-details training-weight-upload"><summary>上传自己的 .pt 权重</summary><p class="hint">上传你自己训练或确认来源的 Ultralytics 权重，最多 2 GiB。上传后检查任务类型，并保留当前训练设置。</p><div class="training-weight-upload-controls"><div class="field"><label for="train-checkpoint-file">模型文件</label><input id="train-checkpoint-file" type="file" accept=".pt" /></div><button type="button" class="btn ghost" id="train-upload-button">上传并选择</button></div><p class="training-upload-feedback" id="train-upload-feedback" role="status" hidden></p></details>` : `<p class="hint">需要添加自己的权重时，请联系管理员上传。</p>`}</section>
     <section class="wizard-section"><div class="wizard-section-title"><span>3</span><div><strong>训练设置</strong><small>首次使用可保持推荐值。每轮会学习一遍训练图片，轮数越多通常耗时越长。</small></div></div><div class="form-grid"><div class="field"><label>训练轮数</label><input type="number" id="train-epochs" min="1" max="10000" value="${settings.epochs ?? 50}" /></div></div><details class="advanced-training pipeline-details"><summary>${icon("sliders")}高级训练设置（可保持默认）</summary><div class="form-grid three"><div class="field"><label>图像尺寸</label><input type="number" id="train-imgsz" min="32" max="4096" step="32" value="${settings.image_size || settings.imgsz || 640}" /></div><div class="field"><label>每批图片数</label><input type="number" id="train-batch" min="-1" max="4096" value="${settings.batch_size ?? -1}" /><div class="hint">-1 表示自动选择；内存不足时可改小。</div></div><div class="field"><label>效果不再提升时等待轮数</label><input type="number" id="train-patience" min="0" max="10000" value="${settings.patience ?? 25}" /></div></div><div class="resource-grid" id="training-resource-grid">${trainingDeviceChoices(selectedDevice)}</div><div class="form-grid three"><div class="field"><label>优化器</label><select id="train-optimizer"><option value="auto">自动选择</option>${["SGD", "Adam", "AdamW", "NAdam", "RAdam", "RMSProp", "MuSGD"].map(value => `<option value="${value}" ${settings.optimizer === value ? "selected" : ""}>${value}</option>`).join("")}</select></div><div class="field"><label>初始学习率</label><input type="number" id="train-lr0" min="0.0000001" max="1" step="0.0001" value="${settings.lr0 ?? 0.01}" /></div><div class="field"><label>权重衰减</label><input type="number" id="train-weight-decay" min="0" max="1" step="0.0001" value="${settings.weight_decay ?? 0.0005}" /></div><div class="field"><label>数据读取进程数</label><input type="number" id="train-workers" min="0" max="64" value="${settings.workers ?? 4}" /></div><div class="field"><label>随机种子</label><input type="number" id="train-seed" min="0" max="2147483647" value="${settings.seed ?? 42}" /></div><div class="field"><label>资源策略</label><select id="train-resource-profile">${trainingResourceProfileOptions(settings.resource_profile || "balanced")}</select></div><div class="field"><label>数据缓存</label><select id="train-cache"><option value="false">关闭</option><option value="ram" ${settings.cache === "ram" ? "selected" : ""}>内存</option><option value="disk" ${settings.cache === "disk" ? "selected" : ""}>磁盘</option></select></div><div class="field"><label>每隔多少轮保存</label><input type="number" id="train-save-period" min="-1" max="10000" value="${settings.save_period ?? -1}" /><div class="hint">-1 仅保留最佳模型和最后一轮模型</div></div><div class="field"><label>冻结前 N 层</label><input type="number" id="train-freeze" min="0" max="1000" placeholder="不冻结" value="${Number.isInteger(settings.freeze) ? settings.freeze : ""}" /></div><div class="field"><label>关闭 Mosaic</label><input type="number" id="train-close-mosaic" min="0" max="10000" value="${settings.close_mosaic ?? 10}" /><div class="hint">最后多少轮停止拼图增强</div></div><div class="field"><label>最多允许重试次数</label><input type="number" id="train-max-retries" min="0" max="10" value="${templateRun?.max_retries ?? settings.max_retries ?? 2}" /></div></div><div class="check-stack"><label class="check-line"><input id="train-deterministic" type="checkbox" ${settings.deterministic === false ? "" : "checked"}/>尽量保持多次训练结果一致（可能稍慢）</label><label class="check-line"><input id="train-amp" type="checkbox" ${settings.amp === false ? "" : "checked"}/>启用自动混合精度（运行时支持时）</label><label class="check-line"><input id="train-cos-lr" type="checkbox" ${settings.cos_lr ? "checked" : ""}/>使用余弦学习率调度</label></div></details></section>
     <div class="training-submit-summary" id="training-submit-summary">正在检查配置兼容性…</div><div class="export-note">${icon("database")}提交后会自动保存训练记录。完成后可下载原始模型，或转换为：${formats.length ? formats.map(value => escapeHtml(value.toUpperCase())).join("、") : "当前无可用转换器"}</div>`, submitText: "开始训练", onReady: () => {
-      let selectedModelId = templateRun ? String(state.trainingCatalog.models.find(model => model.model_arch === templateRun.model_arch)?.id || "") : "";
-      let compatibilityEpoch = 0;
-      const compatibilityCache = new Map();
-      const update = async ({ applyDefaults = false } = {}) => {
-        const epoch = ++compatibilityEpoch;
-        const submit = document.querySelector("#modal-submit");
-        submit.disabled = true;
-        const selectedVersion = state.versions.find(item => item.id === Number(document.querySelector("#train-version").value));
-        const task = document.querySelector('input[name="train-task"]:checked')?.value;
-        const info = trainingTaskInfo(task);
-        const compatibleModels = taskModels(task);
-        let selectedModel = compatibleModels.find(model => String(model.id) === selectedModelId && model.available) || compatibleModels.find(model => model.recommended && model.available) || compatibleModels.find(model => model.available);
-        selectedModelId = selectedModel ? String(selectedModel.id) : "";
-        const picker = document.querySelector("#training-model-picker");
-        picker.innerHTML = compatibleModels.length ? compatibleModels.map(model => trainingModelPickerCard(model, String(model.id) === selectedModelId)).join("") : `<div class="modal-warning">${icon("warning")}模型目录中没有适用于${escapeHtml(info.name)}的权重。</div>`;
-        picker.querySelectorAll('input[name="train-model"]').forEach(input => input.onchange = () => { selectedModelId = input.value; applyModelDefaults(state.trainingCatalog.models.find(model => String(model.id) === input.value)); updateTrainingSubmitSummary(); });
-        if (applyDefaults && selectedModel) applyModelDefaults(selectedModel);
-        let compatibility = { compatible: false, warnings: [] };
-        try {
-          if (!compatibilityCache.has(selectedVersion.id)) compatibilityCache.set(selectedVersion.id, await api(`/api/versions/${selectedVersion.id}/training-compatibility`));
-          compatibility = compatibilityCache.get(selectedVersion.id).tasks[task] || compatibility;
-        } catch (error) { compatibility.warnings = [error.message]; }
-        if (epoch !== compatibilityEpoch || document.querySelector("#modal-submit") !== submit) return;
-        const warnings = [...(compatibility.warnings || [])];
-        const dataIssue = trainingDataIssue(selectedVersion);
-        if (dataIssue) warnings.unshift(dataIssue);
-        if (!compatibility.compatible) warnings.push(compatibility.reason || "当前数据版本与所选训练任务不兼容。");
-        if (!info.available) warnings.push(info.reason || "该任务当前不可训练。");
-        document.querySelector("#training-compatibility").innerHTML = warnings.length ? `${icon("warning")}<span>${warnings.map(escapeHtml).join(" ")}${dataIssue ? ` <a href="#/projects/${state.project.id}/versions" id="training-fix-version">去数据版本页</a>` : ""}</span>` : `${icon("check")}<span>${escapeHtml(info.name)}与当前数据版本兼容。</span>`;
-        document.querySelector("#training-fix-version")?.addEventListener("click", closeModal);
-        document.querySelector("#train-model-hint").textContent = selectedModel ? "已选择可用模型，首次训练可保持这个选择。" : (info.reason || "暂无可用模型，请联系管理员配置后重试。");
-        submit.disabled = !selectedVersion || !taskAvailable(task) || !selectedModel || !compatibility.compatible || Boolean(dataIssue);
-        updateTrainingSubmitSummary();
-      };
-      document.querySelectorAll('input[name="train-task"]').forEach(input => input.onchange = () => { selectedModelId = ""; update({ applyDefaults: true }); });
-      document.querySelector("#train-version").onchange = () => { const selectedVersion = state.versions.find(item => item.id === Number(document.querySelector("#train-version").value)); const taskInput = document.querySelector(`input[name="train-task"][value="${CSS.escape(versionDefaultTask(selectedVersion))}"]`); if (taskInput) taskInput.checked = true; selectedModelId = ""; update({ applyDefaults: true }); };
-      ["train-epochs", "train-imgsz", "train-batch"].forEach(id => document.querySelector(`#${id}`).oninput = updateTrainingSubmitSummary);
-      document.querySelectorAll('input[name="train-device"]').forEach(input => input.onchange = updateTrainingSubmitSummary);
-      update({ applyDefaults: !templateRun });
+      form = document.querySelector(".modal");
+      modelForm = bindTrainingModelForm(form, { current, templateRun });
     }, onSubmit: async () => {
-      const task = document.querySelector('input[name="train-task"]:checked')?.value;
-      const modelId = document.querySelector('input[name="train-model"]:checked')?.value;
-      const model = state.trainingCatalog.models.find(item => String(item.id) === modelId);
-      if (!model) throw new Error("请选择可用的预训练模型");
-      const cacheValue = document.querySelector("#train-cache").value;
-      const freezeValue = document.querySelector("#train-freeze").value.trim();
-      const payload = { version_id: Number(document.querySelector("#train-version").value), name: document.querySelector("#train-name").value.trim(), task, model_arch: model.model_arch, epochs: Number(document.querySelector("#train-epochs").value), image_size: Number(document.querySelector("#train-imgsz").value), batch_size: Number(document.querySelector("#train-batch").value), device: document.querySelector('input[name="train-device"]:checked')?.value || "auto", workers: Number(document.querySelector("#train-workers").value), patience: Number(document.querySelector("#train-patience").value), optimizer: document.querySelector("#train-optimizer").value, lr0: Number(document.querySelector("#train-lr0").value), weight_decay: Number(document.querySelector("#train-weight-decay").value), seed: Number(document.querySelector("#train-seed").value), deterministic: document.querySelector("#train-deterministic").checked, amp: document.querySelector("#train-amp").checked, cache: cacheValue === "false" ? false : cacheValue, save_period: Number(document.querySelector("#train-save-period").value), freeze: freezeValue === "" ? null : Number(freezeValue), cos_lr: document.querySelector("#train-cos-lr").checked, close_mosaic: Number(document.querySelector("#train-close-mosaic").value), max_retries: Number(document.querySelector("#train-max-retries").value), resource_profile: document.querySelector("#train-resource-profile").value };
+      const { model, pretrained, task } = modelForm.validate();
+      const cacheValue = form.querySelector("#train-cache").value;
+      const freezeValue = form.querySelector("#train-freeze").value.trim();
+      const payload = { version_id: Number(form.querySelector("#train-version").value), name: form.querySelector("#train-name").value.trim(), task, model_arch: model.model_arch, pretrained, epochs: Number(form.querySelector("#train-epochs").value), image_size: Number(form.querySelector("#train-imgsz").value), batch_size: Number(form.querySelector("#train-batch").value), device: form.querySelector('input[name="train-device"]:checked')?.value || "auto", workers: Number(form.querySelector("#train-workers").value), patience: Number(form.querySelector("#train-patience").value), optimizer: form.querySelector("#train-optimizer").value, lr0: Number(form.querySelector("#train-lr0").value), weight_decay: Number(form.querySelector("#train-weight-decay").value), seed: Number(form.querySelector("#train-seed").value), deterministic: form.querySelector("#train-deterministic").checked, amp: form.querySelector("#train-amp").checked, cache: cacheValue === "false" ? false : cacheValue, save_period: Number(form.querySelector("#train-save-period").value), freeze: freezeValue === "" ? null : Number(freezeValue), cos_lr: form.querySelector("#train-cos-lr").checked, close_mosaic: Number(form.querySelector("#train-close-mosaic").value), max_retries: Number(form.querySelector("#train-max-retries").value), resource_profile: form.querySelector("#train-resource-profile").value };
       if (!payload.name) throw new Error("请输入训练名称，方便之后查找");
       validateTrainingPayload(payload);
       const run = await api(`/api/projects/${projectId}/training-runs`, jsonOptions("POST", payload));
-      if (!current()) return;
+      if (!modelForm.live()) return;
       closeModal(); notify("训练已加入队列。右侧显示这次新训练，无需重复提交。"); await revealNewTraining(run.id);
-    },
+    }, onClose: () => modelForm?.dispose(),
   });
 }
+
+function trainingModelIssue(model, pretrained = true) {
+  if (!model) return "请选择可用的训练模型";
+  if (!model.available) return model.reason || "所选模型当前不可训练";
+  if (!pretrained && !model.supports_scratch) return "这个模型无法从零训练，请开启预训练权重或选择支持从零训练的模型。";
+  return "";
+}
+
+function trainingInitializationLabel(model, pretrained = true) {
+  if (!pretrained) return "从零训练：随机初始化，不下载预训练权重";
+  if (model?.source === "builtin" && model.installed === false) return "使用预训练权重 · 首次训练自动下载";
+  return model?.source === "custom" || model?.source === "local" ? "使用已导入的模型权重继续训练" : "使用已安装的预训练权重";
+}
+
+function bindTrainingModelForm(form, { current, templateRun = null } = {}) {
+  let disposed = false, uploadBusy = false, uploadController = null, importedFilename = "", importedSha256 = "";
+  let selectedModelId = templateRun ? String(state.trainingCatalog.models.find(model => model.model_arch === templateRun.model_arch)?.id || "") : "";
+  let compatibilityEpoch = 0, ready = false;
+  const compatibilityCache = new Map();
+  const query = selector => form.querySelector(selector);
+  const live = () => !disposed && current() && canReview() && form.isConnected && document.querySelector(".modal") === form;
+  const pretrainedInput = query("#train-pretrained"), submit = query("#modal-submit");
+  const selectedTask = () => query('input[name="train-task"]:checked')?.value;
+  const selectedModel = () => taskModels(selectedTask()).find(model => String(model.id) === selectedModelId);
+  const feedback = (message, error = false) => {
+    const node = query("#train-upload-feedback");
+    if (!node) return;
+    node.textContent = message; node.hidden = !message;
+    node.classList.toggle("is-error", error); node.setAttribute("role", error ? "alert" : "status");
+  };
+  const update = async ({ rebuildModels = false, applyDefaults = false } = {}) => {
+    if (!live()) return;
+    const epoch = ++compatibilityEpoch;
+    ready = false; submit.disabled = true;
+    const version = state.versions.find(item => item.id === Number(query("#train-version").value));
+    const task = selectedTask(), info = trainingTaskInfo(task), models = taskModels(task);
+    let model = models.find(item => String(item.id) === selectedModelId);
+    if (!model) {
+      model = models.find(item => item.recommended && !trainingModelIssue(item, pretrainedInput.checked)) || models.find(item => !trainingModelIssue(item, pretrainedInput.checked));
+      selectedModelId = model ? String(model.id) : "";
+      rebuildModels = true;
+    }
+    if (rebuildModels) {
+      const picker = query("#training-model-picker");
+      picker.innerHTML = models.length ? models.map(item => trainingModelPickerCard(item, String(item.id) === selectedModelId, pretrainedInput.checked)).join("") : `<div class="modal-warning">${icon("warning")}模型目录中没有适用于${escapeHtml(info.name)}的模型。</div>`;
+      picker.querySelectorAll('input[name="train-model"]').forEach(input => input.onchange = () => {
+        if (!live()) return;
+        selectedModelId = input.value;
+        void update();
+      });
+    }
+    if (applyDefaults && model) applyModelDefaults(model, form);
+    // Keep an unsupported cloned scratch configuration visible until the user fixes it.
+    pretrainedInput.disabled = Boolean(model && !model.supports_scratch && pretrainedInput.checked);
+    query("#train-pretrained-help").textContent = model && !model.supports_scratch ? "此模型不支持从零训练，需使用已有权重。" : "推荐保持开启。关闭后仅使用模型结构，通常需要更多数据和训练时间。";
+    query("#train-model-hint").textContent = trainingModelIssue(model, pretrainedInput.checked) || trainingInitializationLabel(model, pretrainedInput.checked);
+    updateTrainingSubmitSummary(form);
+    let compatibility = { compatible: false, warnings: [] };
+    try {
+      if (!version) throw new Error("请选择有效的数据版本");
+      if (!compatibilityCache.has(version.id)) {
+        const request = api(`/api/versions/${version.id}/training-compatibility`);
+        compatibilityCache.set(version.id, request);
+        request.catch(() => { if (compatibilityCache.get(version.id) === request) compatibilityCache.delete(version.id); });
+      }
+      compatibility = (await compatibilityCache.get(version.id)).tasks?.[task] || compatibility;
+    } catch (error) { compatibility.warnings = [error.message]; }
+    if (!live() || epoch !== compatibilityEpoch) return;
+    const warnings = [...(compatibility.warnings || [])], dataIssue = trainingDataIssue(version);
+    if (dataIssue) warnings.unshift(dataIssue);
+    if (!compatibility.compatible) warnings.push(compatibility.reason || "当前数据版本与所选训练任务不兼容。");
+    if (info.available === false) warnings.push(info.reason || "该任务当前不可训练。");
+    query("#training-compatibility").innerHTML = warnings.length ? `${icon("warning")}<span>${warnings.map(escapeHtml).join(" ")}${dataIssue ? ` <a href="#/projects/${state.project.id}/versions" id="training-fix-version">去数据版本页</a>` : ""}</span>` : `${icon("check")}<span>${escapeHtml(info.name)}与当前数据版本兼容。</span>`;
+    query("#training-fix-version")?.addEventListener("click", closeModal);
+    ready = Boolean(version && taskAvailable(task) && !trainingModelIssue(model, pretrainedInput.checked) && compatibility.compatible && !dataIssue);
+    submit.disabled = !ready || uploadBusy;
+    updateTrainingSubmitSummary(form);
+  };
+  queryAllTasks().forEach(input => input.onchange = () => { selectedModelId = ""; void update({ rebuildModels: true }); });
+  function queryAllTasks() { return form.querySelectorAll('input[name="train-task"]'); }
+  query("#train-version").onchange = () => {
+    if (!live()) return;
+    const version = state.versions.find(item => item.id === Number(query("#train-version").value));
+    const taskInput = query(`input[name="train-task"][value="${CSS.escape(versionDefaultTask(version))}"]`);
+    if (taskInput) taskInput.checked = true;
+    void update({ rebuildModels: true });
+  };
+  pretrainedInput.onchange = () => { void update({ rebuildModels: true }); };
+  ["train-epochs", "train-imgsz", "train-batch"].forEach(id => query(`#${id}`).oninput = () => { if (live()) updateTrainingSubmitSummary(form); });
+  form.querySelectorAll('input[name="train-device"]').forEach(input => input.onchange = () => { if (live()) updateTrainingSubmitSummary(form); });
+  const uploadButton = query("#train-upload-button"), fileInput = query("#train-checkpoint-file");
+  if (uploadButton && fileInput && isAdmin()) {
+    fileInput.onchange = () => { if (!live() || uploadBusy) return; importedFilename = ""; importedSha256 = ""; uploadButton.textContent = "上传并选择"; feedback(""); };
+    uploadButton.onclick = async () => {
+      if (!live() || !isAdmin() || uploadBusy) return;
+      const file = fileInput.files?.[0];
+      if (!importedFilename) {
+        if (!file) return feedback("请选择 .pt 模型文件", true);
+        if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}\.pt$/.test(file.name)) return feedback("请使用英文字母、数字、点、横线或下划线命名 .pt 模型文件。", true);
+        if (!file.size || file.size > 2 * 1024 ** 3) return feedback(file.size ? "模型文件不能超过 2 GiB" : "模型文件为空", true);
+      }
+      uploadBusy = true; uploadButton.disabled = true; fileInput.disabled = true; submit.disabled = true;
+      uploadController = new AbortController();
+      uploadButton.textContent = importedFilename ? "检查模型中…" : "上传中…";
+      feedback(importedFilename ? "正在检查已上传的模型…" : "正在上传模型，训练设置会保留。上传完成后将检查任务类型。");
+      try {
+        if (!importedFilename) {
+          const body = new FormData(); body.append("file", file);
+          const imported = await api("/api/model-downloads/import/checkpoint", { method: "POST", body, signal: uploadController.signal });
+          if (!live()) return;
+          importedFilename = imported.filename; importedSha256 = imported.sha256 || "";
+        }
+        feedback("权重已上传，正在检查是否适用于当前训练任务…");
+        const catalog = await api("/api/training/catalog", { cache: "no-store", signal: uploadController.signal });
+        if (!live()) return;
+        state.trainingCatalog = normalizeTrainingCatalog(catalog, state.training?.availability);
+        if (catalog.backend) state.training.availability = { ...state.training.availability, available: Boolean(catalog.backend.available), reason: catalog.backend.reason || "" };
+        queryAllTasks().forEach(input => {
+          const available = taskAvailable(input.value), label = input.closest("label"), info = trainingTaskInfo(input.value);
+          input.disabled = !available; label?.classList.toggle("unavailable", !available);
+          const description = label?.querySelector("small");
+          if (description) description.textContent = available ? `${taskModels(input.value, true).length} 个兼容模型 · ${info.schema || info.description}` : info.reason || "当前标注结构不支持";
+        });
+        const imported = state.trainingCatalog.models.find(model => model.model_arch === importedFilename);
+        if (!imported) feedback("权重已上传，但模型目录尚未识别到它。可重新检查，或联系管理员检查文件。", true);
+        else if (!importedSha256) feedback("权重已上传，但缺少文件校验信息，暂未切换模型。请联系管理员检查导入结果。", true);
+        else if (imported.sha256 !== importedSha256) feedback("权重已上传，但当前名称被其他目录中的权重占用，已保留原模型选择。请重命名文件后重新上传。", true);
+        else if (!imported.loadable) feedback(`权重已上传，但无法加载：${imported.reason || "请确认文件为兼容的 Ultralytics .pt 权重。"}`, true);
+        else if (!trainingModelSupports(imported, selectedTask())) feedback(`权重已上传，识别为${trainingTaskInfo(imported.task).name}模型，与当前${trainingTaskInfo(selectedTask()).name}任务不兼容。已保留原模型选择。`, true);
+        else if (trainingModelIssue(imported, pretrainedInput.checked)) feedback(`权重已上传：${trainingModelIssue(imported, pretrainedInput.checked)}已保留原模型选择。`, true);
+        else {
+          selectedModelId = String(imported.id); importedFilename = ""; importedSha256 = ""; fileInput.value = "";
+          feedback(`已上传并选择 ${imported.name}，其他训练设置已保留。`);
+        }
+      } catch (error) {
+        if (live()) feedback(importedFilename ? `权重已上传，但检查失败：${error.message}可点击“重新检查”。` : error.message, true);
+      } finally {
+        if (live()) {
+          uploadBusy = false; uploadController = null; uploadButton.disabled = false; fileInput.disabled = false;
+          uploadButton.textContent = importedFilename ? "重新检查" : "上传并选择";
+          await update({ rebuildModels: true });
+        }
+      }
+    };
+  }
+  void update({ rebuildModels: true, applyDefaults: !templateRun });
+  return {
+    live,
+    validate() {
+      if (!live()) throw new Error("训练窗口已过期，请重新打开后再试");
+      if (uploadBusy) throw new Error("模型仍在上传或检查，请稍候");
+      const model = selectedModel(), pretrained = pretrainedInput.checked, issue = trainingModelIssue(model, pretrained);
+      if (issue) throw new Error(issue);
+      if (!ready) throw new Error("请等待数据兼容性检查完成，并解决上方提示后再训练");
+      return { model, pretrained, task: selectedTask() };
+    },
+    dispose() { disposed = true; ++compatibilityEpoch; uploadController?.abort(); },
+  };
+}
+
 
 function validateTrainingPayload(payload) {
   if (!Number.isInteger(payload.version_id) || payload.version_id < 1) throw new Error("请选择有效的数据版本");
@@ -1775,30 +1899,32 @@ function validateTrainingPayload(payload) {
   if (payload.resource_profile === "performance" && payload.device === "auto" && !state.trainingResources?.cuda_available) throw new Error("吞吐优先策略需要可用的 CUDA GPU");
 }
 
-function trainingModelPickerCard(model, selected) {
+function trainingModelPickerCard(model, selected, pretrained = true) {
   const size = model.parameters || model.parameter_count ? `${formatCompactNumber(model.parameters || model.parameter_count)} 参数` : model.size_bytes ? formatBytes(model.size_bytes) : "大小未知";
-  return `<label class="training-model-option ${model.available ? "" : "unavailable"}"><input type="radio" name="train-model" value="${escapeHtml(model.id)}" ${selected ? "checked" : ""} ${model.available ? "" : "disabled"}/><div><div><strong>${escapeHtml(model.name)}</strong>${model.recommended ? `<span>推荐</span>` : ""}</div><p>${escapeHtml(model.family)} · ${escapeHtml(size)}</p><small>${model.available ? escapeHtml(model.description || model.model_arch) : escapeHtml(model.reason || "本机权重不可用")}</small></div></label>`;
+  const issue = trainingModelIssue(model, pretrained);
+  return `<label class="training-model-option ${issue ? "unavailable" : ""}"><input type="radio" name="train-model" value="${escapeHtml(model.id)}" ${selected ? "checked" : ""} ${issue ? "disabled" : ""}/><div><div><strong>${escapeHtml(model.name)}</strong>${model.recommended ? `<span>推荐</span>` : ""}</div><p>${escapeHtml(model.family)} · ${escapeHtml(size)}</p><small>${escapeHtml(issue || trainingInitializationLabel(model, pretrained))}</small></div></label>`;
 }
 
-function applyModelDefaults(model) {
+function applyModelDefaults(model, scope = document) {
   if (!model) return;
   const defaults = model.defaults || {};
   const mapping = { epochs: "train-epochs", image_size: "train-imgsz", batch_size: "train-batch", patience: "train-patience", workers: "train-workers", lr0: "train-lr0", weight_decay: "train-weight-decay" };
-  Object.entries(mapping).forEach(([key, id]) => { if (defaults[key] !== undefined && document.querySelector(`#${id}`)) document.querySelector(`#${id}`).value = defaults[key]; });
+  Object.entries(mapping).forEach(([key, id]) => { if (defaults[key] !== undefined && scope.querySelector(`#${id}`)) scope.querySelector(`#${id}`).value = defaults[key]; });
 }
 
-function updateTrainingSubmitSummary() {
-  const node = document.querySelector("#training-submit-summary");
+function updateTrainingSubmitSummary(scope = document) {
+  const node = scope.querySelector("#training-submit-summary");
   if (!node) return;
-  const task = document.querySelector('input[name="train-task"]:checked')?.value;
-  const modelId = document.querySelector('input[name="train-model"]:checked')?.value;
+  const task = scope.querySelector('input[name="train-task"]:checked')?.value;
+  const modelId = scope.querySelector('input[name="train-model"]:checked')?.value;
   const model = state.trainingCatalog.models.find(item => String(item.id) === modelId);
-  const device = document.querySelector('input[name="train-device"]:checked')?.value || "auto";
-  const epochs = document.querySelector("#train-epochs")?.value;
-  const batch = document.querySelector("#train-batch")?.value;
-  const imageSize = document.querySelector("#train-imgsz")?.value;
+  const pretrained = scope.querySelector("#train-pretrained")?.checked !== false;
+  const device = scope.querySelector('input[name="train-device"]:checked')?.value || "auto";
+  const epochs = scope.querySelector("#train-epochs")?.value;
+  const batch = scope.querySelector("#train-batch")?.value;
+  const imageSize = scope.querySelector("#train-imgsz")?.value;
   const deviceLabel = device === "auto" ? "自动选择计算设备" : (state.trainingResources?.devices || []).find(item => item.id === device)?.name || (device === "cpu" ? "处理器（CPU，训练通常较慢）" : device);
-  node.innerHTML = `${icon(document.querySelector("#modal-submit")?.disabled ? "warning" : "check")}<span><strong>${escapeHtml(trainingTaskInfo(task).name)} · ${escapeHtml(model?.name || "尚无可用模型")}</strong><small>训练 ${escapeHtml(String(epochs || "—"))} 轮，图片尺寸 ${escapeHtml(String(imageSize || "—"))} 像素；${Number(batch) === -1 ? "每批数量自动选择" : `每批 ${escapeHtml(String(batch || "—"))} 张`}。${escapeHtml(deviceLabel)}</small></span>`;
+  node.innerHTML = `${icon(scope.querySelector("#modal-submit")?.disabled ? "warning" : "check")}<span><strong>${escapeHtml(trainingTaskInfo(task).name)} · ${escapeHtml(model?.name || "尚无可用模型")}</strong><small>${escapeHtml(trainingInitializationLabel(model, pretrained))}</small><small>训练 ${escapeHtml(String(epochs || "—"))} 轮，图片尺寸 ${escapeHtml(String(imageSize || "—"))} 像素；${Number(batch) === -1 ? "每批数量自动选择" : `每批 ${escapeHtml(String(batch || "—"))} 张`}。${escapeHtml(deviceLabel)}</small></span>`;
 }
 
 function openConversionModal(trainingId) {

@@ -1,5 +1,5 @@
 export function mountSetup(container, { escapeHtml, onComplete }) {
-  container.innerHTML = `<main class="login-shell setup-shell"><section class="login-card"><h1>欢迎使用 CVSprout</h1><p>先创建管理员，然后在“模型服务”中下载适合你的基础模型。</p><form id="setup-form">
+  container.innerHTML = `<main class="login-shell setup-shell"><section class="login-card"><h1>欢迎使用 CVSprout</h1><p>先创建管理员，再导入数据开始标注与训练。官方训练权重会在任务执行时按需下载。</p><form id="setup-form">
     <label>初始化口令<input name="code" autocomplete="off" required minlength="16" placeholder="复制启动终端显示的口令"></label>
     <label>管理员账号<input name="username" autocomplete="username" required minlength="2" maxlength="64" pattern="[a-zA-Z0-9][a-zA-Z0-9_.-]+"></label>
     <label>显示名称<input name="display_name" autocomplete="name" value="管理员" required maxlength="80"></label>
@@ -35,7 +35,7 @@ export async function mountModelDownloads(container, { api, escapeHtml, notify }
     try {
       const models = await api('/api/model-downloads');
       if (!container.isConnected) return;
-      container.innerHTML = `<p>模型按需下载到持久化存储，升级时保留。首次体验建议下载与你项目类型对应的 YOLO26 Nano。</p>
+      container.innerHTML = `<p>官方训练模型可直接在新建训练时选择，使用预训练权重时会自动下载并校验。这里可提前准备 YOLOv8、YOLO11、YOLO26 等离线权重及 AI 标注模型；文件保存到持久化存储，升级时保留。</p>
         <div class="model-download-list">${models.map(model => {
           const busy = model.state.status === 'downloading';
           const progress = Math.min(100, Math.round(100 * (model.state.downloaded || 0) / model.size_bytes));

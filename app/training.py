@@ -14,6 +14,7 @@ import socket
 import sqlite3
 import sys
 import threading
+import time
 import uuid
 import zipfile
 from datetime import UTC, datetime, timedelta
@@ -100,12 +101,62 @@ def _file_sha256(path: Path) -> str:
     return _cached_sha256(str(path.resolve()), stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
 
 
+def _torchvision_scratch_supported(model_name: str) -> bool:
+    """The Ultralytics wrapper can override weights, but not backbone weights."""
+    import inspect
+    import torchvision.models
+
+    builder = (torchvision.models.get_model_builder(model_name)
+               if hasattr(torchvision.models, "get_model_builder")
+               else vars(torchvision.models).get(model_name))
+    parameters = inspect.signature(builder).parameters
+    if not any(name in parameters for name in ("weights", "pretrained")):
+        return False
+    return not any(
+        name not in {"weights", "pretrained"}
+        and name.startswith(("weights", "pretrained"))
+        and parameter.default not in (None, False)
+        for name, parameter in parameters.items()
+    )
+
+
+def _scratch_architecture(value: Any) -> dict[str, Any] | None:
+    """Freeze reconstructible YAML without implicit pretrained backbones."""
+    try:
+        architecture = json.loads(json.dumps(value, allow_nan=False))
+        if not isinstance(architecture, dict) or not architecture.get("backbone") or not architecture.get("head"):
+            return None
+        for layer in [*architecture["backbone"], *architecture["head"]]:
+            if not isinstance(layer, list) or len(layer) != 4 or not isinstance(layer[3], list):
+                return None
+            if layer[2] == "TorchVision":
+                args = layer[3]  # YAML includes output channels before wrapper arguments.
+                if len(args) < 2 or not isinstance(args[1], str) or not _torchvision_scratch_supported(args[1]):
+                    return None
+                # Omitted weights default to "DEFAULT" in Ultralytics too.
+                if len(args) == 2:
+                    args.append(None)
+                else:
+                    args[2] = None
+        if architecture.get("scales"):
+            selected_scale = architecture.get("scale") or next(iter(architecture["scales"]))
+            if selected_scale not in architecture["scales"]:
+                return None
+            # yaml_model_load infers scale from the temporary filename. A single
+            # selected scale preserves s/m/l/x when saved as architecture.yaml.
+            architecture["scales"] = {selected_scale: architecture["scales"][selected_scale]}
+            architecture["scale"] = selected_scale
+        return architecture
+    except (TypeError, ValueError, KeyError, AttributeError, ImportError):
+        return None
+
+
 @lru_cache(maxsize=256)
 def _probe_checkpoint(path_text: str, size: int, mtime_ns: int) -> dict[str, Any]:
     """Load an administrator-managed checkpoint once and report its real task.
 
     Ultralytics checkpoints use torch serialization, so discovery is intentionally
-    limited to explicitly configured directories and never includes uploaded files.
+    limited to model directories and never includes arbitrary dataset attachments.
     """
 
     del size, mtime_ns
@@ -122,11 +173,14 @@ def _probe_checkpoint(path_text: str, size: int, mtime_ns: int) -> dict[str, Any
         trainable_parameters = sum(
             parameter.numel() for parameter in model.model.parameters() if parameter.requires_grad
         )
+        architecture = _scratch_architecture(getattr(model.model, "yaml", None))
         return {
             "loadable": task in KNOWN_TASKS,
             "task": task or None,
             "parameters": parameters,
             "trainable_parameters": trainable_parameters,
+            "architecture": architecture,
+            "supports_scratch": architecture is not None,
             "error": "" if task in KNOWN_TASKS else f"不支持的 checkpoint task: {task or 'unknown'}",
         }
     except Exception as exc:
@@ -151,6 +205,7 @@ def _checkpoint_probe(path: Path) -> dict[str, Any]:
 def _model_family(name: str) -> str:
     stem = Path(name).stem.lower()
     for prefix, family in (
+        ("rtdetr", "RT-DETR"),
         ("yolo26", "YOLO26"),
         ("yolo12", "YOLO12"),
         ("yolo11", "YOLO11"),
@@ -196,7 +251,7 @@ def _model_candidates() -> list[Path]:
     for path in configured:
         if path.is_file() and path.suffix.lower() == ".pt":
             candidates.append(path.resolve())
-    for directory in settings.training_model_dirs:
+    for directory in dict.fromkeys((*settings.training_model_dirs, settings.models_dir / "training")):
         if not directory.is_dir():
             continue
         candidates.extend(path.resolve() for path in sorted(directory.glob("*.pt")) if path.is_file())
@@ -210,7 +265,9 @@ def _model_candidates() -> list[Path]:
 
 @on_worker("models")
 def model_catalog() -> list[dict[str, Any]]:
+    from .training_models import builtin_training_models
     backend = _backend_info()
+    builtin = {item["model_arch"]: item for item in builtin_training_models()}
     models: list[dict[str, Any]] = []
     recommended_paths = {
         settings.training_base_model.resolve(),
@@ -247,6 +304,10 @@ def model_catalog() -> list[dict[str, Any]]:
             reason = f"权重已安装，但当前标注结构不支持 {task} 训练"
         else:
             reason = ""
+        checksum = _file_sha256(path)
+        official = builtin.get(path.name)
+        if official and checksum != official["sha256"]:
+            official = None
         models.append(
             {
                 "id": path.name,
@@ -263,7 +324,11 @@ def model_catalog() -> list[dict[str, Any]]:
                 "trainable": available,
                 "reason": reason,
                 "size_bytes": stat.st_size,
-                "sha256": _file_sha256(path),
+                "sha256": checksum,
+                "source": "builtin" if official else "local",
+                "download_id": official["download_id"] if official else None,
+                "architecture": official["architecture"] if official else probe.get("architecture"),
+                "supports_scratch": bool(official or probe.get("supports_scratch")),
                 "parameters": probe["parameters"],
                 "trainable_parameters": probe["trainable_parameters"],
                 "recommended": path in recommended_paths and available,
@@ -274,6 +339,24 @@ def model_catalog() -> list[dict[str, Any]]:
                 },
             }
         )
+    installed_names = {item["id"] for item in models}
+    for item in builtin.values():
+        if item["model_arch"] in installed_names:
+            continue
+        available = bool(settings.training_enabled and backend["installed"] and item["task"] in SUPPORTED_TRAINING_TASKS)
+        models.append({
+            "id": item["model_arch"], "model_arch": item["model_arch"], "name": item["name"],
+            "family": item["family"], "task": item["task"], "checkpoint_task": None,
+            "task_verified": False, "path": item["model_arch"], "installed": False, "loadable": False,
+            "available": available, "trainable": available, "source": "builtin",
+            "download_id": item["download_id"], "architecture": item["architecture"],
+            "supports_scratch": item["supports_scratch"], "sha256": item["sha256"],
+            "size_bytes": item["size_bytes"], "parameters": None, "trainable_parameters": None,
+            "recommended": Path(item["path"]).resolve() in recommended_paths and available,
+            "reason": "" if available else "训练功能已禁用或未安装 ultralytics",
+            "defaults": _model_defaults(None),
+            "compatibility": {"annotation_shapes": {"detect": ["rectangle", "polygon"], "segment": ["polygon", "rectangle"], "classify": ["classification"], "pose": ["keypoints"]}.get(item["task"], []), "dataset_schema_supported": item["task"] in SUPPORTED_TRAINING_TASKS},
+        })
     return sorted(models, key=lambda item: (KNOWN_TASKS.index(item["task"]) if item["task"] in KNOWN_TASKS else 99, item["family"], item["id"]))
 
 
@@ -691,9 +774,59 @@ def _resolve_base_model(model_arch: str, task: str) -> tuple[Path, dict[str, Any
     if not catalog_item or not catalog_item["available"] or catalog_item["task"] != task:
         return None
     path = next((item for item in _model_candidates() if item.name == model_arch), None)
-    if not path or _checkpoint_probe(path).get("task") != task:
+    if path:
+        if _checkpoint_probe(path).get("task") != task:
+            return None
+    elif catalog_item.get("source") == "builtin":
+        from .training_models import get_builtin_training_model
+        official = get_builtin_training_model(model_arch)
+        if not official or official["task"] != task:
+            return None
+        path = Path(official["path"])
+    else:
         return None
     return path, catalog_item
+
+
+def _initialization_snapshot(model: dict[str, Any], pretrained: bool) -> dict[str, Any]:
+    """Freeze server-owned model metadata; request bodies cannot select a URL/YAML."""
+    source = model.get("source", "local")
+    snapshot: dict[str, Any] = {"source": source, "pretrained": pretrained}
+    if not pretrained:
+        if not model.get("supports_scratch") or not model.get("architecture"):
+            raise HTTPException(409, "此权重没有可重建的模型架构，不能从随机权重开始训练")
+        snapshot["architecture"] = model["architecture"]
+        snapshot["architecture_sha256"] = _canonical_hash({"architecture": model["architecture"]})
+    if source == "builtin":
+        from .training_models import get_builtin_training_model
+        official = get_builtin_training_model(model["model_arch"])
+        if not official:
+            raise HTTPException(409, "官方模型注册信息已变化，请刷新后重试")
+        snapshot["builtin"] = {key: official[key] for key in (
+            "id", "model_arch", "download_id", "name", "family", "task", "architecture", "url", "sha256", "size_bytes", "relative_path"
+        )}
+    return snapshot
+
+
+def _validate_initialization_snapshot(run: dict[str, Any], config: dict[str, Any]) -> None:
+    snapshot = config.get("model_initialization")
+    if not snapshot:  # Older runs retain their original checkpoint contract.
+        return
+    expected_hash = _canonical_hash({"version_id": run["version_id"], "version_content_hash": config.get("version_content_hash"), "model_arch": run["model_arch"], "task": run["task"], "settings": config})
+    if run.get("config_hash") != expected_hash:
+        raise RuntimeError("训练配置哈希不匹配，拒绝执行已被修改的任务")
+    if snapshot.get("pretrained") != config.get("pretrained", True):
+        raise RuntimeError("训练初始化配置不一致")
+    if snapshot.get("source") == "builtin":
+        from .training_models import get_builtin_training_model
+        official = get_builtin_training_model(run["model_arch"])
+        frozen = snapshot.get("builtin") or {}
+        if not official or any(official.get(key) != value for key, value in frozen.items()) or frozen.get("task") != run["task"]:
+            raise RuntimeError("官方模型注册信息与冻结的训练配置不一致，请创建新任务")
+    if not config.get("pretrained", True):
+        architecture = snapshot.get("architecture")
+        if not architecture or snapshot.get("architecture_sha256") != _canonical_hash({"architecture": architecture}):
+            raise RuntimeError("随机初始化的模型架构配置不完整或已变化")
 
 
 def _canonical_hash(value: dict[str, Any]) -> str:
@@ -733,6 +866,7 @@ def get_training_catalog(_: Actor = Depends(get_actor)) -> dict[str, Any]:
         },
         "licensing": LICENSING_NOTICE,
         "allowed_hyperparameters": [
+            "pretrained",
             "epochs", "image_size", "batch_size", "device", "workers", "patience",
             "optimizer", "lr0", "weight_decay", "seed", "deterministic", "amp",
             "cache", "save_period", "freeze", "cos_lr", "close_mosaic", "resource_profile",
@@ -974,6 +1108,7 @@ def create_training_run(
             },
         )
     base_model, model_metadata = resolved_model
+    initialization = _initialization_snapshot(model_metadata, payload.pretrained)
     resources = training_resources()
     requested_device = "cuda:0" if payload.device == "cuda" else payload.device
     resource_ids = {item["id"] for item in resources["devices"] if item["available"]}
@@ -997,8 +1132,9 @@ def create_training_run(
     settings_json = {
         "version_content_hash": version["content_hash"],
         "base_model": str(base_model),
-        "base_model_sha256": model_metadata["sha256"],
-        "base_model_size_bytes": model_metadata["size_bytes"],
+        "base_model_sha256": model_metadata["sha256"] if payload.pretrained else None,
+        "base_model_size_bytes": model_metadata["size_bytes"] if payload.pretrained else 0,
+        "model_initialization": initialization,
         "backend": availability["backend"],
         "backend_version": availability["backend_version"],
         "requested_task": payload.task,
@@ -1156,14 +1292,17 @@ def retry_training_run(
     )
     if not version or version["content_hash"] != config.get("version_content_hash"):
         raise HTTPException(409, "原始不可变数据版本缺失或内容哈希不匹配")
-    resolved_model = _resolve_base_model(
-        preflight_run["model_arch"], preflight_run["task"]
-    )
-    if not resolved_model:
-        raise HTTPException(409, "原始基础模型已不可用或任务元数据不匹配")
-    model_path, model_metadata = resolved_model
-    if model_metadata["sha256"] != config.get("base_model_sha256"):
-        raise HTTPException(409, "基础模型文件已变化；为保证谱系可复现，不能直接重试")
+    try:
+        _validate_initialization_snapshot(preflight_run, config)
+    except RuntimeError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    if config.get("pretrained", True):
+        resolved_model = _resolve_base_model(preflight_run["model_arch"], preflight_run["task"])
+        if not resolved_model:
+            raise HTTPException(409, "原始基础模型已不可用或任务元数据不匹配")
+        _, model_metadata = resolved_model
+        if model_metadata["sha256"] != config.get("base_model_sha256"):
+            raise HTTPException(409, "基础模型文件已变化；为保证谱系可复现，不能直接重试")
     resource = {
         "requested_device": config.get("device", "auto"),
         "resource_profile": config.get("resource_profile", "balanced"),
@@ -1218,7 +1357,7 @@ def retry_training_run(
                     run["project_id"],
                     run["version_id"],
                     new_name,
-                    model_path.name,
+                    preflight_run["model_arch"],
                     run["task"],
                     run["total_epochs"],
                     run["settings_json"],
@@ -2167,11 +2306,142 @@ def _prepare_training_dataset(
     return yaml_path
 
 
+class TrainingPreparationStopped(RuntimeError):
+    def __init__(self, *, lost_claim: bool = False):
+        self.lost_claim = lost_claim
+        super().__init__("训练租约已失效" if lost_claim else "训练已取消")
+
+
+def _check_training_claim(run_id: int, worker_id: str, generation: int) -> None:
+    state = one("SELECT status,cancel_requested,claimed_by,claim_generation FROM training_runs WHERE id=?", (run_id,))
+    if not state or state["status"] != "running" or state["claimed_by"] != worker_id or state["claim_generation"] != generation:
+        raise TrainingPreparationStopped(lost_claim=True)
+    if state["cancel_requested"]:
+        raise TrainingPreparationStopped()
+
+
+def _cancel_training_claim(run_id: int, worker_id: str, generation: int) -> None:
+    with db() as conn:
+        cursor = conn.execute("""UPDATE training_runs SET status='cancelled',finished_at=?,lease_expires_at=NULL,
+            progress_message='已取消',progress=MIN(progress,0.99) WHERE id=? AND status='running'
+            AND claimed_by=? AND claim_generation=?""", (now_iso(), run_id, worker_id, generation))
+    if cursor.rowcount:
+        _append_training_log(run_id, "warning", "cancelled", "训练准备已取消")
+
+
+def _resume_training_checkpoint(run_root: Path, attempt_dir: Path) -> Path | None:
+    candidates = sorted((path for path in run_root.glob("attempt-*/ultralytics/weights/last.pt") if attempt_dir not in path.parents),
+                        key=lambda path: int(path.parents[2].name.split("-")[-1]), reverse=True)
+    candidates.append(run_root / "ultralytics" / "weights" / "last.pt")
+    return next((path for path in candidates if path.is_file()), None)
+
+
+def _prepare_training_model(run: dict[str, Any], config: dict[str, Any], worker_id: str, generation: int, *, resuming: bool = False) -> Path | None:
+    """Prepare weights under the task lease, before leasing a GPU/CPU device."""
+    from .training_models import ensure_pretrained_model, TrainingModelDownloadCancelled
+    from .model_downloads import ModelDownloadCancelled
+    run_id = run["id"]
+    check = lambda: _check_training_claim(run_id, worker_id, generation)
+    check()
+    _validate_initialization_snapshot(run, config)
+    if resuming or not config.get("pretrained", True):
+        return None
+    snapshot = config.get("model_initialization") or {}
+    if snapshot.get("source") == "builtin":
+        frozen = snapshot["builtin"]
+        existing = Path(config.get("base_model") or "")
+        if existing.is_file() and _file_sha256(existing) == config["base_model_sha256"]:
+            path = existing
+        else:
+            _append_training_log(run_id, "info", "model_download_started", "正在准备预训练权重", {"model_arch": run["model_arch"], "total_bytes": frozen["size_bytes"]})
+            last_update = -1.0
+            def progress(downloaded: int, total: int) -> None:
+                nonlocal last_update
+                try:
+                    check()
+                except TrainingPreparationStopped as exc:
+                    if exc.lost_claim:
+                        raise
+                    raise ModelDownloadCancelled("训练已取消，可重试续传权重") from exc
+                now = time.monotonic()
+                if now - last_update < .5 and downloaded != total:
+                    return
+                last_update = now
+                detail = {"state": "preparing_model", "requested_device": config.get("device", "auto"), "downloaded_bytes": downloaded, "total_bytes": total}
+                with db() as conn:
+                    conn.execute("""UPDATE training_runs SET progress_message=?,resource_json=? WHERE id=? AND status='running'
+                        AND claimed_by=? AND claim_generation=? AND cancel_requested=0""",
+                        (f"正在下载预训练权重：{downloaded:,} / {total:,} 字节", json.dumps(detail), run_id, worker_id, generation))
+            def cancelled() -> bool:
+                try:
+                    check()
+                except TrainingPreparationStopped as exc:
+                    if exc.lost_claim:
+                        raise
+                    return True
+                return False
+            try:
+                progress(0, frozen["size_bytes"])
+                path = ensure_pretrained_model(frozen, progress=progress, cancelled=cancelled)
+            except (TrainingModelDownloadCancelled, ModelDownloadCancelled) as exc:
+                raise TrainingPreparationStopped() from exc
+            check()
+            _append_training_log(run_id, "info", "model_download_completed", "预训练权重已校验并就绪", {"size_bytes": frozen["size_bytes"], "sha256": frozen["sha256"]})
+        if _file_sha256(path) != config.get("base_model_sha256") or _checkpoint_probe(path).get("task") != run["task"]:
+            raise RuntimeError("预训练权重校验失败或实际任务不匹配")
+    else:
+        resolved = _resolve_base_model(run["model_arch"], run["task"])
+        if not resolved or resolved[1]["sha256"] != config.get("base_model_sha256"):
+            raise RuntimeError("基础模型已不可用或 SHA-256/任务不匹配")
+        path = resolved[0]
+    check()
+    return path
+
+
+def _fresh_training_model(config: dict[str, Any], base_model: Path | None, attempt_dir: Path, task: str):
+    from ultralytics import YOLO
+    if config.get("pretrained", True):
+        return YOLO(str(base_model), task=task, verbose=False), str(base_model)
+    architecture = config["model_initialization"]["architecture"]
+    if isinstance(architecture, dict):
+        if _scratch_architecture(architecture) != architecture:
+            raise RuntimeError("随机初始化架构含无法安全重建的预训练骨干，请重新创建训练任务")
+        architecture_path = attempt_dir / "architecture.yaml"
+        architecture_path.write_text(json.dumps(architecture, ensure_ascii=False), encoding="utf-8")
+        architecture = str(architecture_path)
+    # Starting from YAML is essential: pretrained=False on a loaded .pt still
+    # transfers that checkpoint's parameters in the Ultralytics trainer.
+    return YOLO(architecture, task=task, verbose=False), architecture
+
+
 def run_training(run_id: int, worker_id: str, claim_generation: int) -> None:
     run = _require_training_run(run_id)
     run_root = settings.training_dir / f"run-{run_id}"
     attempt_dir = run_root / f"attempt-{claim_generation}"
     config = _parse_json(run["settings_json"])
+    resume_source = _resume_training_checkpoint(run_root, attempt_dir) if int(run.get("current_epoch") or 0) > 0 else None
+    try:
+        base_model = _prepare_training_model(run, config, worker_id, claim_generation, resuming=resume_source is not None)
+    except TrainingPreparationStopped as exc:
+        if not exc.lost_claim:
+            _cancel_training_claim(run_id, worker_id, claim_generation)
+        return
+    except Exception as exc:
+        # A network failure can race a cancellation or a lease takeover. Do not
+        # overwrite either with a stale worker's failure result.
+        try:
+            _check_training_claim(run_id, worker_id, claim_generation)
+        except TrainingPreparationStopped as stopped:
+            if not stopped.lost_claim:
+                _cancel_training_claim(run_id, worker_id, claim_generation)
+            return
+        with db() as conn:
+            cursor = conn.execute("""UPDATE training_runs SET status='failed',error=?,finished_at=?,lease_expires_at=NULL,
+                progress_message='模型准备失败' WHERE id=? AND status='running' AND claimed_by=? AND claim_generation=?""",
+                (str(exc)[:2000], now_iso(), run_id, worker_id, claim_generation))
+        if cursor.rowcount:
+            _append_training_log(run_id, "error", "model_preparation_failed", str(exc), {"exception_type": type(exc).__name__})
+        return
     try:
         resource = _acquire_resource_lease(
             config.get("device", "auto"),
@@ -2209,6 +2479,7 @@ def run_training(run_id: int, worker_id: str, claim_generation: int) -> None:
             )
         return
     try:
+        _check_training_claim(run_id, worker_id, claim_generation)
         run_root.mkdir(parents=True, exist_ok=True)
         attempt_dir.mkdir(parents=True, exist_ok=False)
         with db() as conn:
@@ -2234,12 +2505,6 @@ def run_training(run_id: int, worker_id: str, claim_generation: int) -> None:
             resource,
         )
 
-        resolved_model = _resolve_base_model(run["model_arch"], run["task"])
-        if not resolved_model:
-            raise RuntimeError("基础模型已不可用或 checkpoint task 不匹配")
-        base_model, model_metadata = resolved_model
-        if model_metadata["sha256"] != config.get("base_model_sha256"):
-            raise RuntimeError("基础模型 SHA-256 已变化，拒绝执行不可复现的训练")
         dataset_yaml = _prepare_training_dataset(
             run_id, run["version_id"], attempt_dir, run["task"]
         )
@@ -2267,19 +2532,6 @@ def run_training(run_id: int, worker_id: str, claim_generation: int) -> None:
         from .plot_fonts import prepare_training_fonts
         prepare_training_fonts()
 
-        resume_candidates = sorted(
-            (
-                path
-                for path in run_root.glob("attempt-*/ultralytics/weights/last.pt")
-                if attempt_dir not in path.parents
-            ),
-            key=lambda path: int(path.parents[2].name.split("-")[-1]),
-            reverse=True,
-        )
-        legacy_last = run_root / "ultralytics" / "weights" / "last.pt"
-        if legacy_last.is_file():
-            resume_candidates.append(legacy_last)
-        resume_source = next((path for path in resume_candidates if path.is_file()), None)
         resume_checkpoint: Path | None = None
         if resume_source and int(run.get("current_epoch") or 0) > 0:
             checkpoint = torch.load(resume_source, map_location="cpu", weights_only=False)
@@ -2309,6 +2561,7 @@ def run_training(run_id: int, worker_id: str, claim_generation: int) -> None:
             resume_checkpoint = attempt_dir / "resume.pt"
             torch.save(checkpoint, resume_checkpoint)
             model = YOLO(str(resume_checkpoint), task=run["task"], verbose=False)
+            amp_reference = str(resume_checkpoint)
             with db() as conn:
                 conn.execute(
                     """UPDATE training_runs SET resume_count = resume_count + 1,
@@ -2338,10 +2591,12 @@ def run_training(run_id: int, worker_id: str, claim_generation: int) -> None:
                     run_id,
                     "warning",
                     "restart_without_checkpoint",
-                    "租约重领但未找到 last.pt，本次从基础权重重新开始",
+                    ("租约重领但未找到 last.pt，本次从基础权重重新开始"
+                     if config.get("pretrained", True)
+                     else "租约重领但未找到 last.pt，本次从随机初始化重新开始"),
                     {"claim_generation": claim_generation},
                 )
-            model = YOLO(str(base_model), task=run["task"], verbose=False)
+            model, amp_reference = _fresh_training_model(config, base_model, attempt_dir, run["task"])
 
         def on_train_batch_end(trainer: Any) -> None:
             state = one(
@@ -2441,7 +2696,7 @@ def run_training(run_id: int, worker_id: str, claim_generation: int) -> None:
 
             def local_yolo(value: Any = "yolo26n.pt", *args: Any, **kwargs: Any) -> Any:
                 if str(value) == "yolo26n.pt":
-                    value = str(base_model)
+                    value = amp_reference
                 return original_yolo(value, *args, **kwargs)
 
             ultralytics.YOLO = local_yolo
@@ -2475,6 +2730,7 @@ def run_training(run_id: int, worker_id: str, claim_generation: int) -> None:
             "exist_ok": True,
             "verbose": False,
             "plots": True,
+            "pretrained": config.get("pretrained", True),
         }
         if run["task"] == "pose":
             version = one("SELECT keypoint_schema_json FROM dataset_versions WHERE id=?", (run["version_id"],))
@@ -2535,6 +2791,8 @@ def run_training(run_id: int, worker_id: str, claim_generation: int) -> None:
             dataset_content_hash=config.get("version_content_hash"),
             config_hash=run.get("config_hash"),
             claim_generation=claim_generation,
+            pretrained=config.get("pretrained", True),
+            model_initialization=config.get("model_initialization"),
         )
         with db() as conn:
             cursor = conn.execute(
@@ -2572,6 +2830,9 @@ def run_training(run_id: int, worker_id: str, claim_generation: int) -> None:
             run["project_id"],
             {"artifact": artifact_metadata, "metrics": metrics},
         )
+    except TrainingPreparationStopped as exc:
+        if not exc.lost_claim:
+            _cancel_training_claim(run_id, worker_id, claim_generation)
     except Exception as exc:
         logger.exception("Training run %s failed", run_id)
         with db() as conn:

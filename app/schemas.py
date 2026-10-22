@@ -356,6 +356,7 @@ class TrainingRunCreate(BaseModel):
     version_id: int = Field(ge=1)
     name: str | None = Field(default=None, max_length=100)
     model_arch: str = Field(default="yolo26n.pt", min_length=1, max_length=200)
+    pretrained: bool = True
     task: Literal["auto", "detect", "segment", "classify", "pose"] = "auto"
     epochs: int = Field(default=50, ge=1, le=10_000)
     image_size: int = Field(default=640, ge=32, le=4096)

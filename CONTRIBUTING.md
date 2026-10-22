@@ -20,12 +20,15 @@ cp .env.example .env
 ```bash
 .venv/bin/python -m unittest discover -s tests -v
 .venv/bin/python scripts/smoke_pipeline.py
+.venv/bin/python scripts/smoke_training_initialization.py
 .venv/bin/python scripts/smoke_open_source.py --device cpu
 for file in static/*.js; do node --check "$file"; done
 for file in scripts/check_*.mjs; do node "$file"; done
 ```
 
 冒烟脚本会在临时目录中生成合成数据、训练小模型并验证部署。GPU 相关改动还需选择空闲显卡运行 `CUDA_VISIBLE_DEVICES=0 .venv/bin/python scripts/smoke_open_source.py --device cuda:0`。没有相应硬件时，在提交说明中列出未验证的部分。
+
+初始化冒烟默认检查从零训练及上传权重；加 `--download-official` 可在隔离目录实际下载固定官方权重并训练，需要可用网络，可配置 `MDP_DOWNLOAD_PROXY`。默认 CI 不联网下载模型。
 
 保持 Web 无 PyTorch 的依赖边界；修改 GPU 调度时验证训练、标注和取消任务的互斥与恢复。数据库结构变动应提供迁移，并验证已有记录可以读取。新增模型下载条目应固定版本、文件大小、SHA-256 和许可来源。
 
