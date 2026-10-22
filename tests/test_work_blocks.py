@@ -318,6 +318,33 @@ class WorkBlocksTest(unittest.TestCase):
         self.assertNotEqual(first["id"], second["id"])
         self.assertEqual(self.detail(project, first["id"])["owner_user_id"], self.users["alice"]["id"])
 
+    def test_rejection_without_reason_keeps_owner_and_annotations_and_checks_access(self):
+        project, assets = self.fixture(3, annotated=True)
+        self.create_blocks(project)
+        block = self.claim(project)
+        for asset_id in assets:
+            self.assertEqual(self.workflow(asset_id, "submit").status_code, 200)
+        before = all_rows("SELECT * FROM annotations ORDER BY id")
+        self.assertEqual(self.workflow(assets[0], "reject", user="alice").status_code, 403)
+        stale = self.request("POST", f"/api/assets/{assets[0]}/workflow", user="review",
+                             json={"action": "reject", "expected_revision": self.revision(assets[0]) - 1})
+        self.assertEqual(stale.status_code, 409)
+        self.assertEqual(one("SELECT COUNT(*) AS n FROM review_events WHERE to_status='rejected'")["n"], 0)
+        for asset_id, extra in zip(assets, ({}, {"reason": ""}, {"reason": " \t\n "})):
+            with self.subTest(extra=extra):
+                response = self.request("POST", f"/api/assets/{asset_id}/workflow", user="review",
+                                        json={"action": "reject", "expected_revision": self.revision(asset_id), **extra})
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertEqual(response.json()["review_reason"], "")
+                self.assertEqual(response.json()["review_status"], "rejected")
+                event = one("SELECT * FROM review_events WHERE asset_id=? AND to_status='rejected'", (asset_id,))
+                self.assertEqual(event["reason"], "")
+        rejected = self.detail(project, block["id"])
+        self.assertEqual(rejected["status"], "rejected")
+        self.assertEqual(rejected["owner_user_id"], self.users["alice"]["id"])
+        self.assertEqual(all_rows("SELECT * FROM annotations ORDER BY id"), before)
+        self.assertEqual(self.request("POST", self.base(project) + "/claim", user="bob", json={"block_id": block["id"]}).status_code, 409)
+
     def test_foreign_project_and_disabled_assignee_are_rejected(self):
         project, _ = self.fixture(1)
         other, _ = self.fixture(1)

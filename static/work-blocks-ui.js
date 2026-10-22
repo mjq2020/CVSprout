@@ -24,6 +24,7 @@ export function scopeWorkBlockRequest(path, state, method = "GET") {
 
 export function workBlocksMarkup({ state, isAdmin, escapeHtml: esc, icon }) {
   const data = state.workBlocks || { enabled: false, blocks: [], unassigned_count: 0 };
+  if (data.unavailable) return `<div class="page-head compact-head"><h1>标注任务块</h1></div><div class="empty-state"><strong>任务块功能需要更新后端</strong><p>请管理员更新并重启后端服务，再刷新页面。现有项目数据仍可查看。</p><a class="btn ghost link-btn" href="#/projects/${state.project.id}/data">查看项目图片</a></div>`;
   const all = data.blocks || [], filter = state.workBlockFilter || "mine";
   const mine = all.filter(block => block.is_mine && block.status !== "completed");
   const blocks = all.filter(block => filter === "all" || (filter === "mine" ? block.is_mine && block.status !== "completed" : block.status === filter));
@@ -45,6 +46,7 @@ export function workBlocksMarkup({ state, isAdmin, escapeHtml: esc, icon }) {
 
 export function bindWorkBlocks(deps) {
   const { state, api, jsonOptions, openModal, closeModal, notify, escapeHtml: esc, refresh, render, submitBlock } = deps;
+  if (state.workBlocks?.unavailable) return;
   const projectId = state.project.id, epoch = state.selectionEpoch, session = state.session;
   const current = () => state.project?.id === projectId && state.currentSection === "blocks" && state.selectionEpoch === epoch && state.session === session;
   const base = `/api/projects/${projectId}/work-blocks`;

@@ -1,20 +1,21 @@
-import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.21.0";
-import { renderUsersPage } from "./accounts-ui.js?v=0.21.0";
-import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.21.0";
-import { mountAuthScreen } from "./auth-ui.js?v=0.21.0";
-import { renderAccountPage } from "./security-ui.js?v=0.21.0";
-import { bindAssetManagement } from "./asset-management-ui.js?v=0.21.0";
-import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.21.0";
-import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.21.0";
-import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.21.0";
-import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.21.0";
-import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.21.0";
-import { mountOverviewTraining } from "./overview-training.js?v=0.21.0";
-import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.21.0";
-import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.21.0";
-import { mountCanvasGuides } from "./canvas-guides.js?v=0.21.0";
-import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.21.0";
-import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.21.0";
+import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.21.1";
+import { renderUsersPage } from "./accounts-ui.js?v=0.21.1";
+import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.21.1";
+import { mountAuthScreen } from "./auth-ui.js?v=0.21.1";
+import { renderAccountPage } from "./security-ui.js?v=0.21.1";
+import { bindAssetManagement } from "./asset-management-ui.js?v=0.21.1";
+import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.21.1";
+import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.21.1";
+import { loadProjectWorkBlocks } from "./project-api.js?v=0.21.1";
+import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.21.1";
+import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.21.1";
+import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.21.1";
+import { mountOverviewTraining } from "./overview-training.js?v=0.21.1";
+import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.21.1";
+import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.21.1";
+import { mountCanvasGuides } from "./canvas-guides.js?v=0.21.1";
+import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.21.1";
+import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.21.1";
 
 const app = document.querySelector("#app");
 const modalRoot = document.querySelector("#modal-root");
@@ -50,6 +51,7 @@ const state = {
   activeWorkBlock: null,
   legacyReviewAssetId: null,
   annotations: [],
+  annotationsLoadedFor: null,
   models: [],
   jobs: [],
   auditLogs: [],
@@ -84,6 +86,7 @@ const state = {
   readOnlyReason: "",
   saveFeedback: { status: "idle", message: "" },
   workflowBusy: false,
+  workflowToken: null,
   handedOffAssetId: null,
   jobActionIds: new Set(),
   authReady: false,
@@ -628,7 +631,7 @@ async function safeApi(path, fallback) {
 
 function resetProjectInteraction(projectId, section) {
   state.saveFeedback = { status:"idle", message:"" }; state.readOnlyReason = ""; state.handedOffAssetId = null;
-  state.workflowBusy = false; state.reviewBatchToken = null;
+  state.workflowBusy = false; state.workflowToken = null; state.annotationsLoadedFor = null; state.reviewBatchToken = null;
   const changedProject = state.project?.id !== projectId;
   state.currentSection = section;
   state.activeWorkBlockId = null; state.activeWorkBlock = null; state.legacyReviewAssetId = null;
@@ -680,7 +683,11 @@ function projectSubnav(active) {
 }
 
 function projectPageShell(section, content) {
-  return `<div class="app-shell">${topbar("projects")}${projectSubnav(section)}<main class="project-page"><div class="project-page-inner">${content}</div></main></div>`;
+  return `<div class="app-shell">${topbar("projects")}${projectSubnav(section)}<main class="project-page"><div class="project-page-inner">${projectCompatibilityMarkup()}${content}</div></main></div>`;
+}
+
+function projectCompatibilityMarkup() {
+  return state.workBlocks?.unavailable ? `<div class="work-block-guide" role="status">${escapeHtml(state.workBlocks.compatibility_message)}</div>` : "";
 }
 
 function fallbackAnalytics(project, assets) {
@@ -715,15 +722,16 @@ async function loadProjectSection(projectId, section, routeEpoch = state.selecti
   }
   app.innerHTML = `<div class="app-shell">${topbar()}<main class="dashboard"><div class="dashboard-inner"><div class="skeleton" style="height:70vh"></div></div></main></div>`;
   try {
+    const projectRequest = api(`/api/projects/${projectId}`);
     const [project, assets, jobs, models, analytics, versions, training, workBlocks] = await Promise.all([
-      api(`/api/projects/${projectId}`),
+      projectRequest,
       api(`/api/projects/${projectId}/assets`),
       api(`/api/projects/${projectId}/jobs`),
       api("/api/models"),
       safeApi(`/api/projects/${projectId}/analytics`, null),
       safeApi(`/api/projects/${projectId}/versions`, []),
       section === "train" ? pipelineApi(trainingListURL(projectId, state.trainingPage.page, state.trainingFilters) + '&include_availability=false').catch(() => ({runs:[],total:0,counts:{},_loadError:'训练记录暂时无法加载，正在自动重试。'})) : Promise.resolve({ availability: {}, runs: [] }),
-      api(`/api/projects/${projectId}/work-blocks`),
+      loadProjectWorkBlocks(api, projectId, projectRequest, state.health),
     ]);
     if (routeEpoch !== state.selectionEpoch) return;
     state.project = project;
@@ -775,7 +783,7 @@ function renderProjectSection(section = state.currentSection) {
 async function refreshWorkBlocks() {
   const projectId = state.project.id, epoch = state.selectionEpoch;
   const request = ++state.workBlocksRequest;
-  const blocks = await api(`/api/projects/${projectId}/work-blocks`);
+  const blocks = await loadProjectWorkBlocks(api, projectId, state.project, state.health);
   if (request !== state.workBlocksRequest || state.project?.id !== projectId || state.selectionEpoch !== epoch || state.currentSection !== "blocks") return;
   state.workBlocks = blocks;
   renderWorkBlocksPage();
@@ -1058,9 +1066,9 @@ async function downloadArtifact(url, fallbackName = "download") {
   } finally { progressNotice.remove(); }
 }
 
-import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.21.0";
-import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.21.0";
-import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.21.0";
+import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.21.1";
+import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.21.1";
+import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.21.1";
 
 const trainingChartViews = new Map();
 const trainingDetailViews = new Map();
@@ -1973,7 +1981,8 @@ async function loadWorkspace(projectId, requestedAssetId = null, routeEpoch = st
   app.innerHTML = `<div class="app-shell">${topbar()}<main class="dashboard"><div class="dashboard-inner"><div class="skeleton" style="height:70vh"></div></div></main></div>`;
   resetProjectInteraction(projectId, "annotate");
   try {
-    const workBlocks = await api(`/api/projects/${projectId}/work-blocks`);
+    const projectRequest = api(`/api/projects/${projectId}`);
+    const workBlocks = await loadProjectWorkBlocks(api, projectId, projectRequest, state.health);
     if (routeEpoch !== state.selectionEpoch) return;
     state.workBlocks = workBlocks;
     const params = new URLSearchParams(location.hash.split("?")[1] || "");
@@ -1995,12 +2004,13 @@ async function loadWorkspace(projectId, requestedAssetId = null, routeEpoch = st
       history.replaceState(null, "", annotationBlockURL(projectId, block.id, requestedAssetId));
     }
     const [project, assets, models, jobs, auditLogs] = await Promise.all([
-      api(`/api/projects/${projectId}`), api(`/api/projects/${projectId}/assets`), api("/api/models"), api(`/api/projects/${projectId}/jobs`), api(`/api/projects/${projectId}/audit-logs?limit=100`),
+      projectRequest, api(`/api/projects/${projectId}/assets`), api("/api/models"), api(`/api/projects/${projectId}/jobs`), api(`/api/projects/${projectId}/audit-logs?limit=100`),
     ]);
     if (routeEpoch !== state.selectionEpoch) return;
     state.project = project; state.assets = assets; state.models = models; state.jobs = jobs; state.auditLogs = auditLogs;
     state.activeLabel = project.labels[0] || null; state.tool = "select"; state.poseDraft = null; state.keypointPlacement = null; state.inspectorTab = "objects";
     state.asset = assets.find(asset => asset.id === requestedAssetId) || assets[0] || null;
+    state.annotationsLoadedFor = null;
     state.selectedAssetIds = new Set(); state.assetFilter = "all";
     if (state.legacyReviewAssetId) { state.readOnly = true; state.readOnlyReason = "历史图片仍可审核。若需修改，请重新打开后由管理员将图片加入任务块。"; }
     else if (state.asset) await acquireAssetLock(state.asset.id, routeEpoch);
@@ -2034,6 +2044,7 @@ function renderWorkspace() {
   app.innerHTML = `<div class="app-shell annotation-shell ${state.annotationFocus ? "is-focus" : ""}">${topbar()}${projectSubnav("annotate")}
     <main class="workspace annotation-workspace ${state.queueCollapsed ? "queue-collapsed" : ""} ${state.inspectorCollapsed ? "inspector-collapsed" : ""}">
         <div class="workspace-toolbar manual-workspace-toolbar">
+          ${projectCompatibilityMarkup()}
           ${state.activeWorkBlock ? `<div class="annotation-block-scope"><a href="#/projects/${project.id}/blocks">任务块</a><strong>${escapeHtml(state.activeWorkBlock.name)}</strong><span>仅显示本块 ${state.assets.length} 张图片 · ${escapeHtml(state.activeWorkBlock.owner_name || "尚未领取")}</span><span>${BLOCK_STATUS[state.activeWorkBlock.status] || ""}</span>${!state.activeWorkBlock.is_mine ? `<span>查看模式${canReview() ? "，可审核已提交图片" : "，领取或转交后才能修改"}</span>` : ""}<a href="#/projects/${project.id}/blocks">交回 / 查看进度</a></div>` : ""}
           ${state.legacyReviewAssetId ? `<div class="annotation-block-scope"><strong>历史图片审核</strong><span>仅显示当前图片；需要重新标注时，请先将图片加入任务块。</span><a href="#/projects/${project.id}/blocks">管理任务块</a></div>` : ""}
           <div class="annotation-session-row">
@@ -2134,7 +2145,7 @@ function workspaceGuidanceMarkup() {
   if (!state.asset) return `<strong>先导入图片</strong><span>导入后可直接手动标注，也可使用 AI 生成初稿。</span>`;
   if (state.saveFeedback.status === "error") return `<strong class="feedback-error">修改未能确认保存</strong><span>${escapeHtml(state.saveFeedback.message || "请检查网络后重试，离开图片前确认修改已保存。")}</span>${state.pendingAnnotation || state.pendingTaskEdit || state.pendingObjectEdit ? `<button class="mini-action" id="retry-annotation-save" ${state.savingAnnotation ? "disabled" : ""}>重试保存 <kbd>Enter</kbd></button>` : ""}${hasAnnotationDraft() ? `<button class="mini-action" data-cancel-draft>放弃本地草稿</button>` : ""}<button class="mini-action" id="reload-saved-annotations">重新加载已保存结果</button>`;
   const status = state.asset.review_status;
-  if (status === "submitted") return `<strong>等待审核</strong><span>${canReview() ? "检查类别和标注位置，确认无误后点击“审核通过”；有问题请退回并填写原因。" : "这张图片已经提交。审核员确认前不能修改；需要修改时可以撤回提交。"}</span>`;
+  if (status === "submitted") return `<strong>等待审核</strong><span>${canReview() ? "检查类别和标注位置，确认无误后点击“审核通过”；有问题可退回修改，原因可选。" : "这张图片已经提交。审核员确认前不能修改；需要修改时可以撤回提交。"}</span>`;
   if (status === "approved") return `<strong>审核已通过</strong><span>${canReview() ? "可在“数据版本”生成训练数据。如需修改，重新打开后需要再次提交审核。" : "这张图片已通过审核。若发现问题，请联系审核员重新打开。"}</span>`;
   if (state.readOnly) return `<strong>暂时不能修改</strong><span>${escapeHtml(state.readOnlyReason || "编辑权限暂时不可用，请先处理下一张图片，稍后再回来。")}</span>`;
   if (!state.project.labels.length) return `<strong>先添加标注类别</strong><span>${isAdmin() ? "在标注详情中添加类别，再开始绘制。" : "请联系管理员为项目添加类别。"}</span>`;
@@ -2142,7 +2153,7 @@ function workspaceGuidanceMarkup() {
   if (state.polygon.length) return `<strong>正在绘制轮廓</strong><span>已添加 ${state.polygon.length / 2} 个顶点，至少需要 3 个。单击继续添加，Enter 完成，Backspace 撤销上一点，Esc 取消。</span><button class="mini-action" data-finish-polygon ${state.polygon.length < 6 || state.savingAnnotation ? "disabled" : ""}>完成轮廓</button><button class="mini-action" data-cancel-draft>取消绘制</button>`;
   if (state.advancedAnnotationDirty) return `<strong>高级修改尚未应用</strong><span>点击“应用高级修改”保存，或放弃本次输入。</span><button class="mini-action" data-cancel-draft>放弃本地草稿</button>`;
   if (state.selectionIntent && state.selectedAnnotation && projectTask() !== "classify") return `<strong>正在编辑选中对象</strong><span>修改“对象类别”或按数字键重新分类；按 Delete / ⌫ 删除选中标注。选择绘制工具或取消选中后可继续标注新对象。</span>`;
-  if (status === "rejected") return `<strong>请按反馈修改</strong><span>${escapeHtml(state.asset.review_reason || "请查看审核记录中的修改要求。")} 修改后请再次提交审核。</span>`;
+  if (status === "rejected") return `<strong>请按反馈修改</strong><span>${escapeHtml(state.asset.review_reason || "请重新检查图片，修正漏标、类别或边界等问题。")} 修改后请再次提交审核。</span>`;
   const instruction = { detect: "选择类别，点击“矩形框”或按 R，在物体周围拖动框选。", segment: "选择类别，点击“多边形”或按 P，沿边缘逐点点击，按 Enter 完成。", pose: "选择类别，点击“关键点”或按 K，先拖动框选对象，再按顺序放置点。", classify: "在上方“图片类别”或右侧类别列表中选择，也可按类别对应的数字键。", mixed: "选择类别后，按 R 画框或按 P 逐点画轮廓。" }[projectTask()];
   return state.annotations.length ? `<strong>可以继续手动标注</strong><span>${escapeHtml(instruction)} 完成的标注自动保存，检查后提交审核。</span>` : `<strong>从零开始手动标注</strong><span>${escapeHtml(instruction)} 完成后自动保存。</span><button class="mini-action" data-start-manual>开始手动标注</button>`;
 }
@@ -2160,7 +2171,10 @@ function workflowControlsMarkup() {
     return `${emptyControl}<button class="btn ghost workflow-action" data-action="submit" ${busy || reason ? "disabled" : ""}>${state.workflowBusy ? "正在提交…" : "提交审核"}</button>${reason ? `<span class="workflow-reason">${reason}</span>` : ""}`;
   }
   if (status === "submitted" && !canReview()) return ownBlock ? `<button class="btn ghost workflow-action" data-action="reopen" ${busy ? "disabled" : ""}>撤回并修改</button>` : `<span class="hint">等待审核，只读</span>`;
-  if (status === "submitted") return `<button class="btn primary workflow-action" data-action="approve" ${busy ? "disabled" : ""}>审核通过</button><button class="btn danger workflow-action" data-action="reject" ${busy ? "disabled" : ""}>退回修改</button><button class="btn ghost workflow-action" data-action="reopen" ${busy ? "disabled" : ""}>撤回审核</button>`;
+  if (status === "submitted") {
+    const reviewDisabled = busy || state.annotationsLoadedFor !== state.asset.id;
+    return `<button class="btn primary workflow-action" data-action="approve" title="审核通过并自动进入下一张待审核图片（Y）" ${reviewDisabled ? "disabled" : ""}>审核通过 <kbd>Y</kbd></button><button class="btn danger workflow-action" data-action="reject" title="退回修改，原因可选（X）" ${reviewDisabled ? "disabled" : ""}>退回修改 <kbd>X</kbd></button><button class="btn ghost workflow-action" data-action="reopen" ${busy ? "disabled" : ""}>撤回审核</button>`;
+  }
   if (status === "approved" && !canReview()) return `<span class="hint">已通过审核，只读</span>`;
   if (status === "approved") return `<button class="btn ghost workflow-action" data-action="reopen" ${busy ? "disabled" : ""}>重新打开修改</button>`;
   return "";
@@ -2928,7 +2942,7 @@ async function loadAnnotations(assetId, selectionEpoch = state.selectionEpoch) {
   try {
     const annotations = await api(`/api/assets/${assetId}/annotations`);
     if (selectionEpoch !== state.selectionEpoch || state.asset?.id !== assetId) return;
-    state.annotations = annotations; state.selectedAnnotation = null; state.selectionIntent = false; refreshShapes(); refreshInspector();
+    state.annotations = annotations; state.annotationsLoadedFor = assetId; state.selectedAnnotation = null; state.selectionIntent = false; refreshShapes(); refreshInspector();
     preloadNearbyAssets(assetId);
     refreshWorkflowState();
     return true;
@@ -2943,17 +2957,17 @@ function preloadNearbyAssets(assetId) {
   });
 }
 
-async function selectAsset(assetId) {
+async function selectAsset(assetId, { duringWorkflow = false } = {}) {
   if (state.asset?.id === assetId) return;
   if (!state.assets.some(asset => asset.id === assetId)) return;
-  if (state.savingAnnotation || state.workflowBusy) return notify("正在保存或更新审核状态，请稍候。", "warning");
+  if (state.savingAnnotation || (state.workflowBusy && !duringWorkflow)) return notify("正在保存或更新审核状态，请稍候。", "warning");
   if (hasAnnotationDraft()) return notify("当前还有未完成的标注，请先完成或按 Esc 取消，再切换图片。", "warning");
   const selectionEpoch = ++state.selectionEpoch;
   const previousAssetId = state.asset?.id;
   cancelShapeEdit();
   await releaseCurrentLock(previousAssetId);
   if (selectionEpoch !== state.selectionEpoch) return;
-  state.asset = state.assets.find(a => a.id === assetId); state.annotations = []; state.selectedAnnotation = null; state.polygon = []; state.drawing = null; state.shapeEdit = null;
+  state.asset = state.assets.find(a => a.id === assetId); state.annotations = []; state.annotationsLoadedFor = null; state.selectedAnnotation = null; state.polygon = []; state.drawing = null; state.shapeEdit = null;
   state.assistPoints = []; state.poseDraft = null; state.keypointPlacement = null;
   state.reviewEvents = []; state.saveFeedback = { status:"idle", message:"" };
   state.pendingAnnotation = null; state.pendingTaskEdit = null; state.pendingObjectEdit = null; state.selectionIntent = false; state.advancedAnnotationDirty = false; state.advancedDraft = null;
@@ -3232,6 +3246,7 @@ function startManualAnnotation() {
 
 async function updateWorkflow(action) {
   if (!state.asset || state.workflowBusy || state.savingAnnotation) return;
+  if (["approve", "reject"].includes(action) && state.annotationsLoadedFor !== state.asset.id) return notify("标注结果尚未加载完成，请稍候；若加载失败，请刷新页面后重试。", "warning");
   if (hasAnnotationDraft()) return notify("请先完成或取消当前草稿，再更新审核状态。", "warning");
   if (action === "submit" && state.saveFeedback.status === "error") return notify("修改尚未确认保存，请先重试保存或重新加载已保存结果。", "error");
   if (action === "confirm_empty") {
@@ -3243,9 +3258,13 @@ async function updateWorkflow(action) {
     return;
   }
   if (action === "reject") {
-    openModal({ title: "退回图片，说明修改要求", subtitle: "标注员会看到这段反馈，修改后重新提交审核。", body: `<div class="field"><label for="reject-reason">需要修改的地方</label><textarea id="reject-reason" placeholder="例如：右侧还有一位行人未标注，请补上；左侧轮廓需要贴近边缘。" autofocus></textarea></div>`, submitText: "退回修改", onSubmit: async () => {
+    const assetId = state.asset.id, revision = state.asset.revision;
+    const epoch = state.selectionEpoch, projectId = state.project.id, session = state.session;
+    openModal({ title: "退回图片修改", subtitle: "可以补充修改要求，也可以直接退回。标注员修改后重新提交审核。", body: `<div class="field"><label for="reject-reason">修改要求（可选）</label><textarea id="reject-reason" placeholder="可留空，或说明漏标、类别错误等需要修改的地方。" autofocus></textarea></div>`, submitText: "退回修改", onSubmit: async () => {
+      if (!state.authReady || state.session !== session || state.currentSection !== "annotate"
+          || state.selectionEpoch !== epoch || state.project?.id !== projectId
+          || state.asset?.id !== assetId || state.asset.revision !== revision) throw new Error("页面或图片已更新，请关闭窗口并重新检查。");
       const reason = document.querySelector("#reject-reason").value.trim();
-      if (!reason) throw new Error("请填写修改要求，让标注员知道需要调整哪里。");
       await performWorkflow(action, reason); closeModal();
     } });
     return;
@@ -3259,7 +3278,9 @@ async function performWorkflow(action, reason) {
   const revision = state.asset.revision;
   const isCurrent = () => state.authReady !== false && state.selectionEpoch === selectionEpoch
     && state.currentSection === "annotate" && state.project?.id === projectId && state.asset?.id === assetId;
-  let continueReview = false;
+  let reviewFinishedURL = null;
+  const workflowToken = {};
+  state.workflowToken = workflowToken;
   state.workflowBusy = true; refreshWorkflowState();
   try {
     const updated = await api(`/api/assets/${assetId}/workflow`, jsonOptions("POST", { action, expected_revision: revision, reason }));
@@ -3287,23 +3308,43 @@ async function performWorkflow(action, reason) {
         if (isCurrent()) state.activeWorkBlock = block;
       } catch (_) { /* The collaboration refresh will retry block progress. */ }
     }
-    if (isCurrent()) {
-      continueReview = ["approve", "reject"].includes(action) && shouldContinueReview();
-      renderWorkspace();
+    if (!isCurrent()) return;
+    renderWorkspace();
+    if (["approve", "reject"].includes(action) && shouldContinueReview()) {
+      // Refresh inside the current block scope: another reviewer may have already
+      // handled an image since this page opened. Keep actions disabled until the
+      // next image AND its annotations have finished loading.
+      if (action === "reject") closeModal();
+      let assets;
+      try { assets = await api(`/api/projects/${projectId}/assets`); }
+      catch (error) {
+        if (isCurrent()) notify(`审核结果已保存，待审核队列刷新失败：${error.message}`, "warning");
+        return;
+      }
+      if (!isCurrent()) return;
+      state.assets = assets;
+      const currentIndex = assets.findIndex(asset => asset.id === assetId);
+      const queue = currentIndex < 0 ? assets : [...assets.slice(currentIndex + 1), ...assets.slice(0, currentIndex)];
+      const next = queue.find(asset => asset.id !== assetId && asset.review_status === "submitted"
+        && !(asset.lock_owner && asset.lock_expires_at > new Date().toISOString()
+          && (asset.lock_owner !== (state.session?.actor || actorId) || asset.lock_token !== editorToken)));
+      if (next) {
+        state.assetFilter = "submitted";
+        await selectAsset(next.id, { duringWorkflow: true });
+      } else {
+        notify(assets.some(asset => asset.review_status === "submitted")
+          ? "其余待审核图片正在由其他成员或页面处理，已返回列表。"
+          : "当前队列已审核完毕，审核结果已保存。");
+        reviewFinishedURL = `#/projects/${projectId}/${state.activeWorkBlockId ? "blocks" : "data?status=submitted"}`;
+      }
     }
   } finally {
-    state.workflowBusy = false;
-    if (state.authReady !== false && state.currentSection === "annotate") { refreshWorkflowState(); refreshInspector(); }
+    if (state.workflowToken === workflowToken) {
+      state.workflowBusy = false; state.workflowToken = null;
+      if (state.authReady !== false && state.currentSection === "annotate") { refreshWorkflowState(); refreshInspector(); }
+    }
   }
-  if (continueReview && isCurrent() && !state.savingAnnotation && !state.shapeEdit && !state.drawing && !state.polygon.length && !state.poseDraft) {
-    const currentIndex = state.assets.findIndex(asset => asset.id === assetId);
-    const queue = [...state.assets.slice(currentIndex + 1), ...state.assets.slice(0, currentIndex)];
-    const candidates = queue.filter(asset => asset.id !== assetId && asset.review_status === "submitted"
-      && !(asset.lock_owner && asset.lock_owner !== (state.session?.actor || actorId) && asset.lock_expires_at > new Date().toISOString()));
-    const next = candidates[0];
-    if (next) { state.assetFilter = "submitted"; await selectAsset(next.id); }
-    else notify("当前没有其他可审核图片；已完成的审核结果已保存。");
-  }
+  if (reviewFinishedURL && isCurrent()) location.hash = reviewFinishedURL;
 }
 
 async function deleteSelectedAnnotation() {
@@ -4143,7 +4184,7 @@ annotationMenu = createAnnotationContextMenu({
   onClose: () => { annotationMenuContext = null; canvasGuides?.refresh(); },
 });
 const annotationShortcuts = installAnnotationShortcuts({
-  state, projectTask, taskAllowsTool, canEditCurrentAsset, hasDraft: hasAnnotationDraft,
+  state, projectTask, taskAllowsTool, canEditCurrentAsset, canReview, updateWorkflow, hasDraft: hasAnnotationDraft,
   hasModal: annotationOverlayOpen, navigationIsOpen, openModal, closeModal, escapeHtml, notify,
   setTool, setCanvasZoom, fitCanvas, navigateAsset, chooseTaskLabel: chooseWorkspaceLabel, finishPolygon, finishKeypoints,
   undoPolygonPoint, undoKeypointDraft: () => undoKeypointDraft(), retryPendingAnnotation,

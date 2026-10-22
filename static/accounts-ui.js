@@ -1,6 +1,6 @@
-import { state, api, app, topbar, escapeHtml, notify, openModal, jsonOptions, closeModal } from "./app.js?v=0.21.0";
-import { isAdmin } from "./task-ui.js?v=0.21.0";
-import { openMemberSessions, openMemberEvents, signedOut } from "./security-ui.js?v=0.21.0";
+import { state, api, app, topbar, escapeHtml, notify, openModal, jsonOptions, closeModal } from "./app.js?v=0.21.1";
+import { isAdmin } from "./task-ui.js?v=0.21.1";
+import { openMemberSessions, openMemberEvents, signedOut } from "./security-ui.js?v=0.21.1";
 
 const MEMBER_ROLES = {
   annotator: {name:"标注员",description:"导入图片、运行 AI 标注、人工校正，并提交审核。"},

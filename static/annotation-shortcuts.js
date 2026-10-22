@@ -15,6 +15,7 @@ export function annotationShortcutsHelp(task, escapeHtml = escape, labels = []) 
   const groups = [
     ["查看图片", [["右键 / 点击类别标签", "选择已有对象；右键可改类别、调整边界或选择重叠对象"], ["V", "选择对象，校正已有标注"], ["H", "切换到移动画布工具"], ["按住空格 + 拖动", "临时移动图片，松开空格恢复原工具"], ["滚轮 / + / −", "缩放图片，不改变标注坐标"], ["F", "适配窗口，显示整张图片"]]],
     ["人工标注与校正", editing],
+    ["审核已提交图片", [["Y", "审核通过，成功后自动进入下一张待审核图片"], ["X", "打开退回修改对话框；原因可不填，确认退回后继续下一张"], ["审核权限", "仅管理员和审核员可用；有未保存修改时请先完成或取消"]]],
     ["切换与复制", [["A / ←", "上一张图片"], ["D / →", "下一张图片"], ["N", "当前筛选内下一张待校正图片"], ["Ctrl / ⌘ + C", "复制选中对象（选中文本时仍复制文本）"], ["Ctrl / ⌘ + V", "粘贴到当前项目的可编辑图片"], ["?", "打开本页快捷键帮助"]]],
   ];
   const assigned = labels.filter(label => /^[0-9]$/.test(String(label.shortcut || "")));
@@ -83,6 +84,11 @@ export function installAnnotationShortcuts(deps) {
     if (event.shiftKey && [" ", "Enter", "ArrowLeft", "ArrowRight", "Backspace", "Delete"].includes(key)) return;
     if (key === "?" && !event.repeat) { consume(event); openHelp(); return; }
     if (!state.asset) return;
+    if (["y", "x"].includes(lower)) {
+      if (state.asset.review_status !== "submitted" || !deps.canReview?.() || !deps.updateWorkflow) return;
+      consume(event); if (event.repeat || busy() || blockedDraft()) return;
+      await run(() => deps.updateWorkflow(lower === "y" ? "approve" : "reject")); return;
+    }
     if (key === "Escape") {
       consume(event); resetSpace(); if (event.repeat || busy()) return;
       if (state.pan) deps.stopCanvasPan();

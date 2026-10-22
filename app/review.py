@@ -137,8 +137,6 @@ def _run(project_id: int, payload: BatchReview, actor: Actor, *, preview: bool) 
         raise password_change_required()
     if not one("SELECT id FROM projects WHERE id=?", (project_id,)):
         raise HTTPException(404, "项目不存在")
-    if not preview and payload.action == "reject" and not payload.reason:
-        raise HTTPException(422, "退回修改时请填写原因，方便标注员按要求修正")
     unique = {item.asset_id: item for item in payload.assets}
     items = [_item(project_id, target, payload, actor, preview) for target in unique.values()]
     counts = {status: sum(item["status"] == status for item in items) for status in ("eligible", "succeeded", "skipped", "conflict", "forbidden", "not_found")}

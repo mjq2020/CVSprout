@@ -3,13 +3,13 @@
 // Uses injected DOM/application doubles; does not start a server or write any data.
 import assert from 'node:assert/strict';
 import {installAnnotationShortcuts,annotationShortcutsHelp} from '../static/annotation-shortcuts.js';
-const noop=()=>{}, counter={}, calls=[], listeners=new Map();let modal=false,nav=false,selection='',writable=true,resolveDelete=null;
+const noop=()=>{}, counter={}, calls=[], listeners=new Map();let modal=false,nav=false,selection='',writable=true,resolveDelete=null,reviewer=false,resolveReview=null;
 const state={currentSection:'annotate',project:{id:1,labels:[{id:1,name:'物体',shortcut:'1'},{id:2,name:'第二类',shortcut:'2'}]},asset:{id:1},tool:'select',annotations:[],zoom:1,polygon:[],selectedAnnotation:{id:1,points:[1,2,3,4],keypoints:[{x:2,y:3,visibility:2}]}};
 const node={closest:()=>null};const canvas={classList:{toggle:noop,add:noop}};
 const doc={activeElement:node,querySelector:s=>s==='#canvas-scroll'?canvas:null};
 const win={addEventListener:(k,fn)=>listeners.set(k,fn),removeEventListener:noop,getSelection:()=>({toString:()=>selection})};
 const hit=name=>()=>{calls.push(name);counter[name]=(counter[name]||0)+1;};
-const deps={state,window:win,document:doc,hasModal:()=>modal,navigationIsOpen:()=>nav,canEditCurrentAsset:()=>writable,projectTask:()=>state.project.task_type||'detect',taskAllowsTool:t=>t==='select'||t==='rectangle',notify:hit('notify'),openModal:hit('help'),closeModal:noop,setTool:t=>{calls.push(t);state.tool=t},setCanvasZoom:z=>{state.zoom=z},fitCanvas:hit('fit'),navigateAsset:hit('navigate'),chooseTaskLabel:hit('label'),undoPolygonPoint:()=>state.polygon.splice(-2),undoKeypointDraft:hit('undoPose'),finishPolygon:hit('finishPolygon'),finishKeypoints:hit('finishPose'),retryPendingAnnotation:hit('retry'),pasteCopiedAnnotation:hit('paste'),deleteSelectedAnnotation:async()=>{hit('delete')();await new Promise(r=>resolveDelete=r)},cancelDrawing:()=>{hit('cancel')();state.polygon=[];state.poseDraft=null;state.drawing=null;state.pendingAnnotation=null},refreshInspector:noop,stopCanvasPan:hit('stopPan'),cancelShapeEdit:hit('cancelEdit'),clearObjectSelection:hit('clearSelection')};
+const deps={state,window:win,document:doc,hasModal:()=>modal,navigationIsOpen:()=>nav,canEditCurrentAsset:()=>writable,canReview:()=>reviewer,updateWorkflow:async action=>{hit(action)();await new Promise(r=>resolveReview=r)},projectTask:()=>state.project.task_type||'detect',taskAllowsTool:t=>t==='select'||t==='rectangle',notify:hit('notify'),openModal:hit('help'),closeModal:noop,setTool:t=>{calls.push(t);state.tool=t},setCanvasZoom:z=>{state.zoom=z},fitCanvas:hit('fit'),navigateAsset:hit('navigate'),chooseTaskLabel:hit('label'),undoPolygonPoint:()=>state.polygon.splice(-2),undoKeypointDraft:hit('undoPose'),finishPolygon:hit('finishPolygon'),finishKeypoints:hit('finishPose'),retryPendingAnnotation:hit('retry'),pasteCopiedAnnotation:hit('paste'),deleteSelectedAnnotation:async()=>{hit('delete')();await new Promise(r=>resolveDelete=r)},cancelDrawing:()=>{hit('cancel')();state.polygon=[];state.poseDraft=null;state.drawing=null;state.pendingAnnotation=null},refreshInspector:noop,stopCanvasPan:hit('stopPan'),cancelShapeEdit:hit('cancelEdit'),clearObjectSelection:hit('clearSelection')};
 installAnnotationShortcuts(deps);
 async function key(k,extra={}){const e={key:k,code:k===' '?'Space':k,ctrlKey:false,metaKey:false,altKey:false,shiftKey:false,repeat:false,defaultPrevented:false,target:node,preventDefault(){this.defaultPrevented=true},...extra};await listeners.get('keydown')(e);return e}
 for(const k of ['r','p','f','s','v'])assert.equal((await key(k,{ctrlKey:true})).defaultPrevented,false,k);
@@ -46,4 +46,26 @@ for(const role of ['input','textarea','select','contenteditable']){doc.activeEle
 modal=true;await key('Backspace');modal=false;assert.equal(counter.delete,3,'Modal Backspace never deletes annotations');
 await key('Escape');assert.equal(counter.clearSelection,1,'Escape without a draft clears object selection');
 state.polygon=[1,2];await key('Escape');assert.equal(counter.clearSelection,1,'Escape with a draft preserves selected saved object');
-console.log('PASS modifiers/native text/dialog/nav/IME; nonrepeating serialized writes; readonly/busy/draft guards; deep clipboard; undo/finish/retry; space cleanup; task-specific help');
+
+// Review is independent of annotation editability: submitted images are readonly.
+state.asset.review_status='submitted';writable=false;
+await key('y');await key('x');assert.equal(counter.approve,undefined,'Annotators cannot approve');assert.equal(counter.reject,undefined,'Annotators cannot reject');reviewer=true;
+for(const status of ['draft','in_progress','approved','rejected']){state.asset.review_status=status;await key('y');await key('x');}state.asset.review_status='submitted';
+for(const k of ['y','x']){
+  assert.equal((await key(k,{ctrlKey:true})).defaultPrevented,false,'Review chords do not override browser shortcuts');
+  await key(k,{repeat:true});await key(k,{isComposing:true});
+  modal=true;await key(k);modal=false;nav=true;await key(k);nav=false;
+  doc.activeElement={closest:s=>s.includes('input')?{}:null};await key(k);doc.activeElement=node;
+  await key(k,{target:{closest:s=>s.includes('input')?{}:null}});
+  for(const flag of ['workflowBusy','savingAnnotation']){state[flag]=true;await key(k);state[flag]=false;}
+  for(const flag of ['pendingAnnotation','pendingTaskEdit','pendingObjectEdit','advancedAnnotationDirty','drawing','shapeEdit','poseDraft']){state[flag]={};await key(k);state[flag]=null;}
+  state.polygon=[1,2];await key(k);state.polygon=[];state.keypointPlacement=0;await key(k);state.keypointPlacement=null;
+}
+assert.equal(counter.approve,undefined,'Wrong status, repeat, form, modal, busy and draft review actions are ignored');assert.equal(counter.reject,undefined);
+const approval=key('y');await Promise.resolve();assert.equal(counter.approve,1,'Y approves a submitted readonly image');
+await key('y');await key('x');assert.equal(counter.approve,1,'An in-flight approval cannot duplicate writes');assert.equal(counter.reject,undefined,'An in-flight approval cannot launch rejection');resolveReview();await approval;
+const rejection=key('x');await Promise.resolve();assert.equal(counter.reject,1,'X opens the rejection action');resolveReview();await rejection;
+deps.updateWorkflow=async()=>{throw new Error('审核失败')};const notifications=counter.notify;await key('y');assert.equal(counter.notify,notifications+1,'Review failures are reported');
+deps.updateWorkflow=hit('approve');await key('y');assert.equal(counter.approve,2,'A failed action releases the shortcut busy guard');
+for(const task of ['detect','segment','pose','classify']){const help=annotationShortcutsHelp(task);assert.ok(help.includes('<kbd>Y</kbd>'));assert.ok(help.includes('<kbd>X</kbd>'));assert.ok(help.includes('原因可不填'));}
+console.log('PASS modifiers/native text/dialog/nav/IME; serialized edits and review; readonly/busy/draft/permission/status guards; deep clipboard; undo/finish/retry; space cleanup; task and review help');

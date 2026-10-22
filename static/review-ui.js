@@ -1,23 +1,17 @@
 // Dependencies are provided by app.js; this module never imports the application.
 let context = null;
 let bound = false;
-const NEXT_KEY = "visionforge-review-next";
 const ACTIONS = { submit: "批量提交审核", approve: "批量通过", reject: "批量退回修改" };
 const STATUS_NAMES = { eligible: "可处理", succeeded: "已完成", skipped: "已跳过", conflict: "需重新检查", forbidden: "权限不足", not_found: "不可用" };
 const REVIEW_STATES = { draft: "草稿", in_progress: "标注中", submitted: "待审核", approved: "已通过", rejected: "已退回" };
 
 export function shouldContinueReview() {
-  try { return localStorage.getItem(NEXT_KEY) === "true"; } catch (_) { return false; }
+  return true;
 }
 
 export function reviewContinuationMarkup(reviewer) {
-  return reviewer ? `<label class="review-next-toggle" title="仅在审核通过或退回成功后切换，不会跳过未保存的修改"><input type="checkbox" data-review-next ${shouldContinueReview() ? "checked" : ""}/>审核后继续下一张</label>` : "";
+  return reviewer ? `<span class="review-next-toggle" title="审核通过或退回成功后，自动进入当前范围内下一张待审核图片">Y 通过 · X 退回 · 审核后自动下一张</span>` : "";
 }
-
-document.addEventListener("change", event => {
-  if (!event.target.matches("[data-review-next]")) return;
-  try { localStorage.setItem(NEXT_KEY, String(event.target.checked)); } catch (_) { /* Preference storage is optional. */ }
-});
 
 export function reviewQueueMarkup(state, reviewer) {
   const count = status => state.assets.filter(asset => asset.review_status === status).length;
@@ -273,7 +267,7 @@ function openBatchReview(action, options = {}) {
     phase = "preview";
     if (jobRun) preview.items.forEach(item => jobRun.results.set(item.asset_id, item));
     const eligible = preview.counts.eligible;
-    content.innerHTML = `${scopeMarkup()}${countsMarkup(preview.items)}<p class="hint">${eligible ? "只会处理下方标记为“可处理”的图片。执行时会再次检查版本和编辑占用，其他图片保持不变。" : options.nextBatch ? "本批没有可提交图片，可以查看原因后继续预览下一批。已提交或已通过的图片无需重复提交。" : "当前没有可处理的图片。请查看每张图片的原因；已提交或已通过的图片无需重复提交。"}</p>${action === "reject" ? `<div class="field"><label for="batch-review-reason">修改要求（必填，会显示在每张退回图片的审核记录中）</label><textarea id="batch-review-reason" maxlength="2000" placeholder="例如：右侧目标漏标，请补充；边缘轮廓需要贴近物体。">${escapeHtml(reason)}</textarea></div>` : ""}${action === "approve" && eligible ? `<label class="check-line batch-review-confirm"><input type="checkbox" id="batch-review-confirm"/>我已检查这些图片的类别和标注位置，确认可以通过审核</label>` : ""}${itemsMarkup(preview.items)}${!eligible && options.nextBatch && preview.items.some(item => item.status === "conflict") ? `<button class="btn ghost job-review-recheck" data-job-review-retry-batch>重新检查本批图片</button>` : ""}${priorIssuesMarkup()}`;
+    content.innerHTML = `${scopeMarkup()}${countsMarkup(preview.items)}<p class="hint">${eligible ? "只会处理下方标记为“可处理”的图片。执行时会再次检查版本和编辑占用，其他图片保持不变。" : options.nextBatch ? "本批没有可提交图片，可以查看原因后继续预览下一批。已提交或已通过的图片无需重复提交。" : "当前没有可处理的图片。请查看每张图片的原因；已提交或已通过的图片无需重复提交。"}</p>${action === "reject" ? `<div class="field"><label for="batch-review-reason">修改要求（可选，填写后会显示在每张退回图片的审核记录中）</label><textarea id="batch-review-reason" maxlength="2000" placeholder="例如：右侧目标漏标，请补充；边缘轮廓需要贴近物体。">${escapeHtml(reason)}</textarea></div>` : ""}${action === "approve" && eligible ? `<label class="check-line batch-review-confirm"><input type="checkbox" id="batch-review-confirm"/>我已检查这些图片的类别和标注位置，确认可以通过审核</label>` : ""}${itemsMarkup(preview.items)}${!eligible && options.nextBatch && preview.items.some(item => item.status === "conflict") ? `<button class="btn ghost job-review-recheck" data-job-review-retry-batch>重新检查本批图片</button>` : ""}${priorIssuesMarkup()}`;
     const button = document.querySelector("#modal-submit");
     button.textContent = eligible ? `${jobRun ? "提交审核" : ACTIONS[action]} ${eligible} 张` : options.nextBatch ? `预览下一批 ${options.nextBatchSize} 张` : preview.items.some(item => item.status === "conflict") ? "刷新并重新检查" : "关闭";
     button.disabled = false;
@@ -307,7 +301,7 @@ function openBatchReview(action, options = {}) {
   };
   openModal({
     title: jobRun ? "提交本次任务的图片" : ACTIONS[action],
-    subtitle: jobRun ? "提交此任务已处理图片的当前保存标注，包含后续人工校正。" : action === "approve" ? "仅审核已提交的图片。AI 尚未提交的结果会跳过，请先检查标注质量。" : action === "reject" ? "填写清楚的修改要求，标注员修正后可以再次提交。" : "请先检查 AI 标注和必要的人工修正。提交后将等待审核员确认。",
+    subtitle: jobRun ? "提交此任务已处理图片的当前保存标注，包含后续人工校正。" : action === "approve" ? "仅审核已提交的图片。AI 尚未提交的结果会跳过，请先检查标注质量。" : action === "reject" ? "修改要求可不填；标注员修正后可以再次提交。" : "请先检查 AI 标注和必要的人工修正。提交后将等待审核员确认。",
     wide: true,
     body: `<div id="batch-review-content"><p class="hint" role="status">正在检查所选图片的状态和编辑占用…</p></div>`,
     submitText: "正在检查…",
@@ -348,7 +342,6 @@ function openBatchReview(action, options = {}) {
       }
       if (action === "reject") {
         reason = document.querySelector("#batch-review-reason").value.trim();
-        if (!reason) throw new Error("请填写修改要求，方便标注员按要求修正。");
       }
       if (action === "approve" && !document.querySelector("#batch-review-confirm").checked) throw new Error("请先确认已经检查图片与标注，再批量通过审核。");
       const eligible = new Set(preview.items.filter(item => item.status === "eligible").map(item => item.asset_id));

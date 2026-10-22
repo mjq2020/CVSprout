@@ -97,7 +97,7 @@ async def lifespan(application: FastAPI):
                     await pipeline_task
 
 
-app = FastAPI(title="CVSprout 标注平台", version="0.21.0", lifespan=lifespan)
+app = FastAPI(title="CVSprout 标注平台", version="0.21.1", lifespan=lifespan)
 app.middleware("http")(browser_security)
 app.add_middleware(RequestBodyLimit, policy=request_budget)
 app.include_router(accounts_router)
@@ -755,8 +755,7 @@ def update_asset_workflow(
         require_reviewer(actor)
     else:
         ensure_asset_write_access(asset, actor)
-    if payload.action == "reject" and not payload.reason.strip():
-        raise HTTPException(422, "驳回时必须填写原因")
+    reason = payload.reason.strip()
     now = now_iso()
     with db() as conn:
         conn.execute("BEGIN IMMEDIATE")
@@ -769,7 +768,7 @@ def update_asset_workflow(
         cursor = conn.execute(
             """UPDATE assets SET review_status = ?, review_reason = ?, revision = revision + 1,
                updated_at = ? WHERE id = ? AND revision = ?""",
-            (target, payload.reason, now, asset_id, payload.expected_revision),
+            (target, reason, now, asset_id, payload.expected_revision),
         )
         if cursor.rowcount != 1:
             raise HTTPException(409, "图片已被其他用户修改，请刷新后重试")
@@ -779,12 +778,12 @@ def update_asset_workflow(
             """INSERT INTO review_events
                (asset_id, from_status, to_status, actor, reason, created_at)
                VALUES (?, ?, ?, ?, ?, ?)""",
-            (asset_id, asset["review_status"], target, actor.id, payload.reason, now),
+            (asset_id, asset["review_status"], target, actor.id, reason, now),
         )
         refresh_block(conn, asset_id, actor)
     audit(
         actor.id, payload.action, "asset_review", asset_id, asset["project_id"],
-        {"from": asset["review_status"], "to": target, "reason": payload.reason},
+        {"from": asset["review_status"], "to": target, "reason": reason},
     )
     return {**require_asset(asset_id), "previous_status": asset["review_status"]}
 

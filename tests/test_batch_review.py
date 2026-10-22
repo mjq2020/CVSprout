@@ -119,21 +119,44 @@ class BatchReviewTest(unittest.TestCase):
         self.actor = Actor("test-annotator", "annotator")
         for action in ("approve", "reject"):
             for preview in (True, False):
-                result = self.action(project, [assets[0]], action, preview=preview, reason="边界需要调整").json()
+                result = self.action(project, [assets[0]], action, preview=preview).json()
                 self.assertEqual(result["counts"]["forbidden"], 1)
         self.assertEqual(self.action(project, [assets[1]]).json()["counts"]["succeeded"], 1)
         self.assertEqual(one("SELECT review_status FROM assets WHERE id=?", (assets[0],))["review_status"], "submitted")
 
-    def test_reject_requires_reason_and_records_feedback_atomically(self):
+    def test_reject_records_optional_feedback_atomically(self):
         project, assets = self.fixture()
         self.status(assets, "submitted")
-        self.assertEqual(self.action(project, assets, "reject", reason="  ").status_code, 422)
         self.assertEqual(self.action(project, assets, "reject", preview=True).json()["counts"]["eligible"], 1)
         result = self.action(project, assets, "reject", reason="  请校正右侧边界  ").json()
         self.assertEqual(result["counts"]["succeeded"], 1)
         self.assertEqual(result["items"][0]["asset"]["review_reason"], "请校正右侧边界")
         event = one("SELECT * FROM review_events WHERE asset_id=?", (assets[0],))
         self.assertEqual((event["from_status"], event["to_status"], event["reason"]), ("submitted", "rejected", "请校正右侧边界"))
+
+    def test_reject_accepts_omitted_empty_and_whitespace_reason_without_changing_annotations(self):
+        project, assets = self.fixture(4)
+        self.status(assets, "submitted")
+        before = all_rows("SELECT * FROM annotations ORDER BY id")
+        path = f"/api/projects/{project['id']}/review/batch"
+        for asset_id, extra in zip(assets, ({}, {"reason": ""}, {"reason": " \t\n "})):
+            with self.subTest(extra=extra):
+                target = self.targets([asset_id])
+                response = self.client.post(path, json={"action": "reject", "assets": target, **extra})
+                self.assertEqual(response.status_code, 200, response.text)
+                result = response.json()
+                self.assertEqual(result["counts"]["succeeded"], 1)
+                self.assertEqual(result["items"][0]["asset"]["review_status"], "rejected")
+                self.assertEqual(result["items"][0]["asset"]["review_reason"], "")
+                event = one("SELECT * FROM review_events WHERE asset_id=?", (asset_id,))
+                self.assertEqual((event["from_status"], event["to_status"], event["reason"]), ("submitted", "rejected", ""))
+        stale = self.targets([assets[-1]])
+        stale[0]["expected_revision"] -= 1
+        result = self.action(project, [assets[-1]], "reject", targets=stale).json()
+        self.assertEqual(result["counts"]["conflict"], 1)
+        self.assertEqual(result["items"][0]["code"], "revision_changed")
+        self.assertEqual(one("SELECT review_status FROM assets WHERE id=?", (assets[-1],))["review_status"], "submitted")
+        self.assertEqual(all_rows("SELECT * FROM annotations ORDER BY id"), before)
 
     def test_stale_revision_other_lock_and_ai_busy_are_individual_conflicts(self):
         project, assets = self.fixture(4)

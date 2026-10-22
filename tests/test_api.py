@@ -313,7 +313,19 @@ class ApiFlowTest(unittest.TestCase):
             json={"action": "reject", "expected_revision": revision, "reason": ""},
             headers={"X-Actor-ID": "reviewer"},
         )
-        self.assertEqual(rejected_without_reason.status_code, 422)
+        self.assertEqual(rejected_without_reason.status_code, 200, rejected_without_reason.text)
+        self.assertEqual(rejected_without_reason.json()["review_status"], "rejected")
+        self.assertEqual(rejected_without_reason.json()["review_reason"], "")
+        revision = rejected_without_reason.json()["revision"]
+
+        resubmitted = self.client.post(
+            f"/api/assets/{asset_id}/workflow",
+            json={"action": "submit", "expected_revision": revision},
+            headers={"X-Actor-ID": "alice"},
+        )
+        self.assertEqual(resubmitted.status_code, 200, resubmitted.text)
+        self.assertEqual(resubmitted.json()["review_status"], "submitted")
+        revision = resubmitted.json()["revision"]
 
         approved = self.client.post(
             f"/api/assets/{asset_id}/workflow",
@@ -335,7 +347,9 @@ class ApiFlowTest(unittest.TestCase):
             self.assertEqual(helmet_item["visionforge"]["source"], "manual")
 
         events = self.client.get(f"/api/assets/{asset_id}/review-events").json()
-        self.assertEqual([event["to_status"] for event in events[:2]], ["approved", "submitted"])
+        self.assertEqual([event["to_status"] for event in events[:4]], ["approved", "submitted", "rejected", "submitted"])
+        self.assertEqual(events[0]["reason"], "符合规范")
+        self.assertEqual(events[2]["reason"], "")
         audit = self.client.get(f"/api/projects/{project_id}/audit-logs").json()
         self.assertTrue(any(row["action"] == "approve" for row in audit))
 
