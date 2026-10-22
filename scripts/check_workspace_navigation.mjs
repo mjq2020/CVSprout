@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const navigationSource = readFileSync(new URL("../static/workspace-navigation.js", import.meta.url), "utf8").replaceAll("export function ", "function ");
+const navigationSource = readFileSync(new URL("../static/workspace-navigation.js", import.meta.url), "utf8").replace(/^import .*;\n/gm, "").replaceAll("export function ", "function ");
 const appSource = readFileSync(new URL("../static/app.js", import.meta.url), "utf8");
 const topbar = appSource.slice(appSource.indexOf("function topbar("), appSource.indexOf("\nasync function route("));
 assert(topbar.length > 0);
 
 function fixture({ mobile = false, hash = "#/projects/7/train" } = {}) {
+  const enterWorkspaceContent = () => {};
   const viewport = { mobile }, location = { hash }, tasks = [], storage = new Map(), events = new Map(), windowEvents = new Map();
   const theme = { preference: "system", calls: [] }, ui = { nodes: [], current: null, html: "", mediaListener: null };
   const state = { session: { user_id: 1, display_name: "测试管理员", role: "admin" }, authMode: "accounts", currentSection: "train",
@@ -79,7 +80,7 @@ function fixture({ mobile = false, hash = "#/projects/7/train" } = {}) {
     CVSproutTheme: { getPreference: () => theme.preference, getTheme: () => theme.preference === "dark" ? "dark" : "light",
       setPreference: value => { theme.calls.push(value); theme.preference = value; } } };
   const esc = value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
-  const context = vm.createContext({ window, document, location, state, Event, URLSearchParams, queueMicrotask: fn => tasks.push(fn),
+  const context = vm.createContext({ enterWorkspaceContent, window, document, location, state, Event, URLSearchParams, queueMicrotask: fn => tasks.push(fn),
     getComputedStyle: node => ({ visibility: viewport.mobile && node.closest(".workspace-navigation") && !ui.current.nav.classList.contains("is-open") ? "hidden" : "visible" }), sessionStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
     icon: name => `<svg data-icon="${name}"></svg>`, escapeHtml: esc, isAdmin: () => state.session.role === "admin", projectTask: () => "detect", TASK_LABELS: { detect: "目标检测" } });
   vm.runInContext(navigationSource + "\n" + topbar, context);
@@ -202,6 +203,19 @@ for (const target of ["select", "logout", "accountLink", "themeSummary"]) {
   assert.equal(h.context.navigationIsOpen(), false); assert.equal(nav.accountMenu.open, false);
   h.dispatch("click", nav.toggle); h.viewport.mobile = false; h.ui.mediaListener();
   assert.equal(nav.nav.inert, false); assert.equal(nav.main.inert, false); assert.equal(nav.nav.getAttribute("role"), null);
+}
+
+// Closing a drawer during a slow route must not re-enable the previous page.
+{
+  const h = fixture({ mobile: true }), nav = h.render();
+  nav.main.dataset.workspaceLoading = "true";
+  h.dispatch("click", nav.toggle);
+  h.context.closeWorkspaceNavigation();
+  assert.equal(nav.main.inert, true);
+  assert.equal(nav.header.inert, false);
+  delete nav.main.dataset.workspaceLoading;
+  h.context.closeWorkspaceNavigation();
+  assert.equal(nav.main.inert, false);
 }
 
 // Resize only moves focus when a navigation control becomes hidden/inert; editing elsewhere keeps its focus.

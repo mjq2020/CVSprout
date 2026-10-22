@@ -1,0 +1,197 @@
+/* Keep the content surface steady: only deliberate navigation and feedback
+   enter with motion. Dataset images and annotation canvases keep their geometry. */
+:root {
+  --workspace-motion: 140ms;
+  --workspace-motion-enter: 160ms;
+  --workspace-ease: cubic-bezier(.2, .65, .3, 1);
+}
+
+:where(.dashboard, .project-page) {
+  scrollbar-gutter: stable;
+}
+.app-shell { position: relative; }
+:is(main.dashboard, main.project-page).workspace-content-pending {
+  opacity: .68;
+  cursor: progress;
+  transition: opacity var(--workspace-motion) ease;
+}
+.workspace-feedback-status {
+  position: absolute;
+  z-index: 26;
+  top: 16px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: fit-content;
+  max-width: calc(100% - var(--navigation-width, 0px) - 48px);
+  padding: 10px 14px;
+  border: 1px solid var(--brand-line);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--panel);
+  box-shadow: 0 4px 14px var(--shadow-color);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.workspace-feedback-status .spinner {
+  flex: 0 0 14px;
+  border-color: var(--brand-line);
+  border-top-color: var(--brand);
+}
+.workspace-feedback-status.is-error { border-color: var(--danger-line); color: var(--danger); }
+.workspace-initial-loading { min-width: 0; min-height: 0; overflow: hidden; padding: 30px 38px; }
+.workspace-skeleton { width: min(1320px, 100%); margin: 0 auto; }
+.workspace-skeleton .skeleton { animation: none; background: var(--panel-3); }
+.workspace-skeleton-title { width: min(250px, 65%); height: 28px; margin-bottom: 14px; }
+.workspace-skeleton-line { width: min(480px, 85%); height: 12px; margin-bottom: 30px; }
+.workspace-skeleton-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.workspace-skeleton-cards > .skeleton { height: 160px; border: 1px solid var(--line-soft); }
+:where(.dashboard, .project-page) .page-head {
+  align-items: flex-start;
+  gap: 18px 24px;
+}
+:where(.dashboard, .project-page) .page-head > div:first-child { min-width: 0; }
+:where(.dashboard, .project-page) .page-head h1 { overflow-wrap: anywhere; }
+:where(.dashboard, .project-page) .page-subtitle {
+  max-width: 76ch;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+:where(.dashboard, .project-page) :is(.page-head-actions, .training-page-actions) {
+  align-items: center;
+  gap: 8px;
+}
+:where(.dashboard, .project-page) :is(.section-head, .surface-head) {
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+:where(.dashboard, .project-page) :is(.section-head, .surface-head) > div { min-width: 0; }
+:where(.dashboard, .project-page) :is(.section-head, .surface-head) h2 {
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* Keep the sticky filter bar distinct from the images scrolling beneath it. */
+.project-page .data-toolbar {
+  gap: 10px;
+  background: var(--panel);
+  box-shadow: 0 3px 10px var(--shadow-soft);
+}
+.project-page .data-toolbar :is(.data-search, .data-result-count) { min-width: 0; }
+.project-page .data-result-count { font-variant-numeric: tabular-nums; }
+:where(.project-page, .dashboard) .selection-banner { flex-wrap: wrap; gap: 8px 14px; }
+
+:where(.dashboard, .project-page) .empty-state {
+  padding: clamp(34px, 6vh, 60px) 20px;
+  line-height: 1.75;
+}
+:where(.dashboard, .project-page) .empty-state > strong {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+:where(.dashboard, .project-page) .empty-state > p {
+  max-width: 58ch;
+  margin: 8px auto 18px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+:where(.dashboard, .project-page) .empty-state > p:last-child { margin-bottom: 0; }
+
+/* Explicit paint properties avoid animating dimensions when labels or data change. */
+:where(.dashboard, .project-page, .modal) :is(.btn, .mini-action, .training-record-button),
+.section-tabs [role="tab"],
+.library-views button,
+.task-filters button {
+  transition: color var(--workspace-motion) ease,
+    background-color var(--workspace-motion) ease,
+    border-color var(--workspace-motion) ease,
+    box-shadow var(--workspace-motion) ease;
+}
+:where(.dashboard, .project-page, .modal) .btn:not(:disabled):not([aria-busy="true"]):active {
+  box-shadow: inset 0 1px 3px var(--shadow-color);
+}
+:where(.dashboard, .project-page, .modal) :is(button, .btn)[aria-busy="true"] {
+  cursor: progress;
+  opacity: .75;
+}
+.section-tabs [role="tab"]:not([aria-selected="true"]):active,
+.library-views button:not(.active):active { background: var(--brand-soft); }
+
+.project-card,
+.dataset-project-card,
+.data-asset-card {
+  transition: border-color var(--workspace-motion) ease,
+    box-shadow var(--workspace-motion) ease;
+}
+.data-asset-card:hover { transform: none; }
+:where(.dataset-project-card, .data-asset-card):focus-within {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+/* JS applies these once to a newly committed page/panel, never on polling. */
+:is(main.dashboard, main.project-page).workspace-page-enter,
+:where(.dashboard, .project-page) .workspace-panel-enter {
+  animation: workspace-content-in var(--workspace-motion-enter) var(--workspace-ease);
+}
+.modal-backdrop { animation: workspace-content-in var(--workspace-motion) ease-out; }
+.modal-backdrop > .modal { animation: workspace-dialog-in var(--workspace-motion-enter) var(--workspace-ease); }
+.toast { animation: workspace-toast-in var(--workspace-motion-enter) var(--workspace-ease); }
+.toast.error .status-dot { box-shadow: none; }
+
+@keyframes workspace-content-in {
+  from { opacity: .55; }
+  to { opacity: 1; }
+}
+@keyframes workspace-dialog-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes workspace-toast-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 600px) {
+  :where(.dashboard, .project-page) .page-head { gap: 14px; }
+  :where(.dashboard, .project-page) :is(.page-head-actions, .training-page-actions) {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .project-page .data-toolbar { gap: 8px; padding: 10px; }
+  :where(.dashboard, .project-page) .empty-state { padding: 32px 16px; }
+  .workspace-initial-loading { padding: 24px 16px; }
+  .workspace-skeleton-cards { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+}
+
+/* Match the smaller page padding so the toolbar stays below the mobile header. */
+@media (max-width: 760px) {
+  .project-page .data-toolbar { top: -24px; }
+}
+
+@media (max-width: 900px) {
+  .workspace-feedback-status { top: 62px; right: 16px; max-width: calc(100% - 32px); }
+  .annotation-shell .workspace-feedback-status { top: 56px; }
+  .annotation-shell.is-focus .workspace-feedback-status { top: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(main.dashboard, main.project-page).workspace-page-enter,
+  :where(.dashboard, .project-page) .workspace-panel-enter,
+  .workspace-feedback-status .spinner,
+  .modal-backdrop,
+  .modal-backdrop > .modal,
+  .toast { animation: none; }
+  :where(.dashboard, .project-page, .modal) :is(.btn, .mini-action, .training-record-button),
+  .section-tabs [role="tab"],
+  .library-views button,
+  .task-filters button,
+  .project-card,
+  .dataset-project-card,
+  .data-asset-card,
+  :is(main.dashboard, main.project-page).workspace-content-pending { transition: none; }
+}

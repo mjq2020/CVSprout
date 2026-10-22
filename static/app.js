@@ -1,21 +1,22 @@
-import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.22.0";
-import { renderUsersPage } from "./accounts-ui.js?v=0.22.0";
-import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.22.0";
-import { mountAuthScreen } from "./auth-ui.js?v=0.22.0";
-import { renderAccountPage } from "./security-ui.js?v=0.22.0";
-import { bindAssetManagement } from "./asset-management-ui.js?v=0.22.0";
-import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.22.0";
-import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.22.0";
-import { loadProjectWorkBlocks } from "./project-api.js?v=0.22.0";
-import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.22.0";
-import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.22.0";
-import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.22.0";
-import { mountOverviewTraining } from "./overview-training.js?v=0.22.0";
-import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.22.0";
-import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.22.0";
-import { mountCanvasGuides } from "./canvas-guides.js?v=0.22.0";
-import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.22.0";
-import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.22.0";
+import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.22.1";
+import { renderUsersPage } from "./accounts-ui.js?v=0.22.1";
+import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.22.1";
+import { mountAuthScreen } from "./auth-ui.js?v=0.22.1";
+import { renderAccountPage } from "./security-ui.js?v=0.22.1";
+import { bindAssetManagement } from "./asset-management-ui.js?v=0.22.1";
+import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.22.1";
+import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.22.1";
+import { loadProjectWorkBlocks } from "./project-api.js?v=0.22.1";
+import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.22.1";
+import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.22.1";
+import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.22.1";
+import { mountOverviewTraining } from "./overview-training.js?v=0.22.1";
+import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.22.1";
+import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.22.1";
+import { mountCanvasGuides } from "./canvas-guides.js?v=0.22.1";
+import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.22.1";
+import { beginWorkspaceLoad, cancelWorkspaceLoad } from "./workspace-feedback.js?v=0.22.1";
+import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.22.1";
 
 const app = document.querySelector("#app");
 const modalRoot = document.querySelector("#modal-root");
@@ -301,6 +302,7 @@ async function route() {
     notify(state.savingAnnotation || state.workflowBusy ? "正在保存，请完成后再切换页面。" : "还有未保存的标注，请先完成或按 Esc 取消草稿，再切换页面。", "warning");
     return;
   }
+  cancelWorkspaceLoad(app);
   authCleanup?.(); authCleanup = null;
   canvasObserver?.disconnect();
   closeWorkspaceNavigation();
@@ -310,6 +312,7 @@ async function route() {
   closeModal();
   clearInterval(state.collaborationTimer); state.collaborationTimer=null;
   if (state.lockOwned && state.asset) await releaseCurrentLock();
+  if (routeEpoch !== state.selectionEpoch) return;
   clearInterval(state.pollTimer);
   state.pollTimer = null;
   clearInterval(state.lockTimer);
@@ -367,6 +370,7 @@ async function ensureAuthenticated(epoch = state.selectionEpoch) {
 }
 
 function renderLoginScreen(error = "", useToken = false, notice = false) {
+  cancelWorkspaceLoad(app);
   annotationMenu?.close({ restoreFocus: false, force: true });
   canvasGuides?.destroy(); canvasGuides = null;
   clearInterval(state.pollTimer); clearInterval(state.lockTimer); clearInterval(state.collaborationTimer);
@@ -392,19 +396,23 @@ async function logout() {
   } catch (error) { if (error.status !== 401) notify("退出登录未完成，请检查网络后重试。", "error"); }
 }
 
+function workspaceLoadingShell(active = "projects") {
+  return `<div class="app-shell">${topbar(active)}<main class="dashboard workspace-initial-loading"><div class="workspace-skeleton" aria-hidden="true"><div class="skeleton workspace-skeleton-title"></div><div class="skeleton workspace-skeleton-line"></div><div class="workspace-skeleton-cards"><div class="skeleton"></div><div class="skeleton"></div></div></div></main></div>`;
+}
+
 async function loadDashboard() {
   const request = ++dashboardRequest;
   const epoch = state.selectionEpoch, session = state.session;
   const current = () => request === dashboardRequest && epoch === state.selectionEpoch && session === state.session && state.currentSection === "projects";
   state.currentSection = "projects"; state.project = null; state.asset = null; state.annotations = []; state.lockOwned = false; state.readOnly = false; state.assistPoints = []; state.drawing = null; state.polygon = []; state.shapeEdit = null;
-  app.innerHTML = `<div class="app-shell">${topbar()}<main class="dashboard"><div class="dashboard-inner"><div class="skeleton" style="height:180px"></div></div></main></div>`;
+  const finishLoading = beginWorkspaceLoad(app, { message: "正在加载项目列表…", fallback: () => workspaceLoadingShell("projects") });
   try {
     const projects = await api(`/api/projects?archived=${state.projectsArchived && isAdmin()}`);
     if (!current()) return;
     state.projects = projects; renderDashboard();
   } catch (error) {
     if (current()) renderLoadError(error);
-  }
+  } finally { finishLoading(); }
 }
 
 function filteredProjects() {
@@ -561,7 +569,7 @@ async function renderModelsPage() {
   const request = ++modelsRequest, epoch = state.selectionEpoch, session = state.session;
   const current = () => request === modelsRequest && epoch === state.selectionEpoch && session === state.session && state.currentSection === "models";
   state.currentSection = "models"; state.project = null; state.asset = null; state.annotations = []; state.lockOwned = false; state.readOnly = false; state.assistPoints = []; state.drawing = null; state.polygon = []; state.shapeEdit = null;
-  app.innerHTML = `<div class="app-shell">${topbar("models")}<main class="dashboard"><div class="dashboard-inner"><div class="skeleton" style="height:180px"></div></div></main></div>`;
+  const finishLoading = beginWorkspaceLoad(app, { message: "正在加载标注模型服务…", fallback: () => workspaceLoadingShell("models") });
   try {
     const models = await api("/api/models");
     if (!current()) return;
@@ -609,7 +617,7 @@ async function renderModelsPage() {
     });
     document.querySelectorAll("[data-edit-model]").forEach(button => button.onclick = () => openModelModal(state.models.find(model => model.id === button.dataset.editModel)));
     document.querySelectorAll("[data-health-model]").forEach(button => button.onclick = () => checkModelHealth(button.dataset.healthModel));
-  } catch (error) { if (current()) renderLoadError(error); }
+  } catch (error) { if (current()) renderLoadError(error); } finally { finishLoading(); }
 }
 
 function openModelModal(model = null) {
@@ -767,7 +775,7 @@ async function loadProjectSection(projectId, section, routeEpoch = state.selecti
       state.dataStatus = status; state.dataSearch = ""; state.assetRenderLimit = 200;
     }
   }
-  app.innerHTML = `<div class="app-shell">${topbar()}<main class="dashboard"><div class="dashboard-inner"><div class="skeleton" style="height:70vh"></div></div></main></div>`;
+  const finishLoading = beginWorkspaceLoad(app, { message: "正在加载项目内容…", fallback: () => workspaceLoadingShell("projects") });
   try {
     const projectRequest = api(`/api/projects/${projectId}`);
     const [project, assets, jobs, models, analytics, versions, training, workBlocks] = await Promise.all([
@@ -814,7 +822,7 @@ async function loadProjectSection(projectId, section, routeEpoch = state.selecti
   } catch (error) {
     if (routeEpoch !== state.selectionEpoch) return;
     renderLoadError(error);
-  }
+  } finally { finishLoading(); }
 }
 
 function renderProjectSection(section = state.currentSection) {
@@ -924,41 +932,130 @@ function filteredDataAssets() {
 }
 
 function renderDataPage() {
+  const mounted = document.querySelector("#data-results");
+  if (currentDataPage(mounted)) { updateDataPageResults(mounted); return; }
   const filtered = filteredDataAssets();
-  const visible = filtered.slice(0, state.assetRenderLimit);
   app.innerHTML = projectPageShell("data", `
     <div class="page-head compact-head"><div><div class="eyebrow">图片与标注</div><h1>数据管理</h1><p class="page-subtitle">导入图片并运行 AI 标注；检查结果后可批量提交审核，审核员可批量通过或退回。</p></div><div class="page-head-actions"><button class="btn ghost" id="data-export" ${state.assets.length ? "" : "disabled"}>${icon("download")}下载当前数据</button><button class="btn primary" id="data-upload">${icon("upload")}导入数据</button></div></div>
     <div class="work-block-entry"><span>${state.workBlocks.enabled ? `已启用任务块，领取后仅修改自己负责的图片。${state.workBlocks.unassigned_count ? `还有 ${state.workBlocks.unassigned_count} 张未分块。` : ""}` : "多人协作时，可以将图片分成任务块，由成员独立领取。"}</span><a class="btn ghost link-btn" href="#/projects/${state.project.id}/blocks">${state.workBlocks.enabled ? "我的任务 / 领取" : "管理任务块"}</a></div>
     ${reviewQueueMarkup(state, canReview())}
     <section class="data-toolbar surface"><div class="search data-search">${icon("search")}<input id="data-search" aria-label="按文件名搜索图片" placeholder="按文件名搜索" value="${escapeHtml(state.dataSearch)}" /></div><select id="data-status" aria-label="状态筛选"><option value="all">全部状态</option><option value="unlabeled" ${state.dataStatus === "unlabeled" ? "selected" : ""}>未标注</option><option value="labeled" ${state.dataStatus === "labeled" ? "selected" : ""}>已标注</option><option value="draft" ${state.dataStatus === "draft" ? "selected" : ""}>草稿</option><option value="in_progress" ${state.dataStatus === "in_progress" ? "selected" : ""}>标注中</option><option value="submitted" ${state.dataStatus === "submitted" ? "selected" : ""}>待审核</option><option value="approved" ${state.dataStatus === "approved" ? "selected" : ""}>已通过</option><option value="rejected" ${state.dataStatus === "rejected" ? "selected" : ""}>已退回</option></select><span class="data-result-count">${filtered.length.toLocaleString()} / ${state.assets.length.toLocaleString()} 张</span><div class="toolbar-spacer"></div><button class="btn ghost" id="select-visible">选择全部 ${filtered.length} 张结果</button><button class="btn ghost" id="clear-selection" ${state.selectedAssetIds.size ? "" : "disabled"}>清除选择</button><button class="btn primary" id="annotate-selection" ${state.selectedAssetIds.size ? "" : "disabled"}>${icon("magic")}AI 标注 ${state.selectedAssetIds.size || ""}</button>${isAdmin() ? `<button class="btn ghost danger" id="delete-selected-assets" ${!state.selectedAssetIds.size || state.selectedAssetIds.size > 500 ? "disabled" : ""} title="每次最多删除 500 张图片">${icon("trash")}删除所选</button>` : ""}</section>
     <div id="selection-slot">${dataSelectionMarkup()}</div>
-    <section class="asset-data-grid">${visible.length ? visible.map(dataAssetCard).join("") : `<div class="empty-state"><span class="card-icon">${icon("image")}</span><strong>${state.assets.length ? "没有符合条件的图片" : "还没有导入图片"}</strong><p>${state.assets.length ? "调整搜索或筛选条件后再试。" : "点击“导入数据”添加图片，然后开始 AI 标注。"}</p>${state.assets.length ? `<button class="btn ghost" id="reset-data-filters">清除筛选</button>` : `<button class="btn primary" id="empty-data-upload">导入图片</button>`}</div>`}</section>
-    ${visible.length < filtered.length ? `<button class="btn ghost load-more-data" id="load-more-data">再显示 ${Math.min(200, filtered.length - visible.length)} 张</button>` : ""}`);
+    <section class="asset-data-grid" id="data-results"></section>
+    <button class="btn ghost load-more-data" id="load-more-data" hidden></button>`);
+  const grid = document.querySelector("#data-results");
+  grid._dataPage = { projectId: state.project.id, epoch: state.selectionEpoch, session: state.session, admin: isAdmin(), cards: new Map(), selection: null };
   bindCommonProjectEvents();
   document.querySelector("#data-upload").onclick = openUploadModal;
   document.querySelector("#data-export").onclick = openExportModal;
-  document.querySelector("#empty-data-upload")?.addEventListener("click", openUploadModal);
-  document.querySelector("#reset-data-filters")?.addEventListener("click", () => {
-    state.dataSearch = ""; state.dataStatus = "all"; state.assetRenderLimit = 200;
-    history.replaceState(null, "", `#/projects/${state.project.id}/data`); renderDataPage();
-  });
   const dataSearch = document.querySelector("#data-search");
-  let composingDataSearch = false;
   const searchData = () => {
-    const start = dataSearch.selectionStart, end = dataSearch.selectionEnd;
-    state.dataSearch = dataSearch.value; state.assetRenderLimit = 200; renderDataPage();
-    const input = document.querySelector("#data-search"); input.focus({ preventScroll: true }); input.setSelectionRange(start, end);
+    if (!currentDataPage(grid)) return;
+    state.dataSearch = dataSearch.value; state.assetRenderLimit = 200; updateDataPageResults(grid);
   };
-  dataSearch.oncompositionstart = () => { composingDataSearch = true; };
-  dataSearch.oncompositionend = () => { composingDataSearch = false; searchData(); };
-  dataSearch.oninput = (event) => { if (!event.isComposing && !composingDataSearch) searchData(); };
-  document.querySelector("#data-status").onchange = (event) => { state.dataStatus = event.target.value; state.assetRenderLimit = 200; renderDataPage(); };
-  document.querySelector("#load-more-data")?.addEventListener("click", () => { state.assetRenderLimit += 200; renderDataPage(); });
-  document.querySelector("#select-visible").onclick = () => { filtered.forEach(asset => state.selectedAssetIds.add(asset.id)); refreshDataSelectionUI(); };
-  document.querySelector("#clear-selection").onclick = () => { state.selectedAssetIds.clear(); refreshDataSelectionUI(); };
-  document.querySelector("#annotate-selection").onclick = () => openAiModal([...state.selectedAssetIds]);
-  document.querySelectorAll("[data-select-asset]").forEach(input => input.onchange = (event) => { const id = Number(input.dataset.selectAsset); event.target.checked ? state.selectedAssetIds.add(id) : state.selectedAssetIds.delete(id); refreshDataSelectionUI(); });
-  document.querySelectorAll("[data-open-asset]").forEach(button => button.onclick = () => { location.hash = `#/projects/${state.project.id}/annotate?asset=${button.dataset.openAsset}`; });
+  dataSearch.addEventListener("compositionstart", () => { dataSearch.dataset.composing = "true"; });
+  dataSearch.addEventListener("compositionend", () => { delete dataSearch.dataset.composing; searchData(); });
+  dataSearch.oninput = event => { if (!event.isComposing && dataSearch.dataset.composing !== "true") searchData(); };
+  document.querySelector("#data-status").onchange = event => { if (currentDataPage(grid)) { state.dataStatus = event.target.value; state.assetRenderLimit = 200; updateDataPageResults(grid); } };
+  document.querySelector("#load-more-data").onclick = () => { if (currentDataPage(grid)) { state.assetRenderLimit += 200; updateDataPageResults(grid); } };
+  document.querySelector("#select-visible").onclick = () => { if (currentDataPage(grid)) { filteredDataAssets().forEach(asset => state.selectedAssetIds.add(asset.id)); refreshDataPageSelection(grid); } };
+  document.querySelector("#clear-selection").onclick = () => { if (currentDataPage(grid)) { state.selectedAssetIds.clear(); refreshDataPageSelection(grid); } };
+  document.querySelector("#annotate-selection").onclick = () => { if (currentDataPage(grid)) openAiModal([...state.selectedAssetIds]); };
+  grid.onchange = event => {
+    const input = event.target.closest("[data-select-asset]");
+    if (!input || !currentDataPage(grid)) return;
+    const id = Number(input.dataset.selectAsset);
+    input.checked ? state.selectedAssetIds.add(id) : state.selectedAssetIds.delete(id);
+    refreshDataPageSelection(grid);
+  };
+  grid.onclick = event => {
+    if (!currentDataPage(grid)) return;
+    const button = event.target.closest("[data-open-asset]");
+    if (button) { location.hash = `#/projects/${state.project.id}/annotate?asset=${button.dataset.openAsset}`; return; }
+    if (event.target.closest("#empty-data-upload")) { openUploadModal(); return; }
+    if (event.target.closest("#reset-data-filters")) {
+      state.dataSearch = ""; state.dataStatus = "all"; state.assetRenderLimit = 200;
+      history.replaceState(null, "", `#/projects/${state.project.id}/data`); updateDataPageResults(grid);
+      dataSearch.focus({ preventScroll: true });
+    }
+  };
+  updateDataPageResults(grid);
+}
+
+function currentDataPage(grid) {
+  const view = grid?._dataPage;
+  return Boolean(grid?.isConnected && view && state.currentSection === "data" && view.projectId === state.project?.id &&
+    view.epoch === state.selectionEpoch && view.session === state.session && view.admin === isAdmin());
+}
+
+function refreshDataPageSelection(grid) {
+  const selection = [...state.selectedAssetIds].join(","), markup = dataSelectionMarkup();
+  if (grid._dataPage.selection === selection && grid._dataPage.selectionMarkup === markup) return;
+  if (grid._dataPage.selectionMarkup !== markup) refreshDataSelectionUI();
+  else grid.querySelectorAll("[data-select-asset]").forEach(input => {
+    const selected = state.selectedAssetIds.has(Number(input.dataset.selectAsset));
+    input.checked = selected; input.closest(".data-asset-card")?.classList.toggle("selected", selected);
+  });
+  grid._dataPage.selection = selection; grid._dataPage.selectionMarkup = markup;
+}
+
+function updateDataPageResults(grid) {
+  if (!currentDataPage(grid)) return;
+  const page = grid.closest(".project-page"), scroll = page.scrollTop;
+  const block = page.querySelector(".work-block-entry");
+  block.querySelector("span").textContent = state.workBlocks.enabled ? `已启用任务块，领取后仅修改自己负责的图片。${state.workBlocks.unassigned_count ? `还有 ${state.workBlocks.unassigned_count} 张未分块。` : ""}` : "多人协作时，可以将图片分成任务块，由成员独立领取。";
+  block.querySelector("a").textContent = state.workBlocks.enabled ? "我的任务 / 领取" : "管理任务块";
+  page.querySelector("#data-export").disabled = !state.assets.length;
+  const queue = page.querySelector(".review-queue-shortcuts"), reviewer = canReview();
+  queue.querySelector("span").textContent = reviewer ? "审核队列" : "协作进度";
+  queue.querySelector("small").textContent = reviewer ? "先检查图片与标注；批量通过仅处理已提交的图片。" : "检查 AI 结果后提交审核；已退回的图片需要修改后再次提交。";
+  page.querySelectorAll("[data-review-filter]").forEach(button => {
+    const active = state.dataStatus === button.dataset.reviewFilter;
+    button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active));
+    const count = button.querySelector("strong");
+    if (count) count.textContent = state.assets.filter(asset => asset.review_status === button.dataset.reviewFilter).length;
+  });
+  const search = page.querySelector("#data-search");
+  page.querySelector("#data-status").value = state.dataStatus;
+  if (search.dataset.composing === "true") return;
+  if (search.value !== state.dataSearch) search.value = state.dataSearch;
+  const filtered = filteredDataAssets(), visible = filtered.slice(0, state.assetRenderLimit);
+  page.querySelector(".data-result-count").textContent = `${filtered.length.toLocaleString()} / ${state.assets.length.toLocaleString()} 张`;
+  const selectAll = page.querySelector("#select-visible");
+  selectAll.textContent = `选择全部 ${filtered.length} 张结果`; selectAll.disabled = !filtered.length;
+  const cards = grid._dataPage.cards, visibleIds = new Set(visible.map(asset => asset.id));
+  for (const [id, entry] of cards) if (!visibleIds.has(id)) { entry.node.remove(); cards.delete(id); }
+  if (!visible.length) {
+    const empty = state.assets.length ? "filtered" : "empty";
+    if (grid.dataset.emptyState !== empty) {
+      grid.innerHTML = `<div class="empty-state"><span class="card-icon">${icon("image")}</span><strong>${state.assets.length ? "没有符合条件的图片" : "还没有导入图片"}</strong><p>${state.assets.length ? "调整搜索或筛选条件后再试。" : "点击“导入数据”添加图片，然后开始 AI 标注。"}</p>${state.assets.length ? `<button class="btn ghost" id="reset-data-filters">清除筛选</button>` : `<button class="btn primary" id="empty-data-upload">导入图片</button>`}</div>`;
+      grid.dataset.emptyState = empty;
+    }
+  } else {
+    if (grid.dataset.emptyState) { grid.replaceChildren(); delete grid.dataset.emptyState; }
+    visible.forEach((asset, index) => {
+      const signature = JSON.stringify([asset.filename, asset.width, asset.height, asset.size_bytes, asset.review_status, asset.annotation_count, projectTask()]);
+      let entry = cards.get(asset.id);
+      if (!entry || entry.signature !== signature) {
+        const template = document.createElement("template"); template.innerHTML = dataAssetCard(asset);
+        const next = template.content.firstElementChild;
+        if (!entry) { entry = { node: next }; cards.set(asset.id, entry); }
+        else {
+          entry.node.querySelector(".data-card-body").replaceWith(next.querySelector(".data-card-body"));
+          entry.node.querySelector("[data-open-asset]").setAttribute("aria-label", `打开 ${asset.filename}`);
+          entry.node.querySelector("[data-delete-asset]")?.setAttribute("aria-label", `删除图片 ${asset.filename}`);
+        }
+        entry.signature = signature;
+      }
+      entry.node.classList.toggle("selected", state.selectedAssetIds.has(asset.id));
+      entry.node.querySelector("[data-select-asset]").checked = state.selectedAssetIds.has(asset.id);
+      if (grid.children[index] !== entry.node) grid.insertBefore(entry.node, grid.children[index] || null);
+    });
+  }
+  const more = page.querySelector("#load-more-data"), remaining = filtered.length - visible.length;
+  more.hidden = remaining <= 0; more.textContent = `再显示 ${Math.min(200, remaining)} 张`;
+  refreshDataPageSelection(grid);
+  page.scrollTop = scroll;
 }
 
 function dataSelectionMarkup() {
@@ -1113,9 +1210,9 @@ async function downloadArtifact(url, fallbackName = "download") {
   } finally { progressNotice.remove(); }
 }
 
-import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.22.0";
-import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.22.0";
-import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.22.0";
+import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.22.1";
+import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.22.1";
+import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.22.1";
 
 const trainingChartViews = new Map();
 const trainingDetailViews = new Map();
@@ -1328,19 +1425,56 @@ function trainingReadiness() {
   return { ready: true, runtimeHealthy: true, status: "ready", reason: "数据与训练服务已就绪，首次训练可使用推荐模型和默认参数。", action: null };
 }
 
+const trainingBackgroundConversions = new Map();
+
 function renderTrainingPage() {
   if (deferRenderForNavigation("train") || document.querySelector('#training-search[data-composing="true"]')) return;
   const viewSnapshot = captureTrainingViewState();
   const monitored = monitoredTrainingRun();
+  const refresh = trainingBackgroundConversions.get(monitored?.id);
+  const detailRun = refresh?.epoch === state.selectionEpoch && refresh?.session === state.session ? { ...monitored, _conversionsLoading: false } : monitored;
   const availability = state.training?.availability || { available: false, reason: "训练环境不可用" };
   const models = state.trainingCatalog?.models || [];
   const tasks = Object.keys(state.trainingCatalog?.tasks || {});
   const { ready: createReady, runtimeHealthy, reason: blockReason, action } = trainingReadiness();
   const readinessAction = action ? `<a class="btn ghost link-btn" href="${escapeHtml(action.href)}">${escapeHtml(action.label)}</a>` : "";
-  let detail = state.trainingSelectionLoading ? '<div class="training-detail-empty surface" role="status"><span class="spinner"></span><strong>正在读取所选训练…</strong><p>请稍候，操作按钮将在记录确认后显示。</p></div>' : state.trainingSelectionError ? `<div class="training-detail-empty surface" role="alert"><strong>暂时无法显示这次训练</strong><p>${escapeHtml(state.trainingSelectionError)}</p><button class="btn ghost" id="retry-selected-training">重新读取</button></div>` : monitored ? trainingRunCard(monitored) : `<div class="training-detail-empty surface"><span class="card-icon">${icon("cpu")}</span><strong>${state.training.total ? "选择一条训练记录" : "还没有训练记录"}</strong><p>${state.training.total ? "从左侧选择后，这里会显示曲线、参数及模型文件。" : escapeHtml(blockReason)}</p>${createReady ? '<button class="btn primary" id="empty-new-training">开始第一次训练</button>' : readinessAction}</div>`;
-  app.innerHTML = projectPageShell("train", `<div class="page-head compact-head"><div><h1>训练与模型导出</h1><p class="page-subtitle">每次训练独立保存。选择左侧记录，查看曲线、参数和模型文件。</p></div><div class="training-page-actions"><button class="btn ghost" id="refresh-training" ${state.pipelineManualRefreshing ? "disabled" : ""}>${state.pipelineManualRefreshing ? '<span class="spinner"></span>刷新中' : `${icon("refresh")}刷新`}</button><button class="btn primary" id="new-training" ${createReady ? "" : "disabled"} title="${escapeHtml(blockReason)}">${icon("play")}开始新训练</button></div></div>${trainingSyncMarkup()}${!createReady ? `<div class="inline-notice training-start-notice" role="status"><span>${escapeHtml(blockReason)}</span>${readinessAction}</div>` : ""}<div class="training-workbench">${trainingListMarkup(state, { escapeHtml, trainingStatusLabel, trainingTaskInfo, formatDateTime, icon })}<section class="training-selected-detail" data-selected-run="${monitored?.id || ""}" aria-label="所选训练详情">${detail}</section></div><details class="training-runtime-details surface pipeline-details" data-pipeline-detail="catalog"><summary>${runtimeHealthy ? "训练环境与可用模型" : "训练环境暂不可用 · 查看原因"}</summary><p>${escapeHtml(blockReason)}</p>${!runtimeHealthy ? `<p>${escapeHtml(availability.reason || "没有在线的训练执行服务或可用模型。")}</p>` : ""}<div class="task-capability-grid">${tasks.map(trainingTaskCapabilityCard).join("")}</div><div class="catalog-model-strip">${models.map(trainingCatalogModelCard).join("")}</div>${trainingLicenseMarkup()}</details>`);
+  let detail = state.trainingSelectionLoading ? '<div class="training-detail-empty surface" role="status"><span class="spinner"></span><strong>正在读取所选训练…</strong><p>请稍候，操作按钮将在记录确认后显示。</p></div>' : state.trainingSelectionError ? `<div class="training-detail-empty surface" role="alert"><strong>暂时无法显示这次训练</strong><p>${escapeHtml(state.trainingSelectionError)}</p><button class="btn ghost" id="retry-selected-training">重新读取</button></div>` : monitored ? trainingRunCard(detailRun) : `<div class="training-detail-empty surface"><span class="card-icon">${icon("cpu")}</span><strong>${state.training.total ? "选择一条训练记录" : "还没有训练记录"}</strong><p>${state.training.total ? "从左侧选择后，这里会显示曲线、参数及模型文件。" : escapeHtml(blockReason)}</p>${createReady ? '<button class="btn primary" id="empty-new-training">开始第一次训练</button>' : readinessAction}</div>`;
+  const content = `<div class="page-head compact-head"><div><h1>训练与模型导出</h1><p class="page-subtitle">每次训练独立保存。选择左侧记录，查看曲线、参数和模型文件。</p></div><div class="training-page-actions"><button class="btn ghost" id="refresh-training" ${state.pipelineManualRefreshing ? "disabled" : ""}>${state.pipelineManualRefreshing ? '<span class="spinner"></span>刷新中' : `${icon("refresh")}刷新`}</button><button class="btn primary" id="new-training" ${createReady ? "" : "disabled"} title="${escapeHtml(blockReason)}">${icon("play")}开始新训练</button></div></div><div data-training-sync-slot></div>${!createReady ? `<div class="inline-notice training-start-notice" role="status"><span>${escapeHtml(blockReason)}</span>${readinessAction}</div>` : ""}<div class="training-workbench">${trainingListMarkup(state, { escapeHtml, trainingStatusLabel, trainingTaskInfo, formatDateTime, icon })}<section class="training-selected-detail" data-selected-run="${monitored?.id || ""}" aria-label="所选训练详情">${detail}</section></div><details class="training-runtime-details surface pipeline-details" data-pipeline-detail="catalog"><summary>${runtimeHealthy ? "训练环境与可用模型" : "训练环境暂不可用 · 查看原因"}</summary><p>${escapeHtml(blockReason)}</p>${!runtimeHealthy ? `<p>${escapeHtml(availability.reason || "没有在线的训练执行服务或可用模型。")}</p>` : ""}<div class="task-capability-grid">${tasks.map(trainingTaskCapabilityCard).join("")}</div><div class="catalog-model-strip">${models.map(trainingCatalogModelCard).join("")}</div>${trainingLicenseMarkup()}</details>`;
+  if (!commitTrainingMarkup(content)) return;
   bindCommonProjectEvents(); bindTrainingPageEvents(); restoreTrainingViewState(viewSnapshot);
   if (monitored && !state.trainingMetricsHistory[monitored.id]?.attemptedAt) void loadTrainingMetrics(monitored.id, { render: true });
+}
+
+// Polling can settle several requests without changing the visible workbench.
+// Keep its real nodes (focus, selection, open details and charts) in that case;
+// the sync timestamp and connection notice have a separate lightweight slot.
+function commitTrainingMarkup(content) {
+  const markup = projectPageShell("train", content), sync = trainingSyncMarkup();
+  const page = document.querySelector(".project-page"), previous = page?._trainingRender;
+  const slot = page?.querySelector("[data-training-sync-slot]");
+  if (previous && slot && previous.projectId === state.project.id && previous.epoch === state.selectionEpoch &&
+      previous.session === state.session && previous.markup === markup) {
+    if (previous.sync !== sync) { slot.innerHTML = sync; previous.sync = sync; }
+    return false;
+  }
+  app.innerHTML = markup.replace('<div data-training-sync-slot></div>', `<div data-training-sync-slot>${sync}</div>`);
+  const mounted = document.querySelector(".project-page");
+  if (mounted) mounted._trainingRender = { projectId: state.project.id, epoch: state.selectionEpoch, session: state.session, markup, sync, tab: getSectionTab(state.session, state.project.id, "train", "overview") };
+  return true;
+}
+
+// Section tabs update their existing nodes directly. Mirror that completed DOM
+// change in the render cache so the next poll does not recreate the workbench.
+function syncTrainingTabCache(tab) {
+  const page = document.querySelector(".project-page"), previous = page?._trainingRender;
+  if (!previous || previous.projectId !== state.project.id || previous.epoch !== state.selectionEpoch || previous.session !== state.session) return;
+  const tabs = [...page.querySelectorAll('[data-section-tab^="train:"]')].map(node => [node.dataset.sectionTab.split(":")[1], node.textContent]);
+  if (!tabs.some(([id]) => id === tab)) return;
+  previous.markup = previous.markup.replace(sectionTabsMarkup("train", tabs, previous.tab, escapeHtml), sectionTabsMarkup("train", tabs, tab, escapeHtml));
+  tabs.forEach(([id]) => {
+    previous.markup = previous.markup.replace(sectionPanelAttributes("train", id, previous.tab), sectionPanelAttributes("train", id, tab));
+  });
+  previous.tab = tab;
 }
 
 function captureTrainingViewState() {
@@ -1404,6 +1538,7 @@ function bindTrainingPageEvents() {
   const selected = monitoredTrainingRun();
   bindSectionTabs(app, "train", { selected: getSectionTab(state.session, state.project.id, "train", "overview"), onChange: tab => {
     setSectionTab(state.session, state.project.id, "train", tab);
+    syncTrainingTabCache(tab);
     if (tab === "details" && selected && app.querySelector(`[data-training-log-detail="${selected.id}"][open]`)) void loadTrainingLogs(selected.id, { append: true, render: true });
   } });
   const view = selected ? trainingChartViews.get(selected.id) || {} : {};
@@ -1807,19 +1942,23 @@ async function loadTrainingMetrics(id, { render = false, force = false } = {}) {
   if (render && current() && state.currentSection === "train") renderTrainingPage();
 }
 
-async function loadRunConversions(id, { force = false, render = false } = {}) {
+async function loadRunConversions(id, { force = false, render = false, background = false } = {}) {
   const projectId = state.project?.id, epoch = state.selectionEpoch, selection = state.trainingSelectionRequest;
   const run = monitoredTrainingRun();
   if (!run || run.id !== id || run._conversionsLoading || (!force && run._conversionsHydrated)) return;
   const current = () => state.project?.id === projectId && state.selectionEpoch === epoch && state.trainingSelectionRequest === selection && monitoredTrainingRun()?.id === id && state.currentSection === "train";
   const previousStatuses = new Map((run.conversions || []).map(item => [item.id, item.status]));
-  run._conversionsLoading = true; run._conversionError = "";
-  if (render) renderTrainingPage();
+  const silent = background && run._conversionsHydrated;
+  const refresh = silent ? { epoch, session: state.session } : null;
+  if (refresh) trainingBackgroundConversions.set(id, refresh);
+  run._conversionsLoading = true;
+  if (!silent) { run._conversionError = ""; if (render) renderTrainingPage(); }
   try {
     const response = await pipelineApi(`/api/training-runs/${id}/conversions`);
     if (!current()) return;
     state.selectedTrainingRun.conversions = response?.conversions || [];
     state.selectedTrainingRun._conversionsHydrated = true;
+    state.selectedTrainingRun._conversionError = "";
     const finished = state.selectedTrainingRun.conversions.filter(item => ['queued','running'].includes(previousStatuses.get(item.id)) && ['completed','failed','cancelled'].includes(item.status));
     if (finished.some(item => item.status === 'failed')) notify('模型转换未完成，请查看转换记录中的失败原因。', 'error');
     else if (finished.some(item => item.status === 'completed')) notify('当前训练的模型转换完成，可以在“模型转换”标签下载。');
@@ -1827,6 +1966,7 @@ async function loadRunConversions(id, { force = false, render = false } = {}) {
   } catch (error) {
     if (current()) state.selectedTrainingRun._conversionError = `转换记录暂时无法更新：${error.message} 请点击右侧“刷新”重试。`;
   } finally {
+    if (refresh && trainingBackgroundConversions.get(id) === refresh) trainingBackgroundConversions.delete(id);
     if (current()) { state.selectedTrainingRun._conversionsLoading = false; if (render) renderTrainingPage(); }
   }
 }
@@ -1971,7 +2111,7 @@ async function refreshPipelineData(render = true) {
       // update their own panels and cannot hold a queued status on screen.
       display();
       const changed = previous?.current_epoch !== result.current_epoch || previous?.status !== result.status;
-      void loadRunConversions(selectedId, {force:true, render:true});
+      void loadRunConversions(selectedId, {force:true, render:true, background:true});
       if (changed || ['queued','running','cancelling'].includes(result.status) || !state.trainingMetricsHistory[selectedId]?.fetchedAt) void loadTrainingMetrics(selectedId, {force:changed, render:true});
       const log = document.querySelector(`[data-training-log-detail="${selectedId}"][open]`);
       if (log && !log.closest('[hidden]')) void loadTrainingLogs(selectedId, {append:true, render:true});
@@ -2045,7 +2185,7 @@ function revealActiveProjectTab() {
 }
 
 async function loadWorkspace(projectId, requestedAssetId = null, routeEpoch = state.selectionEpoch) {
-  app.innerHTML = `<div class="app-shell">${topbar()}<main class="dashboard"><div class="dashboard-inner"><div class="skeleton" style="height:70vh"></div></div></main></div>`;
+  const finishLoading = beginWorkspaceLoad(app, { message: "正在加载标注工作区…", fallback: () => workspaceLoadingShell("projects") });
   resetProjectInteraction(projectId, "annotate");
   try {
     const projectRequest = api(`/api/projects/${projectId}`);
@@ -2089,7 +2229,7 @@ async function loadWorkspace(projectId, requestedAssetId = null, routeEpoch = st
       openUploadModal();
     }
     startJobPolling(); startCollaborationPolling();
-  } catch (error) { if (routeEpoch === state.selectionEpoch) renderLoadError(error); }
+  } catch (error) { if (routeEpoch === state.selectionEpoch) renderLoadError(error); } finally { finishLoading(); }
 }
 
 function renderWorkspace() {
@@ -3635,24 +3775,29 @@ async function reloadWorkspaceData(selectId = null, { background = false } = {})
   if (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft()) return;
   const projectId = state.project.id;
   const epoch = state.selectionEpoch;
+  const session = state.session;
+  const current = () => state.currentSection === "annotate" && state.project?.id === projectId && state.selectionEpoch === epoch && state.session === session && !state.savingAnnotation && !state.workflowBusy && !hasAnnotationDraft() && (!background || !annotationOverlayOpen());
   const previousAssetId = state.asset?.id;
   if (selectId && previousAssetId && selectId !== previousAssetId && state.lockOwned) await releaseCurrentLock();
-  const [project, assets, jobs, auditLogs] = await Promise.all([api(`/api/projects/${state.project.id}`), api(`/api/projects/${state.project.id}/assets`), api(`/api/projects/${state.project.id}/jobs`), api(`/api/projects/${state.project.id}/audit-logs?limit=100`)]);
-  if (state.currentSection !== "annotate" || state.project?.id !== projectId || state.selectionEpoch !== epoch || state.savingAnnotation || state.workflowBusy || hasAnnotationDraft() || (background && annotationOverlayOpen())) return;
+  if (!current()) return;
+  const [project, assets, jobs, auditLogs] = await Promise.all([api(`/api/projects/${projectId}`), api(`/api/projects/${projectId}/assets`), api(`/api/projects/${projectId}/jobs`), api(`/api/projects/${projectId}/audit-logs?limit=100`)]);
+  if (!current()) return;
   state.project = project; state.assets = assets; state.jobs = jobs; state.auditLogs = auditLogs;
   if (selectId) state.asset = assets.find(a => a.id === selectId) || assets[0] || null;
   else if (state.asset) state.asset = assets.find(a => a.id === state.asset.id) || assets[0] || null;
   else state.asset = assets[0] || null;
-  if (state.asset && !state.lockOwned) await acquireAssetLock(state.asset.id);
-  renderWorkspace(); if (state.asset) await loadAnnotations(state.asset.id);
+  if (state.asset && !state.lockOwned) await acquireAssetLock(state.asset.id, epoch);
+  if (!current()) return;
+  renderWorkspace(); if (state.asset) await loadAnnotations(state.asset.id, epoch);
 }
 
-async function refreshProjectSummary(projectId) {
+async function refreshProjectSummary(projectId, isCurrent = () => true) {
+  if (!isCurrent()) return;
   const [project, assets, analytics, versions] = await Promise.all([
     api(`/api/projects/${projectId}`), api(`/api/projects/${projectId}/assets`),
     safeApi(`/api/projects/${projectId}/analytics`, null), safeApi(`/api/projects/${projectId}/versions`, []),
   ]);
-  if (state.project?.id !== projectId) return;
+  if (state.project?.id !== projectId || !isCurrent()) return;
   state.project = project; state.assets = assets;
   state.analytics = analytics || fallbackAnalytics(project, assets);
   state.versions = Array.isArray(versions) ? versions : versions.versions || [];
@@ -4056,16 +4201,27 @@ function startJobPolling() {
   state.pollTimer = null;
   if (!state.project || !state.jobs.some(job => ["queued", "running"].includes(job.status))) return;
   const projectId = state.project.id;
+  const section = state.currentSection, session = state.session;
+  let timer;
+  const active = () => state.pollTimer === timer && state.project?.id === projectId && state.currentSection === section && state.session === session;
+  const blocked = () => navigationIsOpen() || (section === "annotate" && (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft() || annotationOverlayOpen()));
   let polling = false;
   let healthTick = 0;
   const poll = async () => {
-    if (polling || navigationIsOpen() || state.project?.id !== projectId || (state.currentSection === "annotate" && (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft() || annotationOverlayOpen()))) return;
+    if (polling || !active() || blocked()) return;
+    // Image selection changes the epoch without replacing this polling loop.
+    // Ignore that image's late response, then allow the next tick to continue.
+    const epoch = state.selectionEpoch;
+    const current = () => active() && state.selectionEpoch === epoch && !blocked();
     polling = true;
+    let stopped = false;
     try {
       const previous = new Map(state.jobs.map(job => [job.id, job]));
       const jobs = await api(`/api/projects/${projectId}/jobs`);
-      if (++healthTick % 4 === 1) state.health = await api("/api/health");
-      if (navigationIsOpen() || state.project?.id !== projectId || (state.currentSection === "annotate" && (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft() || annotationOverlayOpen()))) return;
+      if (!current()) return;
+      const health = ++healthTick % 4 === 1 ? await api("/api/health") : null;
+      if (!current()) return;
+      if (health) state.health = health;
       state.jobs = jobs;
       const progressed = state.jobs.some(job => job.processed > (previous.get(job.id)?.processed || 0));
       if (state.currentSection === "annotate") {
@@ -4075,6 +4231,7 @@ function startJobPolling() {
       } else if (["ai", "overview"].includes(state.currentSection)) {
         renderProjectSection(state.currentSection);
       }
+      if (!current()) return;
 
       const transitioned = state.jobs.filter(job => {
         const old = previous.get(job.id);
@@ -4082,12 +4239,14 @@ function startJobPolling() {
       });
       const running = state.jobs.some(job => ["queued", "running"].includes(job.status));
       if (!running) {
-        clearInterval(state.pollTimer); state.pollTimer = null;
+        clearInterval(timer); stopped = true;
         if (state.currentSection === "annotate") await reloadWorkspaceData(null, { background: true });
         else {
-          await refreshProjectSummary(projectId);
+          await refreshProjectSummary(projectId, current);
+          if (!current()) return;
           if (["ai", "overview"].includes(state.currentSection)) renderProjectSection(state.currentSection);
         }
+        if (!current()) return;
         const completed = transitioned.filter(job => job.status === "completed");
         const failed = transitioned.filter(job => job.status === "failed");
         const cancelled = transitioned.filter(job => job.status === "cancelled");
@@ -4101,10 +4260,11 @@ function startJobPolling() {
         if (cancelled.length) notify("AI 标注任务已取消");
       }
     } catch (_) { /* keep polling through temporary network errors */ }
-    finally { polling = false; }
+    finally { polling = false; if (stopped && state.pollTimer === timer) state.pollTimer = null; }
   };
+  timer = setInterval(poll, 1200);
+  state.pollTimer = timer;
   void poll();
-  state.pollTimer = setInterval(poll, 1200);
 }
 
 function startCollaborationPolling() {

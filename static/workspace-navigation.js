@@ -1,3 +1,5 @@
+import { enterWorkspaceContent } from "./workspace-feedback.js?v=0.22.1";
+
 const workflow = [
   ["overview", "项目概览", "chart"], ["data", "导入与数据", "database"], ["ai", "AI 标注", "magic"],
   ["blocks", "标注任务块", "users"], ["annotate", "标注与审核", "polygon"], ["versions", "数据版本", "layers"], ["train", "训练与转换", "cpu"],
@@ -66,7 +68,7 @@ function syncNavigation() {
   if (open) { nav.setAttribute("role", "dialog"); nav.setAttribute("aria-modal", "true"); }
   else { nav.removeAttribute("role"); nav.removeAttribute("aria-modal"); }
   const backdrop = document.querySelector(".navigation-backdrop"); if (backdrop) backdrop.hidden = !open;
-  document.querySelectorAll(".app-shell > main, .app-shell > .topbar").forEach(node => { node.inert = open; });
+  document.querySelectorAll(".app-shell > main, .app-shell > .topbar").forEach(node => { node.inert = open || node.dataset.workspaceLoading === "true"; });
   document.querySelectorAll("[data-toggle-navigation]").forEach(button => { const expanded = isMobile ? open : !nav.classList.contains("is-collapsed"); button.setAttribute("aria-expanded", String(expanded)); button.title = expanded ? "收起导航" : "展开导航"; button.setAttribute("aria-label", button.title); });
 }
 
@@ -190,8 +192,9 @@ export function sectionPanelAttributes(scope, id, selected) { return `id="sectio
 export function bindSectionTabs(root, scope, { selected, onChange }) {
   const tabs = [...root.querySelectorAll(`[data-section-tab^="${scope}:"]`)];
   const select = (id, focus = false) => {
+    const changed = id !== selected; selected = id;
     tabs.forEach(tab => { const active = tab.dataset.sectionTab === `${scope}:${id}`; tab.setAttribute("aria-selected", String(active)); tab.tabIndex = active ? 0 : -1; if (active && focus) tab.focus({ preventScroll: true }); });
-    root.querySelectorAll(`[data-section-panel^="${scope}:"]`).forEach(panel => { panel.hidden = panel.dataset.sectionPanel !== `${scope}:${id}`; });
+    root.querySelectorAll(`[data-section-panel^="${scope}:"]`).forEach(panel => { panel.hidden = panel.dataset.sectionPanel !== `${scope}:${id}`; if (!panel.hidden && changed) enterWorkspaceContent(panel, "workspace-panel-enter"); });
     onChange?.(id);
   };
   tabs.forEach((tab, index) => {
