@@ -195,6 +195,96 @@ class ConversionRunnerTest(unittest.TestCase):
                 self.assertEqual(metadata["preprocessing"]["padding_value"], 114)
         self.assertFalse(self.runner._postprocessing("classify")["external_nms_required"])
 
+    def rtdetr_model(self, exported):
+        class RTDETRDecoder:
+            pass
+
+        class FakeYOLO:
+            def __init__(self, *_args, **_kwargs):
+                self.model = types.SimpleNamespace(model=[RTDETRDecoder()], end2end=False)
+
+            def export(self, **_kwargs):
+                return str(exported)
+
+        return FakeYOLO
+
+    def test_rtdetr_exports_use_stretch_and_normalized_query_contract_for_renamed_checkpoints(self):
+        for format_name in ("onnx", "torchscript"):
+            with self.subTest(format_name=format_name):
+                exported = self.root / f"exported.{format_name}"
+                exported.write_bytes(b"export-fixture")
+                request = {"source": self.root / "uploaded-custom.pt", "output": self.root / f"output.{format_name}",
+                           "task": "detect", "kwargs": {"format": format_name, "imgsz": 128, "device": "cpu"},
+                           "preprocessing": {"geometry": "letterbox", "preserve_aspect_ratio": True, "padding_value": 114}}
+                source_metadata = {**self.onnx_metadata,
+                                   "inputs": [{"name": "images", "shape": [1, 3, 128, 128], "dtype": "FLOAT"}],
+                                   "outputs": [{"name": "output0", "shape": [1, 300, 6], "dtype": "FLOAT"}]}
+                with patch.dict(os.environ), patch.dict(sys.modules, {"ultralytics": types.SimpleNamespace(YOLO=self.rtdetr_model(exported))}), \
+                        patch.object(self.runner, "_onnx_metadata", return_value=source_metadata), \
+                        patch.object(self.runner, "_torchscript_metadata", return_value={"imgsz": [128, 128], "end2end": False}):
+                    metadata = self.runner.export_ultralytics(request)
+                self.assertEqual(metadata["model_backend"], "rtdetr")
+                preprocessing = metadata["preprocessing"]
+                self.assertEqual(preprocessing["geometry"], "resize_stretch")
+                self.assertFalse(preprocessing["preserve_aspect_ratio"])
+                self.assertIsNone(preprocessing["padding_value"])
+                self.assertEqual(preprocessing["image_size"], [128, 128])
+                postprocessing = metadata["postprocessing"]
+                self.assertEqual(postprocessing["output_layout"], "B,N,4+nc")
+                self.assertEqual(postprocessing["box_format"], "xywh")
+                self.assertEqual(postprocessing["box_coordinates"], "normalized")
+                self.assertEqual(postprocessing["selection"], "per_query_class_argmax_then_confidence")
+                self.assertEqual(postprocessing["class_scores"], "sigmoid_probabilities")
+                self.assertFalse(postprocessing["external_nms_required"])
+                self.assertFalse(postprocessing["score_activation_required"])
+                self.assertEqual(postprocessing["contract_source"], "model_head")
+                self.assertTrue(request["output"].is_file())
+                if format_name == "onnx":
+                    self.assertEqual(metadata["outputs"][0]["shape"], [1, 300, 6])
+
+    def test_rtdetr_name_does_not_override_a_standard_yolo_head(self):
+        exported = self.root / "exported.onnx"
+        exported.write_bytes(b"export-fixture")
+
+        class FakeYOLO:
+            def __init__(self, *_args, **_kwargs):
+                self.model = types.SimpleNamespace(model=[object()], end2end=False)
+
+            def export(self, **_kwargs):
+                return str(exported)
+
+        request = {"source": self.root / "rtdetr-l.pt", "output": self.root / "output.onnx", "task": "detect",
+                   "kwargs": {"format": "onnx", "imgsz": 64, "device": "cpu"}}
+        with patch.dict(os.environ), patch.dict(sys.modules, {"ultralytics": types.SimpleNamespace(YOLO=FakeYOLO)}), \
+                patch.object(self.runner, "_onnx_metadata", return_value=self.onnx_metadata):
+            metadata = self.runner.export_ultralytics(request)
+        self.assertEqual(metadata["model_backend"], "yolo")
+        self.assertEqual(metadata["preprocessing"]["geometry"], "letterbox")
+        self.assertTrue(metadata["postprocessing"]["external_nms_required"])
+
+    def test_rtdetr_rejects_unsupported_export_options_before_export(self):
+        for changes in ({"dynamic": True}, {"nms": True}, {"imgsz": 64}, {"task": "segment"}):
+            with self.subTest(changes=changes):
+                request = {"source": self.source, "output": self.root / "output.onnx", "task": changes.get("task", "detect"),
+                           "kwargs": {"format": "onnx", "imgsz": 128, "device": "cpu", **{key: value for key, value in changes.items() if key != "task"}}}
+                model_class = self.rtdetr_model(self.root / "missing.onnx")
+                with patch.dict(os.environ), patch.dict(sys.modules, {"ultralytics": types.SimpleNamespace(YOLO=model_class)}), \
+                        patch.object(model_class, "export", side_effect=AssertionError("unsupported export must not run")):
+                    with self.assertRaisesRegex(ValueError, "RT-DETR"):
+                        self.runner.export_ultralytics(request)
+                self.assertFalse(request["output"].exists())
+
+    def test_rtdetr_unexpected_nms_graph_is_not_published(self):
+        exported = self.root / "exported.onnx"
+        exported.write_bytes(b"export-fixture")
+        request = {"source": self.source, "output": self.root / "output.onnx", "task": "detect",
+                   "kwargs": {"format": "onnx", "imgsz": 128, "device": "cpu"}}
+        with patch.dict(os.environ), patch.dict(sys.modules, {"ultralytics": types.SimpleNamespace(YOLO=self.rtdetr_model(exported))}), \
+                patch.object(self.runner, "_onnx_metadata", return_value={**self.onnx_metadata, "contains_non_max_suppression": True}):
+            with self.assertRaisesRegex(ValueError, "意外包含 NMS"):
+                self.runner.export_ultralytics(request)
+        self.assertFalse(request["output"].exists())
+
     def fake_trt(self, engine):
         owner = self
 

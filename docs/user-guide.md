@@ -199,11 +199,23 @@ AI 任务历史每页显示 8 条，支持模型名或任务编号搜索及状�
 - **从零训练**：取消勾选后，仅根据模型结构生成随机参数，不下载或载入预训练参数。通常需要更多训练数据和训练时间。自己的权重须包含可重建的架构；不支持时会禁用该方式并说明原因。
 - **自己的预训练权重**：管理员在同一窗口展开“上传自己的 .pt 权重”，上传兼容 Ultralytics 的文件（最大 2 GiB，文件名使用英文、数字、点、横线或下划线）。上传后检查真实任务并选择兼容模型，保留已填名称、轮数和高级参数。不覆盖同名文件；错误格式或任务不符时保留原模型选择并显示原因。审核员可使用已导入的模型，新增权重由管理员操作。
 
-| 内置系列 | 目标检测 | 实例分割 / 分类 / 关键点 |
-|---|---|---|
-| YOLOv8 | Nano、Small | 各 Nano |
-| YOLO11 | Nano、Small | 各 Nano |
-| YOLO26 | Nano、Small | 各 Nano |
+| 内置系列 | 目标检测 | 实例分割 | 图片分类 | 关键点 |
+|---|---|---|---|---|
+| YOLOv8 | n / s / m / l / x | n / s / m / l / x | n / s / m / l / x | n / s / m / l / x |
+| YOLO11 | n / s / m / l / x | n / s / m / l / x | n / s / m / l / x | n / s / m / l / x |
+| YOLO26 | n / s / m / l / x | n / s / m / l / x | n / s / m / l / x | n / s / m / l / x |
+| YOLOv5u | n / s / m / l / x | — | — | — |
+| YOLOv9 | t / s / m / c / e | c / e | — | — |
+| YOLOv10 | n / s / m / b / l / x | — | — | — |
+| YOLO12 | n / s / m / l / x | — | — | — |
+| RT-DETR | l / x | — | — | — |
+| **合计** | **38** | **17** | **15** | **15** |
+
+共 85 个内置选项。常见的 n/s/m/l/x 分别是 Nano/Small/Medium/Large/X，同一系列内规模逐步增大；不同系列的字母不代表相同参数量或显存需求。模型选择区支持名称/文件名搜索和系列筛选；筛选不会自动改换已选模型，固定摘要会提醒当前选择是否被筛选隐藏，可清除筛选查看。初次使用可从推荐模型或较小规模开始，再按验证集效果和实际显存逐步调整，不能只按模型大小判断精度。
+
+新建训练时，切换模型会更新尚未手动修改的每批数量、混合精度和确定性设置；你手动填写或复用训练记录的配置会保留。模型下方会展示建议值，可展开高级训练设置调整。
+
+RT-DETR 使用检测 Transformer 训练器，建议关闭 AMP 与确定性训练，输入边长至少 128；支持 `.pt` 推理部署以及固定尺寸的 ONNX、TorchScript 和具备环境时的 TensorRT 转换，当前不提供动态尺寸或 RKNN 转换。导出说明使用其实际拉伸预处理、归一化框坐标和无 NMS 后处理。YOLO12 的官方预训练条目仅用于检测；其训练特性见[官方模型说明](https://docs.ultralytics.com/models/yolo12/)。所有条目的固定来源、大小和校验值见[模型下载清单](../model-catalog/models.json)。
 
 列表只显示当前任务对应的模型。离线机器可提前在“模型服务”下载所需权重，或上传已有权重；没有权重又无法联网时，保持预训练开启的任务会明确报错，不会自动改成从零训练。当前训练后端是 Ultralytics，上传任意框架的 `.pt` 文件不代表可以兼容。第三方权重仍遵循各自许可证，见[第三方说明](../THIRD_PARTY_NOTICES.md)。
 
@@ -471,6 +483,8 @@ docker compose config
 可选的真实 CPU 冒烟测试：`.venv/bin/python scripts/smoke_pipeline.py`。它在临时目录使用合成图片和随机初始化权重，分别执行分类与关键点训练，验证 TorchScript、ONNX 转换和下载；不会下载 checkpoint，也不会修改项目数据。
 
 初始化流程冒烟：`.venv/bin/python scripts/smoke_training_initialization.py`，在临时目录验证官方架构从零训练、上传权重训练和上传架构重新初始化。加上 `--download-official` 会实际联网下载固定官方权重并完成 CPU 训练；按需配置 `MDP_DOWNLOAD_PROXY`。默认执行不下载权重，所有路径均使用六张合成图片和 1 epoch，不评估模型精度。
+
+扩展模型检查：`.venv/bin/python scripts/check_training_catalog.py` 验证全部内置架构；`.venv/bin/python scripts/smoke_training_models.py` 执行四任务新增型号的 CPU 训练。可用 `--models` 指定模型文件名，`--pretrained` 验证官方下载权重训练，`--exports onnx torchscript` 验证转换和下载；RT-DETR 还比较导出运行时与 PyTorch 的数值输出。
 
 启动时自动迁移已有 SQLite 数据库。旧项目保留检测/分割混合模式，已有版本保持原有内容哈希；新增项目使用明确任务类型。升级前应备份 `MDP_DATA_DIR`，生产数据目录不由测试修改。
 

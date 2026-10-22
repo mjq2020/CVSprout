@@ -7,6 +7,7 @@ import json
 import tempfile
 import threading
 import unittest
+from collections import Counter
 from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import patch
@@ -29,11 +30,14 @@ class TrainingModelRegistryTest(unittest.TestCase):
             try:
                 with patch("app.model_downloads.httpx.stream", side_effect=AssertionError("catalog must stay offline")):
                     models = builtin_training_models()
-                self.assertEqual(len(models), 15)
+                self.assertEqual(len(models), 85)
+                self.assertEqual(Counter(model["task"] for model in models),
+                                 {"detect": 38, "segment": 17, "classify": 15, "pose": 15})
+                self.assertEqual(len({model["id"] for model in models}), len(models))
                 self.assertFalse(settings.models_dir.exists(), "Listing a catalog does not install or create model directories")
                 for family in ("yolov8", "yolo11", "yolo26"):
-                    for suffix in ("n", "s", "n-seg", "n-cls", "n-pose"):
-                        model = get_builtin_training_model(f"{family}{suffix}.pt")
+                    for size, suffix in ((size, suffix) for size in "nsmlx" for suffix in ("", "-seg", "-cls", "-pose")):
+                        model = get_builtin_training_model(f"{family}{size}{suffix}.pt")
                         self.assertIsNotNone(model)
                         self.assertEqual(model["id"], model["model_arch"])
                         self.assertEqual(model["architecture"], model["id"][:-3] + ".yaml")
@@ -48,6 +52,26 @@ class TrainingModelRegistryTest(unittest.TestCase):
                 self.assertIsNone(get_builtin_training_model("../yolo26n.pt"))
             finally:
                 object.__setattr__(settings, "models_dir", previous)
+
+    def test_additional_families_have_explicit_official_architectures(self):
+        expected = {f"yolov5{size}u.pt": f"yolov5{size}.yaml" for size in "nsmlx"}
+        for prefix, sizes in (("yolov9", "tsmce"), ("yolov10", "nsmblx"), ("yolo12", "nsmlx"), ("rtdetr-", "lx")):
+            expected.update({f"{prefix}{size}.pt": f"{prefix}{size}.yaml" for size in sizes})
+        expected.update({f"yolov9{size}-seg.pt": f"yolov9{size}-seg.yaml" for size in "ce"})
+        for name, architecture in expected.items():
+            with self.subTest(name=name):
+                model = get_builtin_training_model(name)
+                self.assertEqual(model["architecture"], architecture)
+                self.assertEqual(model["task"], "segment" if "-seg" in name else "detect")
+                self.assertEqual(model["url"], f"https://github.com/ultralytics/assets/releases/download/v8.4.0/{name}")
+                self.assertTrue(model["supports_scratch"])
+
+    def test_catalog_architecture_aliases_cannot_escape_the_packaged_whitelist(self):
+        entry = next(item for item in model_downloads.catalog() if item["id"] == "yolov5nu")
+        for architecture in ("yolov5s.yaml", "../yolov5n.yaml", "/tmp/custom.yaml", "https://example.invalid/a.yaml", "yolov5nu.yaml"):
+            with self.subTest(architecture=architecture), patch("app.model_downloads.catalog", return_value=[{**entry, "architecture": architecture}]):
+                with self.assertRaisesRegex(ValueError, "无效路径"):
+                    builtin_training_models()
 
     def test_known_published_representative_digests_are_pinned(self):
         for name, size, digest in [

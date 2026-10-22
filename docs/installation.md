@@ -15,7 +15,7 @@ Windows：安装 Docker Desktop，启用 WSL2 后端；参见 [Docker GPU 支持
 
 先查看按钮旁的具体原因；项目中还没有数据版本时，先生成包含训练集和验证集的数据版本。只有管理员或审核员能创建训练。
 
-- 新版内置 YOLOv8、YOLO11、YOLO26，无须先安装训练权重。官方模型未下载也可选择，默认在任务准备时下载；取消“使用预训练权重”则从零训练。管理员可在训练弹窗上传兼容的 `.pt` 权重，实际任务不匹配或文件无法加载时会说明原因。
+- 新版内置 YOLOv5u、YOLOv8、YOLOv9、YOLOv10、YOLO11、YOLO12、YOLO26 和 RT-DETR，共 85 个对应任务和规模的选项，无须先安装训练权重。官方模型未下载也可选择，默认在任务准备时下载；取消“使用预训练权重”则从零训练。管理员可在训练弹窗上传兼容的 `.pt` 权重，实际任务不匹配或文件无法加载时会说明原因。
 - 升级后仍提示必须先下载权重：确认 Web 和 worker 均已重启到新版，然后刷新页面。自己的旧权重仍需迁移：直接 Python 启动时放到 `models/training/`，配置了 `MDP_MODELS_DIR` 时放到其 `training/` 子目录；也可通过 `MDP_TRAINING_MODEL_DIRS` 指定原目录，修改环境变量后重启服务。Docker 部署使用“模型服务”导入或复制到 Web 与 worker 共享模型卷；宿主机源码目录中的文件不会自动进入命名卷。详见 [迁移与备份](operations.md)。
 - 提示没有在线的训练执行服务：检查 worker 是否启动。Docker 部署可运行 `./start.sh --status` 查看服务状态，并检查 `docker compose logs --tail 100 worker`。
 - 提示训练功能禁用或依赖缺失：按页面给出的原因检查 `MDP_TRAINING_ENABLED` 和模型运行环境。直接 Python 启动的安装步骤见 [开发指南](../CONTRIBUTING.md#本地环境)。

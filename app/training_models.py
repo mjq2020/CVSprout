@@ -20,6 +20,13 @@ class TrainingModelDownloadCancelled(RuntimeError):
     """A cancelled training download keeps its verified-offset partial file."""
 
 
+def _architecture_filename(filename: str) -> str:
+    # Ultralytics publishes v5u checkpoints against the packaged v5 YAMLs.
+    # Keep exceptions explicit; a catalog entry cannot supply an arbitrary path.
+    aliases = {f"yolov5{size}u.pt": f"yolov5{size}.yaml" for size in "nsmlx"}
+    return aliases.get(filename, filename[:-3] + ".yaml")
+
+
 def builtin_training_models() -> list[dict]:
     result = []
     for entry in model_downloads.catalog():
@@ -35,7 +42,7 @@ def builtin_training_models() -> list[dict]:
                 or entry["id"] != filename[:-3]
                 or not re.fullmatch(r"[0-9a-f]{64}", item["sha256"])
                 or type(item["size"]) is not int or item["size"] <= 0
-                or entry["architecture"] != filename[:-3] + ".yaml"
+                or entry["architecture"] != _architecture_filename(filename)
                 or item["url"] != f"https://github.com/ultralytics/assets/releases/download/{entry['revision']}/{filename}"):
             raise ValueError("官方训练模型清单包含无效路径或校验信息。")
         result.append({

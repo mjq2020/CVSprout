@@ -190,12 +190,12 @@ def _onnx_metadata(path: Path) -> dict[str, Any]:
     }
 
 
-def _preprocessing(request: dict[str, Any], *, rknn: bool) -> dict[str, Any]:
+def _preprocessing(request: dict[str, Any], *, rknn: bool, model_backend: str = "yolo") -> dict[str, Any]:
     config = request.get("rknn", {}) if rknn else {}
     mean = config.get("mean_values", [0, 0, 0])
     std = config.get("std_values", [255, 255, 255])
     image_size = request.get("kwargs", {}).get("imgsz")
-    return {
+    result = {
         "image_size": [image_size, image_size] if image_size is not None else None,
         "preserve_aspect_ratio": True,
         "interpolation": "bilinear",
@@ -211,6 +211,10 @@ def _preprocessing(request: dict[str, Any], *, rknn: bool) -> dict[str, Any]:
         "quant_img_RGB2BGR": False,
         "channel_order_note": "校准和部署均使用 RGB；quant_img_RGB2BGR 仅影响校准图片读取，不会改变模型的部署通道顺序。",
     }
+    if model_backend == "rtdetr":
+        result.update(geometry="resize_stretch", preserve_aspect_ratio=False,
+                      padding_value=None, auto_padding=False)
+    return result
 
 
 def _postprocessing(task: str, *, end2end: bool = False, nms_in_graph: bool = False) -> dict[str, Any]:
@@ -230,6 +234,26 @@ def _postprocessing(task: str, *, end2end: bool = False, nms_in_graph: bool = Fa
         "rockchip_model_zoo_postprocess_compatible": False,
         "rockchip_note": "未改写为 Rockchip Model Zoo 的多分支优化输出，不能直接套用其 YOLO 示例后处理。",
         "quantized_output_note": "部署时查询实际输出 dtype、zero_point 和 scale；读取原生量化输出时先反量化，不能把 INT8 字节直接当分数。",
+    }
+
+
+def _rtdetr_head(model: Any) -> bool:
+    layers = getattr(getattr(model, "model", None), "model", None)
+    return (layers is not None and len(layers) > 0
+            and any(base.__name__ == "RTDETRDecoder" for base in type(layers[-1]).__mro__))
+
+
+def _rtdetr_postprocessing() -> dict[str, Any]:
+    return {
+        "family": "ultralytics_rtdetr", "task": "detect",
+        "end2end": False, "nms_in_graph": False, "external_nms_required": False,
+        "selection": "per_query_class_argmax_then_confidence",
+        "output_layout": "B,N,4+nc", "box_format": "xywh", "box_coordinates": "normalized",
+        "class_scores": "sigmoid_probabilities", "score_activation_required": False,
+        "coordinate_restoration": "将归一化中心框 xywh 转为 xyxy，再将 x 坐标乘原图宽度、y 坐标乘原图高度；无需去除 letterbox padding。",
+        "note": "每个 query 的前四项为归一化 cx、cy、w、h，后续项为各类别分数。每行取分数最高的类别并按置信度过滤，可按分数排序截取 max_det；无需额外 sigmoid、Softmax 或 NMS。",
+        "rockchip_model_zoo_postprocess_compatible": False,
+        "contract_source": "model_head",
     }
 
 
@@ -324,12 +348,23 @@ def export_ultralytics(request: dict[str, Any]) -> dict[str, Any]:
 
     kwargs = request["kwargs"]
     model = YOLO(str(request["source"]), task=request["task"], verbose=False)
+    is_rtdetr = _rtdetr_head(model)
+    if is_rtdetr:
+        if request["task"] != "detect":
+            raise ValueError("RT-DETR 仅支持目标检测转换")
+        if kwargs.get("dynamic", False):
+            raise ValueError("RT-DETR 当前仅支持固定输入尺寸导出")
+        if kwargs.get("nms", False):
+            raise ValueError("RT-DETR 输出无需 NMS，不能开启导出 NMS")
+        if kwargs.get("imgsz", 640) < 128:
+            raise ValueError("RT-DETR 导出图像尺寸不能小于 128")
     exported = Path(model.export(**kwargs)).resolve()
     if not exported.is_file() or exported.stat().st_size == 0:
         raise RuntimeError("转换器未生成非空模型文件")
     metadata = {
         "format": kwargs["format"], "task": request["task"], "export_options": kwargs,
-        "preprocessing": _preprocessing(request, rknn=False),
+        "model_backend": "rtdetr" if is_rtdetr else "yolo",
+        "preprocessing": _preprocessing(request, rknn=False, model_backend="rtdetr" if is_rtdetr else "yolo"),
         "postprocessing": _postprocessing(request["task"]),
         "tool_versions": _versions(("ultralytics", "torch", "onnx", "onnxslim", "tensorrt",
                                     "tensorrt-cu12", "tensorrt-cu12-bindings", "tensorrt-cu12-libs")),
@@ -370,6 +405,10 @@ def export_ultralytics(request: dict[str, Any]) -> dict[str, Any]:
         nms_in_graph = False
     metadata["postprocessing"] = _postprocessing(request["task"], end2end=end2end, nms_in_graph=nms_in_graph)
     metadata["postprocessing"]["contract_source"] = "exporter_metadata" if "end2end" in exporter_metadata else "model_head_and_export_options"
+    if is_rtdetr:
+        if metadata.get("contains_non_max_suppression", False):
+            raise ValueError("RT-DETR 导出图意外包含 NMS，产物未发布")
+        metadata["postprocessing"] = _rtdetr_postprocessing()
     exported_size = exporter_metadata.get("imgsz")
     if isinstance(exported_size, list) and len(exported_size) == 2:
         metadata["preprocessing"]["image_size"] = exported_size

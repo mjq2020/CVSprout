@@ -394,5 +394,1405 @@
     "task": "detect",
     "architecture": "yolo26s.yaml",
     "supports_scratch": true
+  },
+  {
+    "id": "yolov8m",
+    "name": "YOLOv8 Medium（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov8m.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8m.pt",
+        "sha256": "5d4a90cdc7a21786cc59cd19778e9eafff836df9e2da32524737c7ee6efe4fe5",
+        "size": 52136884
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv8",
+    "task": "detect",
+    "architecture": "yolov8m.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov8l",
+    "name": "YOLOv8 Large（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov8l.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8l.pt",
+        "sha256": "64c9115303f6a25575f82200d1b22ec409fa6bd7d08d0313884fc20d919478cd",
+        "size": 87792836
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv8",
+    "task": "detect",
+    "architecture": "yolov8l.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov8x",
+    "name": "YOLOv8 Extra Large（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov8x.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8x.pt",
+        "sha256": "3df4ada6b4dad6d657868f2fdf7faecfb34dcfccf3a25c4b82079064718524c8",
+        "size": 136890692
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv8",
+    "task": "detect",
+    "architecture": "yolov8x.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov8s-seg",
+    "name": "YOLOv8 Small（实例分割）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov8s-seg.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8s-seg.pt",
+        "sha256": "0bac0770b55e5eb5b76a61bc535673288dcec36c2bc0cd25ee0d584c632f3413",
+        "size": 23914764
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv8",
+    "task": "segment",
+    "architecture": "yolov8s-seg.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov8m-seg",
+    "name": "YOLOv8 Medium（实例分割）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov8m-seg.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8m-seg.pt",
+        "sha256": "51fa7e5ef385efa6d5b1d8e31b73399be6ed5d7ca71bda4bd4b2794bb445c4f4",
+        "size": 54921020
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv8",
+    "task": "segment",
+    "architecture": "yolov8m-seg.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov8l-seg",
+    "name": "YOLOv8 Large（实例分割）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov8l-seg.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8l-seg.pt",
+        "sha256": "ca3ec94c445aeaf79c2b57982fb451060f18a7561e2c20b4d26bb9dc1fcabf93",
+        "size": 92417004
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv8",
+    "task": "segment",
+    "architecture": "yolov8l-seg.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov8x-seg",
+    "name": "YOLOv8 Extra Large（实例分割）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov8x-seg.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8x-seg.pt",
+        "sha256": "c333d6a7aff884ec821050eacdab29871f3edd10d996cf48746a02f8e01f1b5d",
+        "size": 144101612
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv8",
+    "task": "segment",
+    "architecture": "yolov8x-seg.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov8s-cls",
+    "name": "YOLOv8 Small（图片分类）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov8s-cls.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8s-cls.pt",
+        "sha256": "8079e739ded3ce0837ceaade760d6d17d496f38aaa4ed73c3da5b91ee5a9ca3c",
+        "size": 12856196
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv8",
+    "task": "classify",
+    "architecture": "yolov8s-cls.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov8m-cls",
+    "name": "YOLOv8 Medium（图片分类）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov8m-cls.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8m-cls.pt",
+        "sha256": "864010e833b46be542ed849b2eb0fdacf51e4679dc677c18dcc4505244d08ec1",
+        "size": 34285204
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv8",
+    "task": "classify",
+    "architecture": "yolov8m-cls.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov8l-cls",
+    "name": "YOLOv8 Large（图片分类）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov8l-cls.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8l-cls.pt",
+        "sha256": "d8c5632820bd627110f8dee97fe42edbc30f0f8c097d42bd41a3a83dda20bd84",
+        "size": 75193188
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv8",
+    "task": "classify",
+    "architecture": "yolov8l-cls.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov8x-cls",
+    "name": "YOLOv8 Extra Large（图片分类）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov8x-cls.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8x-cls.pt",
+        "sha256": "78eee110c8dddafcd5b0b7742eba9a351f117a2f67944c86019bd53138f00954",
+        "size": 115090020
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv8",
+    "task": "classify",
+    "architecture": "yolov8x-cls.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov8s-pose",
+    "name": "YOLOv8 Small（关键点）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov8s-pose.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8s-pose.pt",
+        "sha256": "234314cd8baf62616791aceb9ea6ad5c19f26cf6c0d8f3a1bfce1e23b186cfb3",
+        "size": 23513657
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv8",
+    "task": "pose",
+    "architecture": "yolov8s-pose.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov8m-pose",
+    "name": "YOLOv8 Medium（关键点）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov8m-pose.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8m-pose.pt",
+        "sha256": "dbe539ea268db2534390942cfdf206e521f376f19e5415967a57f6a2ddfa3c90",
+        "size": 53266977
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv8",
+    "task": "pose",
+    "architecture": "yolov8m-pose.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov8l-pose",
+    "name": "YOLOv8 Large（关键点）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov8l-pose.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8l-pose.pt",
+        "sha256": "4be6ab6c6eca601cb1b7356751cd93af42990abde92cab02c79652159f1dcf42",
+        "size": 89396617
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv8",
+    "task": "pose",
+    "architecture": "yolov8l-pose.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov8x-pose",
+    "name": "YOLOv8 Extra Large（关键点）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov8x-pose.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8x-pose.pt",
+        "sha256": "7a9bf952c2fc1c07d4a1da00dbb4cfab5ed71f89cbe8824d51a8f7a61cee5825",
+        "size": 139420105
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv8",
+    "task": "pose",
+    "architecture": "yolov8x-pose.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo11m",
+    "name": "YOLO11 Medium（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo11m.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11m.pt",
+        "sha256": "d5ffc1a674953a08e11a8d21e022781b1b23a19b730afc309290bd9fb5305b95",
+        "size": 40684120
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO11",
+    "task": "detect",
+    "architecture": "yolo11m.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo11l",
+    "name": "YOLO11 Large（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo11l.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11l.pt",
+        "sha256": "9ebd0e09d59811db4b1d61e2bc6730649608b1ac47f8dd01e2da6bca7c20023f",
+        "size": 51387343
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO11",
+    "task": "detect",
+    "architecture": "yolo11l.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo11x",
+    "name": "YOLO11 Extra Large（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo11x.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11x.pt",
+        "sha256": "7bc158aa95c0ebfdd87f70f01653c1131b93e92522dbe15c228bcd742e773a24",
+        "size": 114636239
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO11",
+    "task": "detect",
+    "architecture": "yolo11x.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo11s-seg",
+    "name": "YOLO11 Small（实例分割）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo11s-seg.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11s-seg.pt",
+        "sha256": "1caa81c0195412efa411b632bcfb8c184939dddb6ae41f6a80c41b211ff257c3",
+        "size": 20669228
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO11",
+    "task": "segment",
+    "architecture": "yolo11s-seg.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo11m-seg",
+    "name": "YOLO11 Medium（实例分割）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo11m-seg.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11m-seg.pt",
+        "sha256": "eb9a06f63e2206c35d68d839b08c362429ebecf933ad54c1ad68b2fd001c17cf",
+        "size": 45400152
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO11",
+    "task": "segment",
+    "architecture": "yolo11m-seg.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo11l-seg",
+    "name": "YOLO11 Large（实例分割）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo11l-seg.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11l-seg.pt",
+        "sha256": "cabe90049795dfc9a370b7934d6dec7f6b9e44a20e573b0ff81b7e205512c872",
+        "size": 56096965
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO11",
+    "task": "segment",
+    "architecture": "yolo11l-seg.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo11x-seg",
+    "name": "YOLO11 Extra Large（实例分割）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo11x-seg.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11x-seg.pt",
+        "sha256": "4e53a5f5fd3ee2ae3361c62169c6bb3ed4ae251dd0e57606e230955aa52d919c",
+        "size": 125090821
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO11",
+    "task": "segment",
+    "architecture": "yolo11x-seg.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo11s-cls",
+    "name": "YOLO11 Small（图片分类）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo11s-cls.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11s-cls.pt",
+        "sha256": "e2b605d1c8c212b434a75a32759a6f7adf1d2b29c35f76bdccd4c794cb653cf2",
+        "size": 13630112
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO11",
+    "task": "classify",
+    "architecture": "yolo11s-cls.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo11m-cls",
+    "name": "YOLO11 Medium（图片分类）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo11m-cls.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11m-cls.pt",
+        "sha256": "80583b974e44292d56fc5ba4d26cd0bb04e77edc8bbf4317f7ce678147156dd5",
+        "size": 23487128
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO11",
+    "task": "classify",
+    "architecture": "yolo11m-cls.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo11l-cls",
+    "name": "YOLO11 Large（图片分类）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo11l-cls.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11l-cls.pt",
+        "sha256": "6b56513a5d8bdae6b8f0a36dacaf01b26d5a522ba1b34197c3bac9fa6463366c",
+        "size": 28553700
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO11",
+    "task": "classify",
+    "architecture": "yolo11l-cls.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo11x-cls",
+    "name": "YOLO11 Extra Large（图片分类）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo11x-cls.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11x-cls.pt",
+        "sha256": "5b99af0f075efcd88349746fad4ff0a88cd591712b578a887286790544bd449c",
+        "size": 59624868
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO11",
+    "task": "classify",
+    "architecture": "yolo11x-cls.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo11s-pose",
+    "name": "YOLO11 Small（关键点）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo11s-pose.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11s-pose.pt",
+        "sha256": "1060bda4a27012060eca246f9b2adeea22eabb045a1e58f8d229be29b7ebc2ba",
+        "size": 20373161
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO11",
+    "task": "pose",
+    "architecture": "yolo11s-pose.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo11m-pose",
+    "name": "YOLO11 Medium（关键点）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo11m-pose.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11m-pose.pt",
+        "sha256": "29b17eaf3a3117cbea906090dbedf9159f7c6a49db58ec8b99ed2dfde1cf6eb2",
+        "size": 42459307
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO11",
+    "task": "pose",
+    "architecture": "yolo11m-pose.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo11l-pose",
+    "name": "YOLO11 Large（关键点）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo11l-pose.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11l-pose.pt",
+        "sha256": "61921abe1f2ed930bf28328a16b3162278cdb239a1e8280b6ac827119f13cee0",
+        "size": 53164402
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO11",
+    "task": "pose",
+    "architecture": "yolo11l-pose.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo11x-pose",
+    "name": "YOLO11 Extra Large（关键点）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo11x-pose.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11x-pose.pt",
+        "sha256": "013c43543b0751b8918486ba96e01ee44a59040683a07f96cc22bcc2cb7785f8",
+        "size": 118481010
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO11",
+    "task": "pose",
+    "architecture": "yolo11x-pose.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo26m",
+    "name": "YOLO26 Medium（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo26m.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26m.pt",
+        "sha256": "401cea9ab23ad19246ff7744859816bc599f350e93c9dd30367b6f0a0745d0b7",
+        "size": 44255705
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO26",
+    "task": "detect",
+    "architecture": "yolo26m.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo26l",
+    "name": "YOLO26 Large（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo26l.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26l.pt",
+        "sha256": "9fe3c544f2b19bebad7ea41e76d7ad3d88b7c2f10d11d24430c5311f6b32db26",
+        "size": 53211173
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO26",
+    "task": "detect",
+    "architecture": "yolo26l.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo26x",
+    "name": "YOLO26 Extra Large（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo26x.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26x.pt",
+        "sha256": "9fdd44a31c504547ffb81d2c6d9e6dac3493c8eaa8b0398d3f43bae6c7003e92",
+        "size": 118667365
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO26",
+    "task": "detect",
+    "architecture": "yolo26x.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo26s-seg",
+    "name": "YOLO26 Small（实例分割）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo26s-seg.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26s-seg.pt",
+        "sha256": "3da1d83e31caec96f9300eb4064f4f62882c133c7c264d63dfe61a7c197837a4",
+        "size": 23467933
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO26",
+    "task": "segment",
+    "architecture": "yolo26s-seg.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo26m-seg",
+    "name": "YOLO26 Medium（实例分割）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo26m-seg.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26m-seg.pt",
+        "sha256": "16b636f04e8fb6a325b3370f22dc5e5535ff473e384f4d041fd28d788f6ee9f5",
+        "size": 54750385
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO26",
+    "task": "segment",
+    "architecture": "yolo26m-seg.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo26l-seg",
+    "name": "YOLO26 Large（实例分割）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo26l-seg.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26l-seg.pt",
+        "sha256": "636024306410afa1732692322fba57d22ea2b1c2f07613fcee131a93d7dd380c",
+        "size": 63700037
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO26",
+    "task": "segment",
+    "architecture": "yolo26l-seg.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo26x-seg",
+    "name": "YOLO26 Extra Large（实例分割）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo26x-seg.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26x-seg.pt",
+        "sha256": "92b3de0065766a17180d6219858717dc9d03cdce8a3ca9576c97fd75aabb64f3",
+        "size": 142129861
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO26",
+    "task": "segment",
+    "architecture": "yolo26x-seg.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo26s-cls",
+    "name": "YOLO26 Small（图片分类）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo26s-cls.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26s-cls.pt",
+        "sha256": "816790029d5df3fef358f03c8144b96339d8824ee25577aeda8be0963e5c5f09",
+        "size": 13622082
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO26",
+    "task": "classify",
+    "architecture": "yolo26s-cls.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo26m-cls",
+    "name": "YOLO26 Medium（图片分类）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo26m-cls.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26m-cls.pt",
+        "sha256": "9f6546f33a70d910e2cd6dcca5265c4617b5670b19a1f287c39e99258bade01a",
+        "size": 23477398
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO26",
+    "task": "classify",
+    "architecture": "yolo26m-cls.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo26l-cls",
+    "name": "YOLO26 Large（图片分类）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo26l-cls.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26l-cls.pt",
+        "sha256": "7a3aebb7de6f5d79f0153da627a5f68bd3d7df30e648c0fdb7f9217986ee129e",
+        "size": 28535928
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO26",
+    "task": "classify",
+    "architecture": "yolo26l-cls.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo26x-cls",
+    "name": "YOLO26 Extra Large（图片分类）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo26x-cls.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26x-cls.pt",
+        "sha256": "ee88a0c71e9596cdfdbb71892725929cb4489b874d24fb581d20bffe79724386",
+        "size": 59610168
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO26",
+    "task": "classify",
+    "architecture": "yolo26x-cls.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo26s-pose",
+    "name": "YOLO26 Small（关键点）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo26s-pose.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26s-pose.pt",
+        "sha256": "a083adb42303728ae14c4bd6bd56d80da46f82fb2564dbd6f31dcc92ea321646",
+        "size": 24151790
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO26",
+    "task": "pose",
+    "architecture": "yolo26s-pose.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo26m-pose",
+    "name": "YOLO26 Medium（关键点）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo26m-pose.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26m-pose.pt",
+        "sha256": "2fbf16367022256a226035695c5c389384c6706e8bb8ab8fcd0e7976f05443c4",
+        "size": 49036866
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO26",
+    "task": "pose",
+    "architecture": "yolo26m-pose.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo26l-pose",
+    "name": "YOLO26 Large（关键点）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo26l-pose.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26l-pose.pt",
+        "sha256": "ad33da8a29ea5772318c4c980844e47b56792d2b63815ad4e8e09c078c7d1abf",
+        "size": 57995961
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO26",
+    "task": "pose",
+    "architecture": "yolo26l-pose.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo26x-pose",
+    "name": "YOLO26 Extra Large（关键点）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo26x-pose.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26x-pose.pt",
+        "sha256": "08ed9e01d22a6f248b04f2f9992016aca9a32250b9ab57057d886a09d026700d",
+        "size": 126242553
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO26",
+    "task": "pose",
+    "architecture": "yolo26x-pose.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov5nu",
+    "name": "YOLOv5u Nano（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov5nu.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov5nu.pt",
+        "sha256": "9e9c1be448b0e1b8598975a9abcab9a0fd0e21182eb422cda7f044a0442d0937",
+        "size": 5562759
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv5u",
+    "task": "detect",
+    "architecture": "yolov5n.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov5su",
+    "name": "YOLOv5u Small（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov5su.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov5su.pt",
+        "sha256": "054272ddbbb3035cea7ff6b97e5becea63d2cc57a4f06a2a8133f4d1a56e74ed",
+        "size": 18581255
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv5u",
+    "task": "detect",
+    "architecture": "yolov5s.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov5mu",
+    "name": "YOLOv5u Medium（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov5mu.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov5mu.pt",
+        "sha256": "02a430d1cec02dfabdcaf8afa05e3b967c19d3795a42c0ab8ad78bf2e24d016c",
+        "size": 50589507
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv5u",
+    "task": "detect",
+    "architecture": "yolov5m.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov5lu",
+    "name": "YOLOv5u Large（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov5lu.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov5lu.pt",
+        "sha256": "4c78fd8b24761480f1e855361df39eaab131512babf2ba73ba6b394bba3c9061",
+        "size": 106913919
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv5u",
+    "task": "detect",
+    "architecture": "yolov5l.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov5xu",
+    "name": "YOLOv5u Extra Large（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov5xu.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov5xu.pt",
+        "sha256": "b173a82e928b444456f5d3d3d7cf11197fda04df8f59c114801d837036e25061",
+        "size": 195132283
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv5u",
+    "task": "detect",
+    "architecture": "yolov5x.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov9t",
+    "name": "YOLOv9 Tiny（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov9t.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov9t.pt",
+        "sha256": "410e3caca789aa8fec19971c05577616cbb963a416bcd0228171b2dff7f718f7",
+        "size": 4969803
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv9",
+    "task": "detect",
+    "architecture": "yolov9t.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov9s",
+    "name": "YOLOv9 Small（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov9s.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov9s.pt",
+        "sha256": "67731fc88bb6782fbb4f32703a2cac052acd65148b65c9e67161fe13536c2ffc",
+        "size": 15389259
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv9",
+    "task": "detect",
+    "architecture": "yolov9s.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov9m",
+    "name": "YOLOv9 Medium（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov9m.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov9m.pt",
+        "sha256": "be7ac91362bd81dfa901077706d634e571c1ff7f3886b3aac6a0e97eff2f5440",
+        "size": 40993492
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv9",
+    "task": "detect",
+    "architecture": "yolov9m.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov9c",
+    "name": "YOLOv9 C（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov9c.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov9c.pt",
+        "sha256": "876eb84f515d40c34a3b111f8fc1077d3aee59d3a243afd1cc5b77d520f237c7",
+        "size": 51794840
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv9",
+    "task": "detect",
+    "architecture": "yolov9c.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov9e",
+    "name": "YOLOv9 E（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov9e.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov9e.pt",
+        "sha256": "0d2270e0c794bdaa059738d32c1781cdec4857b3931d5503e13ae92e8517e7bd",
+        "size": 117521038
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv9",
+    "task": "detect",
+    "architecture": "yolov9e.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov9c-seg",
+    "name": "YOLOv9 C（实例分割）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov9c-seg.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov9c-seg.pt",
+        "sha256": "73c2ac85148fa6fa560ef9933f8931e40d0dbc8f8c7c0a6d165145b6e5713565",
+        "size": 56470235
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv9",
+    "task": "segment",
+    "architecture": "yolov9c-seg.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov9e-seg",
+    "name": "YOLOv9 E（实例分割）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov9e-seg.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov9e-seg.pt",
+        "sha256": "d7803f5946df2897c1746658bdc46c61c2de1a740ce740804f7099c8abbe660e",
+        "size": 122212466
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv9",
+    "task": "segment",
+    "architecture": "yolov9e-seg.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov10n",
+    "name": "YOLOv10 Nano（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov10n.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov10n.pt",
+        "sha256": "11287ed0735678e7ba1ac2a9b3098c049155b3fde123992e724c1264bcc16b6f",
+        "size": 5860383
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv10",
+    "task": "detect",
+    "architecture": "yolov10n.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov10s",
+    "name": "YOLOv10 Small（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov10s.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov10s.pt",
+        "sha256": "65fa8332c38a7189597a268897bce6c1026f9499711b9761fb0c2c639b91d4d6",
+        "size": 16623111
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv10",
+    "task": "detect",
+    "architecture": "yolov10s.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov10m",
+    "name": "YOLOv10 Medium（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov10m.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov10m.pt",
+        "sha256": "6dc78f7a88591cec1e8716b8f5c7e3aefa9206684f025d202be34439ccb329a0",
+        "size": 33643667
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv10",
+    "task": "detect",
+    "architecture": "yolov10m.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov10b",
+    "name": "YOLOv10 Base（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov10b.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov10b.pt",
+        "sha256": "31ef0baecfa8010ebb4b53b0624836f30d73702b04710c23945782dba5d258c2",
+        "size": 41679663
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv10",
+    "task": "detect",
+    "architecture": "yolov10b.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov10l",
+    "name": "YOLOv10 Large（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov10l.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov10l.pt",
+        "sha256": "d0685e1e597f73aba8e56bc9651b6bb939c5b2f201dff5de0b9ef2a6207ae301",
+        "size": 52425230
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv10",
+    "task": "detect",
+    "architecture": "yolov10l.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolov10x",
+    "name": "YOLOv10 Extra Large（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolov10x.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov10x.pt",
+        "sha256": "605982e0b2c2ff070351afc8df3ecb38c54cfd7f133813acb366f454eb79b9a6",
+        "size": 64395854
+      }
+    ],
+    "kind": "training",
+    "family": "YOLOv10",
+    "task": "detect",
+    "architecture": "yolov10x.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo12n",
+    "name": "YOLO12 Nano（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo12n.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo12n.pt",
+        "sha256": "419ff3dca37d69bacc93a50fa0c186a1c6f9fe62fae0f108b0872829689e9ca6",
+        "size": 5595063
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO12",
+    "task": "detect",
+    "architecture": "yolo12n.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo12s",
+    "name": "YOLO12 Small（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo12s.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo12s.pt",
+        "sha256": "e915c2c4286e3f6f8610ef106fa3f94a7b8c19b30eccede5887e22c33ef75f58",
+        "size": 19006455
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO12",
+    "task": "detect",
+    "architecture": "yolo12s.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo12m",
+    "name": "YOLO12 Medium（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo12m.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo12m.pt",
+        "sha256": "4c6d179786eddf6134ee469ae2f4ce04cbe4e9d1a47d6b669d9cd6b9c6c513d8",
+        "size": 40904955
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO12",
+    "task": "detect",
+    "architecture": "yolo12m.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo12l",
+    "name": "YOLO12 Large（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo12l.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo12l.pt",
+        "sha256": "0babd8dc8f775bb64bb052debdff3d8b9e9b57efa9d7bfa11c84bb82c3fec336",
+        "size": 53699086
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO12",
+    "task": "detect",
+    "architecture": "yolo12l.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "yolo12x",
+    "name": "YOLO12 Extra Large（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/yolo12x.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo12x.pt",
+        "sha256": "682ce8dadee004dbe964950f1bf3eda451671815a6ed62db80b398916b9b7c6f",
+        "size": 119322638
+      }
+    ],
+    "kind": "training",
+    "family": "YOLO12",
+    "task": "detect",
+    "architecture": "yolo12x.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "rtdetr-l",
+    "name": "RT-DETR Large（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/rtdetr-l.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/rtdetr-l.pt",
+        "sha256": "6de60b10d4bc566f00cda0f5b4d64afe4b66d48dc9695d2171effb7859d8e73f",
+        "size": 66511432
+      }
+    ],
+    "kind": "training",
+    "family": "RT-DETR",
+    "task": "detect",
+    "architecture": "rtdetr-l.yaml",
+    "supports_scratch": true
+  },
+  {
+    "id": "rtdetr-x",
+    "name": "RT-DETR Extra Large（目标检测）",
+    "revision": "v8.4.0",
+    "license": "AGPL-3.0 / Ultralytics Enterprise",
+    "source": "https://www.ultralytics.com/license",
+    "files": [
+      {
+        "path": "training/rtdetr-x.pt",
+        "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/rtdetr-x.pt",
+        "sha256": "81071ffee0986edff2dd2d790da364843b66717cdc61d9491edb50790fd3345b",
+        "size": 135755662
+      }
+    ],
+    "kind": "training",
+    "family": "RT-DETR",
+    "task": "detect",
+    "architecture": "rtdetr-x.yaml",
+    "supports_scratch": true
   }
 ]

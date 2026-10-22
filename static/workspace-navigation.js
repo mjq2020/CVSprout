@@ -1,4 +1,4 @@
-import { enterWorkspaceContent } from "./workspace-feedback.js?v=0.23.0";
+import { enterWorkspaceContent } from "./workspace-feedback.js?v=0.24.0";
 
 const workflow = [
   ["overview", "项目概览", "chart"], ["data", "导入与数据", "database"], ["ai", "AI 标注", "magic"],

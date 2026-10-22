@@ -18,6 +18,26 @@
 .conversion-row .conversion-error > summary { font-size: 12px; }
 .conversion-actions { flex-wrap: wrap; }
 .training-model-picker { max-height: 280px; overflow-y: auto; padding: 3px; }
+.training-model-picker[hidden], .training-model-option[hidden] { display: none; }
+.training-model-controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, .55fr); gap: 10px; }
+.training-model-controls .field { min-width: 0; margin: 0; }
+.training-model-controls input, .training-model-controls select { width: 100%; min-width: 0; }
+.training-model-controls input[type="search"] { height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--ui-control-bg); font: inherit; }
+.training-model-controls input[type="search"]:focus-visible { border-color: var(--ui-focus-color); outline: 2px solid var(--ui-focus-color); outline-offset: 2px; box-shadow: none; }
+.training-model-results-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.training-model-results-head p { margin: 0; color: var(--muted); font-size: 12px; }
+.training-model-results-head button[hidden] { display: none; }
+.training-model-selection { padding: 9px 11px; border-left: 3px solid var(--brand); background: var(--brand-soft); border-radius: 0 5px 5px 0; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.training-model-selection p { margin: 0; }
+.training-model-selection p + p { color: var(--muted); }
+.training-model-size-help { margin: 9px 0; }
+.training-model-defaults { margin: 9px 0 0; color: var(--text); }
+.training-model-empty { padding: 18px 12px; border: 1px dashed var(--line); border-radius: 7px; font-size: 12px; line-height: 1.7; }
+.training-model-empty p { margin: 5px 0 10px; color: var(--muted); }
+@media (max-width: 480px) {
+  .training-model-controls { grid-template-columns: minmax(0, 1fr); }
+  .training-model-picker { grid-template-columns: minmax(0, 1fr); }
+}
 .training-model-option:has(input:focus-visible), .training-task-option:has(input:focus-visible), .resource-option:has(input:focus-visible) { outline: 3px solid var(--brand); outline-offset: 2px; }
 .training-model-option small { white-space: normal; overflow-wrap: anywhere; line-height: 1.6; }
 .training-initialization { margin-top: 14px; }

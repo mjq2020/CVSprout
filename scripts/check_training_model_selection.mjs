@@ -13,9 +13,9 @@ const esc = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'
 function fixture({admin=true,models=[builtin()],template=null}={}) {
   const state={project:{id:7,name:'测试项目'},currentSection:'train',selectionEpoch:1,session:{role:admin?'admin':'reviewer'},versions:[{id:3,annotation_count:4,asset_count:4,stats:{task_type:'detect'}},{id:4,annotation_count:4,stats:{task_type:'segment'}}],training:{total:0,availability:{available:true}},trainingResources:{default_device:'cpu',devices:[{id:'cpu',name:'CPU'}]}};
   const ui={form:null,opened:[],notifications:[],closed:0,revealed:[]}, server={calls:[],handler:null,catalog:null};
-  const document={querySelector:selector=>selector==='.modal'?ui.form:ui.form?.querySelector(selector)};
+  const document={activeElement:null,querySelector:selector=>selector==='.modal'?ui.form:ui.form?.querySelector(selector)};
   class Element {
-    constructor(tag='div',attrs={}){this.tag=tag;this.attrs=attrs;this.id=attrs.id;this.name=attrs.name;this.value=attrs.value??'';this._checked='checked'in attrs;this.disabled='disabled'in attrs;this.hidden='hidden'in attrs;this.isConnected=true;this.children=[];this.textContent='';this.files=[];this.html='';this.classes=new Set();this.classList={toggle:(n,on)=>on?this.classes.add(n):this.classes.delete(n)};}
+    constructor(tag='div',attrs={}){this.tag=tag;this.attrs=attrs;this.id=attrs.id;this.name=attrs.name;this.value=attrs.value??'';this._checked='checked'in attrs;this.disabled='disabled'in attrs;this.hidden='hidden'in attrs;this.isConnected=true;this.children=[];this.textContent='';this.files=[];this.html='';this.classes=new Set(String(attrs.class||'').split(/\s+/).filter(Boolean));this.classList={toggle:(n,on)=>on?this.classes.add(n):this.classes.delete(n)};}
     get checked(){return this._checked;}
     set checked(value){this._checked=value;if(value&&this.name&&this.attrs.type==='radio')ui.form?.querySelectorAll(`input[name="${this.name}"]`).forEach(node=>{if(node!==this)node._checked=false;});}
     setAttribute(name,value){this.attrs[name]=value;}
@@ -23,11 +23,24 @@ function fixture({admin=true,models=[builtin()],template=null}={}) {
     get innerHTML(){return this.html;}
     querySelectorAll(selector){const nodes=this.children.flatMap(n=>[n,...n.querySelectorAll('*')]); if(selector==='*')return nodes;return nodes.filter(n=>matches(n,selector));}
     querySelector(selector){return this.querySelectorAll(selector)[0]??null;}
-    closest(selector){return selector==='label'?{classList:{toggle(){}},querySelector:()=>null}:null;}
-    addEventListener(type,fn){this[`on${type}`]=fn;}
+    closest(selector){let node=this;while(node){if(matches(node,selector))return node;node=node.parent;}return null;}
+    focus(){document.activeElement=this;}
+    addEventListener(type,fn){const previous=this[`on${type}`];this[`on${type}`]=event=>{previous?.(event);fn(event);};}
   }
-  function matches(node,selector){if(selector[0]==='#')return node.id===selector.slice(1);const tag=selector.match(/^[a-z]+/)?.[0];if(tag&&node.tag!==tag)return false;for(const [,key,value]of selector.matchAll(/\[([\w-]+)="([^"]*)"\]/g))if(node.attrs[key]!==value)return false;return !selector.includes(':checked')||node.checked;}
-  function parse(html){const nodes=[];for(const match of html.matchAll(/<(input|select|div|p|button)(\s[^>]*|)>/g)){const attrs={};for(const attr of match[2].matchAll(/([\w-]+)(?:="([^"]*)")?/g))attrs[attr[1]]=attr[2]??'';const node=new Element(match[1],attrs);if(node.tag==='select'){const following=html.slice(match.index+match[0].length).split('</select>')[0];const options=[...following.matchAll(/<option value="([^"]*)"([^>]*)>/g)];node.value=(options.find(o=>o[2].includes('selected'))||options[0])?.[1]??'';}nodes.push(node);}return nodes;}
+  function matches(node,selector){if(selector[0]==='.')return node.classes.has(selector.slice(1));if(selector[0]==='#')return node.id===selector.slice(1);const tag=selector.match(/^[a-z]+/)?.[0];if(tag&&node.tag!==tag)return false;for(const [,key,value]of selector.matchAll(/\[([\w-]+)="([^"]*)"\]/g))if(node.attrs[key]!==value)return false;return !selector.includes(':checked')||node.checked;}
+  function parse(html){
+    const root={children:[]},stack=[root];
+    for(const match of html.matchAll(/<(\/?)([a-z][\w-]*)([^>]*)>/g)){
+      const[,closing,tag,raw]=match;
+      if(closing){for(let i=stack.length-1;i>0;i--)if(stack[i].tag===tag){stack.length=i;break;}continue;}
+      const attrs={};for(const attr of raw.matchAll(/([\w-]+)(?:="([^"]*)")?/g))attrs[attr[1]]=attr[2]??'';
+      const node=new Element(tag,attrs);node.parent=stack.at(-1);node.parent.children.push(node);
+      if(!['input','br','hr','img','meta','link'].includes(tag)&&!raw.trimEnd().endsWith('/'))stack.push(node);
+    }
+    const visit=node=>{node.children.forEach(visit);if(node.tag==='select'){const options=node.querySelectorAll('option');node.value=(options.find(n=>'selected'in n.attrs)||options[0])?.value??'';}};
+    root.children.forEach(visit);return root.children;
+  }
+
   const context=vm.createContext({state,document,console,Promise,Map,AbortController,CSS:{escape:value=>value},FormData:class{constructor(){this.entries=[];}append(...args){this.entries.push(args);}},isAdmin:()=>state.session.role==='admin',canReview:()=>['reviewer','admin'].includes(state.session.role),escapeHtml:esc,icon:()=>'',formatBytes:v=>`${v} B`,formatCompactNumber:String,formatDateTime:()=>'',renderTrainingLogConsole:()=>'',splitAssetCount:()=>1,trainingTaskChoices:task=>['detect','segment'].map(id=>`<input type="radio" name="train-task" value="${id}" ${task===id?'checked':''}>`).join(''),trainingDeviceChoices:()=>'<input type="radio" name="train-device" value="cpu" checked>',trainingResourceProfileOptions:()=>'<option value="balanced">均衡</option>',availableConversionFormats:()=>[],trainingContextGuard:()=>{const {project,selectionEpoch,session}=state;return()=>state.project===project&&state.selectionEpoch===selectionEpoch&&state.session===session&&state.currentSection==='train';},notify:(...args)=>ui.notifications.push(args),revealNewTraining:async id=>ui.revealed.push(id),jsonOptions:(method,payload)=>({method,body:JSON.stringify(payload)}),closeModal:()=>{ui.form?.config.onClose?.();if(ui.form)ui.form.isConnected=false;ui.form=null;ui.closed++;},openModal:config=>{ui.form?.config.onClose?.();if(ui.form)ui.form.isConnected=false;const form=new Element();form.config=config;form.innerHTML=config.body;form.children.push(new Element('button',{id:'modal-submit'}));ui.form=form;ui.opened.push(form);config.onReady();},api:async(path,options={})=>{const call={path,...options};server.calls.push(call);if(server.handler){const result=server.handler(call);if(result!==undefined)return await result;}if(path.includes('training-compatibility'))return{tasks:{detect:{compatible:true},segment:{compatible:true}}};if(path==='/api/model-downloads/import/checkpoint')return{filename:'own.pt',sha256:'a'.repeat(64)};if(path==='/api/training/catalog')return server.catalog;if(path.endsWith('/training-runs'))return{id:18};throw Error(`Unhandled ${path}`);}});
   vm.runInContext(code,context);
   const catalog=(items)=>({models:items,tasks:{detect:{available:true},segment:{available:true}},backend:{available:true}});
@@ -35,7 +48,7 @@ function fixture({admin=true,models=[builtin()],template=null}={}) {
   const open=(run=template)=>{context.openTrainingModal(run);return ui.form;};
   const select=(name,value)=>{const nodes=ui.form.querySelectorAll(`input[name="${name}"]`);const node=nodes.find(n=>n.value===value);assert(node,`Missing ${name}=${value}`);nodes.forEach(n=>n.checked=n===node);node.onchange?.();return node;};
   const file=(name='own.pt',size=2048)=>{const input=ui.form.querySelector('#train-checkpoint-file');input.files=[{name,size}];input.onchange?.();};
-  return{state,context,ui,server,open,select,file,catalog,q:selector=>ui.form?.querySelector(selector)};
+  return{state,context,ui,server,open,select,file,catalog,document,q:selector=>ui.form?.querySelector(selector)};
 }
 
 // Explicit available overrides absent installed weights; local compatibility defaults remain safe.
@@ -105,4 +118,43 @@ for(const boundary of ['close','replace','project','session','epoch']){
  const h=fixture({admin:false});h.open();await settle();assert(!h.q('#train-upload-button'));assert(h.ui.form.innerHTML.includes('请联系管理员上传'));assert.equal(h.q('#modal-submit').disabled,false);
  assert(h.context.trainingRunDetails({id:1,settings:{pretrained:false}},{}).includes('从零训练（随机初始化）'));assert(h.context.trainingRunDetails({id:1,settings:{}},{}).includes('使用预训练权重'));
 }
-console.log('PASS training model selection: remote defaults, explicit pretrained payload, scratch capability/clone, inline upload and retained settings, invalid/task mismatch, retries/duplicates, roles, stale modal/session/project responses, compatibility races, initialization history');
+// A 60+ model catalog filters only mounted cards; selected model and native inputs remain stable.
+const largeCatalog = ['yolov8','yolo11','yolo26'].flatMap((family, index) => ['detect','segment','classify','pose'].flatMap(task => [...'nsmlx'].map(size => {
+ const filename = `${family}${size}${({detect:'',segment:'-seg',classify:'-cls',pose:'-pose'})[task]}.pt`;
+ return {...builtin(task),id:filename,model_arch:filename,name:filename.slice(0,-3),family:['YOLOv8','YOLO11','YOLO26'][index],recommended:family==='yolo26'&&size==='n'};
+}))).concat(custom({id:'park.pt',model_arch:'park.pt',family:'Custom',name:'园区自有检测'}));
+const visibleModels = h => h.q('#training-model-picker').querySelectorAll('input[name="train-model"]').filter(input=>!input.closest('label').hidden);
+{
+ const h=fixture({models:largeCatalog}),form=h.open();await settle();
+ const search=h.q('#train-model-search'),family=h.q('#train-model-family'),selected=h.q('input[name="train-model"]:checked'),cards=h.q('#training-model-picker').querySelectorAll('label');
+ assert.equal(largeCatalog.length,61);assert.equal(visibleModels(h).length,16);assert.equal(selected.value,'yolo26n.pt');assert(h.q('#train-model-count').textContent.includes('16 / 16'));
+ search.focus();search.selectionStart=3;search.value='YOLO11 m';search.oninput({});assert.equal(visibleModels(h).length,1);assert.equal(visibleModels(h)[0].value,'yolo11m.pt');assert.equal(h.q('#train-model-search'),search);assert.equal(h.document.activeElement,search);assert.equal(search.selectionStart,3);assert.equal(h.q('input[name="train-model"]:checked'),selected);assert.equal(h.q('#train-model-selected-note').hidden,false);assert.equal(h.q('#modal-submit').disabled,false);assert.equal(h.server.calls.filter(c=>c.path.includes('compatibility')).length,1);assert.deepEqual(h.q('#training-model-picker').querySelectorAll('label'),cards);
+ family.value='YOLOv8';family.onchange();assert.equal(visibleModels(h).length,0);assert.equal(h.q('#train-model-empty').hidden,false);assert.equal(h.q('#train-model-selected-name').textContent,'yolo26n');assert.equal(h.q('#modal-submit').disabled,false);
+ h.q('#train-model-reset').onclick();assert.equal(search.value,'');assert.equal(family.value,'');assert.equal(visibleModels(h).length,16);assert.equal(h.document.activeElement,search);
+ search.oncompositionstart();search.value='园区';search.oninput({isComposing:true});assert.equal(visibleModels(h).length,16);search.oncompositionend();assert.equal(visibleModels(h).length,1);assert.equal(visibleModels(h)[0].value,'park.pt');
+ search.value='missing-模型';search.oninput({});assert.equal(visibleModels(h).length,0);h.q('#train-epochs').value='82';await form.config.onSubmit();assert.equal(JSON.parse(h.server.calls.find(c=>c.path.endsWith('/training-runs')).body).model_arch,'yolo26n.pt');
+}
+// Task changes preserve search text, reset a no-longer-present family, and use only the current task.
+{
+ const h=fixture({models:largeCatalog});h.open();await settle();const search=h.q('#train-model-search');search.value='yolo11';search.oninput({});h.q('#train-model-family').value='Custom';h.q('#train-model-family').onchange();
+ h.q('#train-version').value='4';h.q('#train-version').onchange();await settle();assert.equal(h.q('#train-model-search'),search);assert.equal(search.value,'yolo11');assert.equal(h.q('#train-model-family').value,'');assert.equal(visibleModels(h).length,5);assert(visibleModels(h).every(input=>input.value.endsWith('-seg.pt')));assert(h.q('#train-model-count').textContent.includes('5 / 15'));
+}
+// A cloned or newly imported selection survives filtering and remains the actual submission model.
+{
+ const h=fixture({models:largeCatalog,template:{model_arch:'yolo11x.pt',version_id:3,settings:{pretrained:false,epochs:93,batch_size:2}}}),form=h.open();await settle();h.q('#train-model-search').value='no-match';h.q('#train-model-search').oninput({});assert.equal(h.q('#train-model-selected-name').textContent,'yolo11x');assert.equal(h.q('#train-pretrained').checked,false);assert.equal(h.q('#train-epochs').value,'93');assert.equal(h.q('#modal-submit').disabled,false);
+ h.file();await h.q('#train-upload-button').onclick();assert.equal(h.q('#train-model-search').value,'no-match');assert.equal(visibleModels(h).length,0);assert.equal(h.q('#train-model-selected-name').textContent,'自有模型');assert.equal(h.q('#train-model-selected-note').hidden,false);assert.equal(h.q('#train-epochs').value,'93');await form.config.onSubmit();const payload=JSON.parse(h.server.calls.find(c=>c.path.endsWith('/training-runs')).body);assert.equal(payload.model_arch,'own.pt');assert.equal(payload.pretrained,false);
+}
+// Model advice is visible; only untouched new-form defaults follow model selection, never manual edits or clones.
+{
+ const special=custom({id:'rtdetr-l.pt',model_arch:'rtdetr-l.pt',name:'RT-DETR L',family:'RT-DETR',defaults:{batch_size:2,image_size:640,amp:false,deterministic:false},constraints:{min_image_size:128},warnings:['固定尺寸训练建议']}),h=fixture({models:[builtin(),special]});h.open();await settle();h.q('#train-batch').value='7';h.q('#train-batch').oninput();h.q('#train-imgsz').value='64';h.q('#train-amp').checked=true;h.q('#train-amp').oninput();h.q('#train-deterministic').checked=true;h.q('#train-deterministic').onchange();h.select('train-model','rtdetr-l.pt');await settle();
+ assert.equal(h.q('#train-imgsz').min,'128');assert.equal(h.q('#train-batch').value,'7');assert.equal(h.q('#train-amp').checked,true);assert.equal(h.q('#train-deterministic').checked,true);assert(h.q('#train-model-defaults').textContent.includes('每批 2 张'));assert(h.q('#train-model-defaults').textContent.includes('关闭自动混合精度'));assert(h.q('#train-model-defaults').textContent.includes('固定尺寸训练建议'));assert.equal(h.q('#modal-submit').disabled,true);assert(h.q('#train-model-hint').textContent.includes('至少为 128'));await assert.rejects(h.ui.form.config.onSubmit(),/128/);
+ h.q('#train-imgsz').value='128';h.q('#train-imgsz').oninput();await settle();assert.equal(h.q('#modal-submit').disabled,false);h.select('train-model','base-detect.pt');await settle();assert.equal(h.q('#train-imgsz').min,'32');assert.equal(h.q('#train-imgsz').value,'128');
+ const first=fixture({models:[special]});first.open();await settle();assert.equal(first.q('#train-amp').checked,false);assert.equal(first.q('#train-deterministic').checked,false);
+ const cloned=fixture({models:[builtin(),special],template:{model_arch:special.id,version_id:3,settings:{amp:true,deterministic:true,batch_size:9}}});cloned.open();await settle();assert.equal(cloned.q('#train-amp').checked,true);assert.equal(cloned.q('#train-deterministic').checked,true);assert.equal(cloned.q('#train-batch').value,'9');cloned.select('train-model','base-detect.pt');await settle();cloned.select('train-model',special.id);await settle();assert.equal(cloned.q('#train-amp').checked,true);assert.equal(cloned.q('#train-deterministic').checked,true);assert.equal(cloned.q('#train-batch').value,'9');
+ const clean=fixture({models:[builtin(),special]});clean.open();await settle();assert.equal(clean.q('#train-amp').checked,true);clean.q('#train-epochs').value='81';clean.select('train-model',special.id);await settle();assert.equal(Number(clean.q('#train-batch').value),2);assert.equal(clean.q('#train-amp').checked,false);assert.equal(clean.q('#train-deterministic').checked,false);assert.equal(clean.q('#train-epochs').value,'81');clean.select('train-model','base-detect.pt');await settle();assert.equal(Number(clean.q('#train-batch').value),16);assert.equal(clean.q('#train-amp').checked,true);assert.equal(clean.q('#train-deterministic').checked,true);
+ clean.q('#train-batch').value='5';clean.q('#train-batch').onchange();clean.select('train-model',special.id);await settle();assert.equal(clean.q('#train-batch').value,'5');assert.equal(clean.q('#train-amp').checked,false);assert.equal(clean.q('#train-deterministic').checked,false);
+}
+{
+ const h=fixture({models:largeCatalog});h.open();await settle();const old=h.q('#train-model-search');h.open();await settle();old.value='should-not-apply';old.oninput({});assert.equal(h.q('#train-model-search').value,'');assert.equal(visibleModels(h).length,16);
+}
+console.log('PASS training model selection: remote defaults, explicit pretrained payload, scratch capability/clone, inline upload and retained settings, invalid/task mismatch, retries/duplicates, roles, stale modal/session/project responses, compatibility races, initialization history, 61-model filters/IME/hidden selection/task switch, safe untouched model defaults, preserved edited/cloned settings and constraints');

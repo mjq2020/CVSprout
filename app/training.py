@@ -9,6 +9,7 @@ import logging
 import math
 import os
 import platform
+import re
 import shutil
 import socket
 import sqlite3
@@ -151,6 +152,23 @@ def _scratch_architecture(value: Any) -> dict[str, Any] | None:
         return None
 
 
+def _architecture_backend(architecture: Any) -> str:
+    if isinstance(architecture, dict):
+        head = architecture.get("head") or []
+        if head and len(head[-1]) >= 3 and head[-1][2] == "RTDETRDecoder":
+            return "rtdetr"
+    elif isinstance(architecture, str) and Path(architecture).name.startswith("rtdetr-"):
+        return "rtdetr"
+    return "yolo"
+
+
+def _checkpoint_model_backend(model: Any) -> str:
+    layers = getattr(getattr(model, "model", None), "model", None)
+    if layers is not None and len(layers) and "RTDETR" in type(layers[-1]).__name__:
+        return "rtdetr"
+    return "yolo"
+
+
 @lru_cache(maxsize=256)
 def _probe_checkpoint(path_text: str, size: int, mtime_ns: int) -> dict[str, Any]:
     """Load an administrator-managed checkpoint once and report its real task.
@@ -181,6 +199,7 @@ def _probe_checkpoint(path_text: str, size: int, mtime_ns: int) -> dict[str, Any
             "trainable_parameters": trainable_parameters,
             "architecture": architecture,
             "supports_scratch": architecture is not None,
+            "model_backend": _checkpoint_model_backend(model),
             "error": "" if task in KNOWN_TASKS else f"不支持的 checkpoint task: {task or 'unknown'}",
         }
     except Exception as exc:
@@ -210,7 +229,9 @@ def _model_family(name: str) -> str:
         ("yolo12", "YOLO12"),
         ("yolo11", "YOLO11"),
         ("yolov10", "YOLOv10"),
+        ("yolov9", "YOLOv9"),
         ("yolov8", "YOLOv8"),
+        ("yolov5", "YOLOv5u"),
     ):
         if stem.startswith(prefix):
             return family
@@ -230,10 +251,15 @@ def _declared_model_task(name: str) -> str:
     return "detect"
 
 
-def _model_defaults(parameters: int | None) -> dict[str, Any]:
-    parameters = parameters or 0
-    batch_size = 16 if parameters <= 6_000_000 else 8 if parameters <= 15_000_000 else 4
-    return {
+def _model_defaults(parameters: int | None, model_arch: str = "", model_backend: str = "yolo") -> dict[str, Any]:
+    if parameters:
+        batch_size = 16 if parameters <= 6_000_000 else 8 if parameters <= 15_000_000 else 4 if parameters <= 30_000_000 else 2 if parameters <= 60_000_000 else 1
+    else:
+        scale = re.match(r"yolo(?:v)?\d+([ntsmcblex])", Path(model_arch).stem)
+        batch_size = {"n": 16, "t": 16, "s": 8, "m": 4, "c": 4, "b": 4, "l": 2, "e": 2, "x": 1}.get(scale[1] if scale else "", 8)
+    if model_backend == "rtdetr":
+        batch_size = min(batch_size, 1 if "rtdetr-x" in model_arch else 2)
+    result = {
         "epochs": 50,
         "image_size": 640,
         "batch_size": batch_size,
@@ -243,6 +269,21 @@ def _model_defaults(parameters: int | None) -> dict[str, Any]:
         "lr0": 0.01,
         "weight_decay": 0.0005,
     }
+    if model_backend == "rtdetr":
+        result.update(amp=False, deterministic=False)
+    return result
+
+
+def _model_constraints(model_backend: str) -> dict[str, Any]:
+    return {"min_image_size": 128} if model_backend == "rtdetr" else {}
+
+
+def _model_warnings(model_arch: str, model_backend: str) -> list[str]:
+    if model_backend == "rtdetr":
+        return ["RT-DETR 建议关闭 AMP 和严格确定性；输入尺寸至少 128，建议 640。", "RT-DETR 当前支持固定尺寸 ONNX、TorchScript 和 TensorRT；暂不支持 RKNN 或动态尺寸转换。"]
+    if Path(model_arch).name.startswith("yolo12"):
+        return ["YOLO12 注意力模型训练对显存更敏感，可能出现训练不稳定；请从较小 batch 开始。"]
+    return []
 
 
 def _model_candidates() -> list[Path]:
@@ -308,6 +349,7 @@ def model_catalog() -> list[dict[str, Any]]:
         official = builtin.get(path.name)
         if official and checksum != official["sha256"]:
             official = None
+        model_backend = probe.get("model_backend", _architecture_backend(probe.get("architecture")))
         models.append(
             {
                 "id": path.name,
@@ -329,10 +371,13 @@ def model_catalog() -> list[dict[str, Any]]:
                 "download_id": official["download_id"] if official else None,
                 "architecture": official["architecture"] if official else probe.get("architecture"),
                 "supports_scratch": bool(official or probe.get("supports_scratch")),
+                "model_backend": model_backend,
+                "constraints": _model_constraints(model_backend),
+                "warnings": _model_warnings(path.name, model_backend),
                 "parameters": probe["parameters"],
                 "trainable_parameters": probe["trainable_parameters"],
                 "recommended": path in recommended_paths and available,
-                "defaults": _model_defaults(probe["parameters"]),
+                "defaults": _model_defaults(probe["parameters"], path.name, model_backend),
                 "compatibility": {
                     "annotation_shapes": {"detect":["rectangle","polygon"],"segment":["polygon","rectangle"],"classify":["classification"],"pose":["keypoints"]}.get(task, []),
                     "dataset_schema_supported": schema_supported,
@@ -344,6 +389,7 @@ def model_catalog() -> list[dict[str, Any]]:
         if item["model_arch"] in installed_names:
             continue
         available = bool(settings.training_enabled and backend["installed"] and item["task"] in SUPPORTED_TRAINING_TASKS)
+        model_backend = _architecture_backend(item["architecture"])
         models.append({
             "id": item["model_arch"], "model_arch": item["model_arch"], "name": item["name"],
             "family": item["family"], "task": item["task"], "checkpoint_task": None,
@@ -354,7 +400,9 @@ def model_catalog() -> list[dict[str, Any]]:
             "size_bytes": item["size_bytes"], "parameters": None, "trainable_parameters": None,
             "recommended": Path(item["path"]).resolve() in recommended_paths and available,
             "reason": "" if available else "训练功能已禁用或未安装 ultralytics",
-            "defaults": _model_defaults(None),
+            "model_backend": model_backend, "constraints": _model_constraints(model_backend),
+            "warnings": _model_warnings(item["model_arch"], model_backend),
+            "defaults": _model_defaults(None, item["model_arch"], model_backend),
             "compatibility": {"annotation_shapes": {"detect": ["rectangle", "polygon"], "segment": ["polygon", "rectangle"], "classify": ["classification"], "pose": ["keypoints"]}.get(item["task"], []), "dataset_schema_supported": item["task"] in SUPPORTED_TRAINING_TASKS},
         })
     return sorted(models, key=lambda item: (KNOWN_TASKS.index(item["task"]) if item["task"] in KNOWN_TASKS else 99, item["family"], item["id"]))
@@ -791,7 +839,8 @@ def _resolve_base_model(model_arch: str, task: str) -> tuple[Path, dict[str, Any
 def _initialization_snapshot(model: dict[str, Any], pretrained: bool) -> dict[str, Any]:
     """Freeze server-owned model metadata; request bodies cannot select a URL/YAML."""
     source = model.get("source", "local")
-    snapshot: dict[str, Any] = {"source": source, "pretrained": pretrained}
+    snapshot: dict[str, Any] = {"source": source, "pretrained": pretrained,
+                              "model_backend": model.get("model_backend", _architecture_backend(model.get("architecture")))}
     if not pretrained:
         if not model.get("supports_scratch") or not model.get("architecture"):
             raise HTTPException(409, "此权重没有可重建的模型架构，不能从随机权重开始训练")
@@ -1109,6 +1158,12 @@ def create_training_run(
         )
     base_model, model_metadata = resolved_model
     initialization = _initialization_snapshot(model_metadata, payload.pretrained)
+    model_backend = initialization["model_backend"]
+    defaults = model_metadata.get("defaults") or _model_defaults(model_metadata.get("parameters"), payload.model_arch, model_backend)
+    payload = payload.model_copy(update={key: defaults[key] for key in ("batch_size", "amp", "deterministic")
+                                         if key in defaults and key not in payload.model_fields_set})
+    if model_backend == "rtdetr" and payload.image_size < 128:
+        raise HTTPException(422, "RT-DETR 输入尺寸至少为 128，否则特征候选数量不足以生成 300 个查询。")
     resources = training_resources()
     requested_device = "cuda:0" if payload.device == "cuda" else payload.device
     resource_ids = {item["id"] for item in resources["devices"] if item["available"]}
@@ -1466,6 +1521,49 @@ def _validated_artifact(path_value: str | None, kind: str, metadata: dict | None
     return path
 
 
+def _run_model_backend(run: dict[str, Any]) -> str:
+    """Use frozen architecture or inspected artifact metadata, never its filename."""
+    metadata = _parse_json(run.get("artifact_metadata_json"))
+    config = _parse_json(run.get("settings_json"))
+    initialization = config.get("model_initialization") or {}
+    for value in (metadata.get("model_backend"), initialization.get("model_backend")):
+        if value in {"yolo", "rtdetr"}:
+            return value
+    architecture = initialization.get("architecture") or (initialization.get("builtin") or {}).get("architecture")
+    if architecture:
+        return _architecture_backend(architecture)
+    if run.get("artifact_path"):
+        try:
+            path = _validated_artifact(run["artifact_path"], "训练", metadata)
+            return _checkpoint_probe(path).get("model_backend", "yolo")
+        except (HTTPException, OSError):
+            # Artifact validation remains authoritative at conversion creation
+            # and execution; a missing legacy artifact has no inspectable head.
+            return "yolo"
+    return "yolo"
+
+
+_RTDETR_RKNN_REASON = "RT-DETR 暂不支持 RKNN 转换；校准和部署预处理尚未适配，请使用 ONNX、TorchScript 或 PyTorch。"
+
+
+def _conversion_formats_for_run(run: dict[str, Any]) -> dict[str, Any]:
+    formats = {key: dict(value) for key, value in training_availability()["conversion_formats"].items()}
+    if _run_model_backend(run) == "rtdetr":
+        formats["rknn"].update(available=False, reason=_RTDETR_RKNN_REASON)
+    return formats
+
+
+def _validate_conversion_architecture(run: dict[str, Any], format: str, image_size: int, dynamic: bool) -> None:
+    if _run_model_backend(run) != "rtdetr":
+        return
+    if format == "rknn":
+        raise HTTPException(422, _RTDETR_RKNN_REASON)
+    if image_size < 128:
+        raise HTTPException(422, "RT-DETR 转换输入尺寸至少为 128。")
+    if dynamic:
+        raise HTTPException(422, "RT-DETR 当前仅支持固定输入尺寸转换，请关闭动态尺寸。")
+
+
 @router.get("/training-runs/{run_id}/artifact")
 def download_training_artifact(
     run_id: int, _: Actor = Depends(get_actor)
@@ -1479,9 +1577,9 @@ def download_training_artifact(
 
 @router.get("/training-runs/{run_id}/conversions")
 def list_conversions(run_id: int, _: Actor = Depends(get_actor)) -> dict[str, Any]:
-    _require_training_run(run_id)
+    run = _require_training_run(run_id)
     return {
-        "availability": training_availability()["conversion_formats"],
+        "availability": _conversion_formats_for_run(run),
         "conversions": [
             serialize_conversion(row)
             for row in all_rows(
@@ -1498,7 +1596,9 @@ def conversion_options(run_id: int, _: Actor = Depends(get_actor)) -> dict[str, 
     count = len(conversion_tools.calibration_assets(run["version_id"]))
     image_size = _parse_json(run.get("settings_json")).get("image_size", 640)
     rknn = {"target_platform": "rk3588", "quantized": False, "quantized_algorithm": "normal", "optimization_level": 3, "mean_values": [0, 0, 0], "std_values": [255, 255, 255], "input_color": "rgb", "calibration_source": "version_train", "calibration_count": max(1, min(100, count))}
-    return {"training_run_id": run_id, "task": run["task"], "formats": training_availability()["conversion_formats"],
+    model_backend = _run_model_backend(run)
+    return {"training_run_id": run_id, "task": run["task"], "formats": _conversion_formats_for_run(run),
+            "model_backend": model_backend, "constraints": {"min_image_size":128, "dynamic":False} if model_backend == "rtdetr" else {},
             "calibration": {"source": "version_train", "version_id": run["version_id"], "available_count": count, "default_count": max(1, min(100, count)), "max_count": min(1000, count), "reason": "" if count else "训练使用的冻结版本没有训练集图片，无法进行 INT8 校准。"},
             "defaults": {"image_size": image_size, "device": "auto", "batch": 1, "workspace": None, "rknn": rknn}}
 
@@ -1506,6 +1606,7 @@ def conversion_options(run_id: int, _: Actor = Depends(get_actor)) -> dict[str, 
 def _validate_conversion_config(run: dict[str, Any], payload: ConversionCreate, *, check_availability: bool = True) -> dict[str, Any]:
     if run["task"] not in SUPPORTED_TRAINING_TASKS:
         raise HTTPException(422, "当前训练任务类型暂不支持转换。")
+    _validate_conversion_architecture(run, payload.format, payload.image_size, payload.dynamic)
     if check_availability:
         available = training_availability()["conversion_formats"][payload.format]
         if not available["available"]:
@@ -2403,6 +2504,7 @@ def _fresh_training_model(config: dict[str, Any], base_model: Path | None, attem
     if config.get("pretrained", True):
         return YOLO(str(base_model), task=task, verbose=False), str(base_model)
     architecture = config["model_initialization"]["architecture"]
+    model_backend = _architecture_backend(architecture)
     if isinstance(architecture, dict):
         if _scratch_architecture(architecture) != architecture:
             raise RuntimeError("随机初始化架构含无法安全重建的预训练骨干，请重新创建训练任务")
@@ -2411,6 +2513,11 @@ def _fresh_training_model(config: dict[str, Any], base_model: Path | None, attem
         architecture = str(architecture_path)
     # Starting from YAML is essential: pretrained=False on a loaded .pt still
     # transfers that checkpoint's parameters in the Ultralytics trainer.
+    if model_backend == "rtdetr":
+        from ultralytics import RTDETR
+        if task != "detect":
+            raise RuntimeError("RT-DETR 只支持目标检测训练")
+        return RTDETR(architecture), architecture
     return YOLO(architecture, task=task, verbose=False), architecture
 
 
@@ -2793,6 +2900,7 @@ def run_training(run_id: int, worker_id: str, claim_generation: int) -> None:
             claim_generation=claim_generation,
             pretrained=config.get("pretrained", True),
             model_initialization=config.get("model_initialization"),
+            model_backend=_checkpoint_model_backend(model),
         )
         with db() as conn:
             cursor = conn.execute(
@@ -2886,6 +2994,16 @@ def run_conversion(
     conversion_root = settings.training_dir / f"conversion-{conversion_id}"
     attempt_dir = conversion_root / f"attempt-{claim_generation}"
     config = _parse_json(conversion["settings_json"])
+    try:
+        _validate_conversion_architecture(run, conversion["format"], config.get("image_size", 640), config.get("dynamic", False))
+    except HTTPException as exc:
+        with db() as conn:
+            cursor = conn.execute("""UPDATE model_conversions SET status='failed',error=?,finished_at=?,lease_expires_at=NULL,
+                progress_message='转换参数不兼容' WHERE id=? AND status='running' AND claimed_by=? AND claim_generation=?""",
+                (str(exc.detail), now_iso(), conversion_id, worker_id, claim_generation))
+        if cursor.rowcount:
+            _append_conversion_log(conversion_id, "error", "configuration_failed", str(exc.detail))
+        return
     try:
         resource = _acquire_resource_lease(
             "cpu" if conversion["format"] == "rknn" else config.get("device", "auto"),

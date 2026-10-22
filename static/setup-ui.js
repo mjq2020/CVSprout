@@ -35,7 +35,7 @@ export async function mountModelDownloads(container, { api, escapeHtml, notify }
     try {
       const models = await api('/api/model-downloads');
       if (!container.isConnected) return;
-      container.innerHTML = `<p>官方训练模型可直接在新建训练时选择，使用预训练权重时会自动下载并校验。这里可提前准备 YOLOv8、YOLO11、YOLO26 等离线权重及 AI 标注模型；文件保存到持久化存储，升级时保留。</p>
+      container.innerHTML = `<p>官方训练模型可直接在新建训练时选择，使用预训练权重时会自动下载并校验。这里可提前准备 YOLO 系列、RT-DETR 的离线权重及 AI 标注模型；文件保存到持久化存储，升级时保留。</p>
         <div class="model-download-list">${models.map(model => {
           const busy = model.state.status === 'downloading';
           const progress = Math.min(100, Math.round(100 * (model.state.downloaded || 0) / model.size_bytes));
