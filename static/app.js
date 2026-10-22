@@ -1,21 +1,21 @@
-import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.21.1";
-import { renderUsersPage } from "./accounts-ui.js?v=0.21.1";
-import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.21.1";
-import { mountAuthScreen } from "./auth-ui.js?v=0.21.1";
-import { renderAccountPage } from "./security-ui.js?v=0.21.1";
-import { bindAssetManagement } from "./asset-management-ui.js?v=0.21.1";
-import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.21.1";
-import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.21.1";
-import { loadProjectWorkBlocks } from "./project-api.js?v=0.21.1";
-import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.21.1";
-import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.21.1";
-import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.21.1";
-import { mountOverviewTraining } from "./overview-training.js?v=0.21.1";
-import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.21.1";
-import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.21.1";
-import { mountCanvasGuides } from "./canvas-guides.js?v=0.21.1";
-import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.21.1";
-import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.21.1";
+import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.21.2";
+import { renderUsersPage } from "./accounts-ui.js?v=0.21.2";
+import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.21.2";
+import { mountAuthScreen } from "./auth-ui.js?v=0.21.2";
+import { renderAccountPage } from "./security-ui.js?v=0.21.2";
+import { bindAssetManagement } from "./asset-management-ui.js?v=0.21.2";
+import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.21.2";
+import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.21.2";
+import { loadProjectWorkBlocks } from "./project-api.js?v=0.21.2";
+import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.21.2";
+import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.21.2";
+import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.21.2";
+import { mountOverviewTraining } from "./overview-training.js?v=0.21.2";
+import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.21.2";
+import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.21.2";
+import { mountCanvasGuides } from "./canvas-guides.js?v=0.21.2";
+import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.21.2";
+import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.21.2";
 
 const app = document.querySelector("#app");
 const modalRoot = document.querySelector("#modal-root");
@@ -1066,9 +1066,9 @@ async function downloadArtifact(url, fallbackName = "download") {
   } finally { progressNotice.remove(); }
 }
 
-import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.21.1";
-import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.21.1";
-import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.21.1";
+import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.21.2";
+import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.21.2";
+import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.21.2";
 
 const trainingChartViews = new Map();
 const trainingDetailViews = new Map();
@@ -1259,6 +1259,28 @@ function trainingDataIssue(version) {
 }
 function countConversions(runs) { return Number.isFinite(Number(state.conversionCounts?.completed)) ? Number(state.conversionCounts.completed) : runs.reduce((sum, run) => sum + (run.conversions?.filter(item => item.status === "completed").length || 0), 0); }
 
+function trainingReadiness() {
+  const availability = state.training?.availability || {};
+  const models = state.trainingCatalog?.models || [];
+  const worker = state.trainingResources?.worker || {};
+  const hasModel = models.some(model => model.available);
+  const hasWorker = Boolean(worker.embedded_enabled || Number(worker.online_count || 0) > 0);
+  const runtimeHealthy = Boolean(availability.available && hasModel && hasWorker);
+  const blocked = (status, reason, action = null) => ({ ready: false, runtimeHealthy, status, reason, action });
+  if (!canReview()) return blocked("permission", "训练与模型转换由审核员或管理员操作，你可以查看记录和下载已有模型。");
+  if (!state.versions.length) return blocked("version", "请先生成数据版本，再开始训练。", { href: `#/projects/${state.project.id}/versions`, label: "去生成数据版本" });
+  if (!runtimeHealthy && state.trainingEnvironmentLoading) return blocked("loading", "正在检查训练环境，已有训练记录与进度会照常更新。");
+  const backendReason = String(availability.reason || "").trim();
+  if (!hasModel && (!backendReason || /权重|checkpoint/i.test(backendReason) || availability.available)) {
+    const reason = backendReason || models.find(model => model.reason)?.reason || "没有可用于训练的本地模型权重。";
+    return blocked("model", `${reason} ${isAdmin() ? "请到“模型服务”下载或导入训练权重，然后返回此页刷新。" : "请联系管理员到“模型服务”准备训练权重，再返回此页刷新。"}`,
+      isAdmin() ? { href: "#/models", label: "准备训练模型" } : null);
+  }
+  if (!availability.available) return blocked("environment", backendReason || "训练环境暂时无法检查，请联系管理员检查依赖与服务配置，再刷新重试。");
+  if (!hasWorker) return blocked("worker", "训练权重已就绪，但没有在线的训练执行服务。请联系管理员启动 worker，或检查训练功能是否启用，再刷新重试。");
+  return { ready: true, runtimeHealthy: true, status: "ready", reason: "数据与训练服务已就绪，首次训练可使用推荐模型和默认参数。", action: null };
+}
+
 function renderTrainingPage() {
   if (deferRenderForNavigation("train") || document.querySelector('#training-search[data-composing="true"]')) return;
   const viewSnapshot = captureTrainingViewState();
@@ -1266,12 +1288,10 @@ function renderTrainingPage() {
   const availability = state.training?.availability || { available: false, reason: "训练环境不可用" };
   const models = state.trainingCatalog?.models || [];
   const tasks = Object.keys(state.trainingCatalog?.tasks || {});
-  const worker = state.trainingResources?.worker || {};
-  const runtimeHealthy = Boolean(availability.available && models.some(model => model.available) && (worker.embedded_enabled || Number(worker.online_count || 0) > 0));
-  const allowed = canReview(), createReady = allowed && runtimeHealthy && state.versions.length;
-  const blockReason = !allowed ? "训练与模型转换由审核员或管理员操作，你可以查看记录和下载已有模型。" : !state.versions.length ? "请先生成数据版本，再开始训练。" : !runtimeHealthy ? state.trainingEnvironmentLoading ? "正在检查训练环境，已有训练记录与进度会照常更新。" : "训练服务暂不可用，已有训练记录仍可查看。请联系管理员检查服务后刷新。" : "数据与训练服务已就绪，首次训练可使用推荐模型和默认参数。";
-  let detail = state.trainingSelectionLoading ? '<div class="training-detail-empty surface" role="status"><span class="spinner"></span><strong>正在读取所选训练…</strong><p>请稍候，操作按钮将在记录确认后显示。</p></div>' : state.trainingSelectionError ? `<div class="training-detail-empty surface" role="alert"><strong>暂时无法显示这次训练</strong><p>${escapeHtml(state.trainingSelectionError)}</p><button class="btn ghost" id="retry-selected-training">重新读取</button></div>` : monitored ? trainingRunCard(monitored) : `<div class="training-detail-empty surface"><span class="card-icon">${icon("cpu")}</span><strong>${state.training.total ? "选择一条训练记录" : "还没有训练记录"}</strong><p>${state.training.total ? "从左侧选择后，这里会显示曲线、参数及模型文件。" : escapeHtml(blockReason)}</p>${createReady ? '<button class="btn primary" id="empty-new-training">开始第一次训练</button>' : !state.versions.length ? `<a class="btn ghost link-btn" href="#/projects/${state.project.id}/versions">去生成数据版本</a>` : ""}</div>`;
-  app.innerHTML = projectPageShell("train", `<div class="page-head compact-head"><div><h1>训练与模型导出</h1><p class="page-subtitle">每次训练独立保存。选择左侧记录，查看曲线、参数和模型文件。</p></div><div class="training-page-actions"><button class="btn ghost" id="refresh-training" ${state.pipelineManualRefreshing ? "disabled" : ""}>${state.pipelineManualRefreshing ? '<span class="spinner"></span>刷新中' : `${icon("refresh")}刷新`}</button><button class="btn primary" id="new-training" ${createReady ? "" : "disabled"} title="${escapeHtml(blockReason)}">${icon("play")}开始新训练</button></div></div>${trainingSyncMarkup()}${!createReady ? `<p class="inline-notice training-start-notice" role="status">${escapeHtml(blockReason)}</p>` : ""}<div class="training-workbench">${trainingListMarkup(state, { escapeHtml, trainingStatusLabel, trainingTaskInfo, formatDateTime, icon })}<section class="training-selected-detail" data-selected-run="${monitored?.id || ""}" aria-label="所选训练详情">${detail}</section></div><details class="training-runtime-details surface pipeline-details" data-pipeline-detail="catalog"><summary>${runtimeHealthy ? "训练环境与可用模型" : "训练环境暂不可用 · 查看原因"}</summary><p>${escapeHtml(blockReason)}</p>${!runtimeHealthy ? `<p>${escapeHtml(availability.reason || "没有在线的训练执行服务或可用模型。")}</p>` : ""}<div class="task-capability-grid">${tasks.map(trainingTaskCapabilityCard).join("")}</div><div class="catalog-model-strip">${models.map(trainingCatalogModelCard).join("")}</div>${trainingLicenseMarkup()}</details>`);
+  const { ready: createReady, runtimeHealthy, reason: blockReason, action } = trainingReadiness();
+  const readinessAction = action ? `<a class="btn ghost link-btn" href="${escapeHtml(action.href)}">${escapeHtml(action.label)}</a>` : "";
+  let detail = state.trainingSelectionLoading ? '<div class="training-detail-empty surface" role="status"><span class="spinner"></span><strong>正在读取所选训练…</strong><p>请稍候，操作按钮将在记录确认后显示。</p></div>' : state.trainingSelectionError ? `<div class="training-detail-empty surface" role="alert"><strong>暂时无法显示这次训练</strong><p>${escapeHtml(state.trainingSelectionError)}</p><button class="btn ghost" id="retry-selected-training">重新读取</button></div>` : monitored ? trainingRunCard(monitored) : `<div class="training-detail-empty surface"><span class="card-icon">${icon("cpu")}</span><strong>${state.training.total ? "选择一条训练记录" : "还没有训练记录"}</strong><p>${state.training.total ? "从左侧选择后，这里会显示曲线、参数及模型文件。" : escapeHtml(blockReason)}</p>${createReady ? '<button class="btn primary" id="empty-new-training">开始第一次训练</button>' : readinessAction}</div>`;
+  app.innerHTML = projectPageShell("train", `<div class="page-head compact-head"><div><h1>训练与模型导出</h1><p class="page-subtitle">每次训练独立保存。选择左侧记录，查看曲线、参数和模型文件。</p></div><div class="training-page-actions"><button class="btn ghost" id="refresh-training" ${state.pipelineManualRefreshing ? "disabled" : ""}>${state.pipelineManualRefreshing ? '<span class="spinner"></span>刷新中' : `${icon("refresh")}刷新`}</button><button class="btn primary" id="new-training" ${createReady ? "" : "disabled"} title="${escapeHtml(blockReason)}">${icon("play")}开始新训练</button></div></div>${trainingSyncMarkup()}${!createReady ? `<div class="inline-notice training-start-notice" role="status"><span>${escapeHtml(blockReason)}</span>${readinessAction}</div>` : ""}<div class="training-workbench">${trainingListMarkup(state, { escapeHtml, trainingStatusLabel, trainingTaskInfo, formatDateTime, icon })}<section class="training-selected-detail" data-selected-run="${monitored?.id || ""}" aria-label="所选训练详情">${detail}</section></div><details class="training-runtime-details surface pipeline-details" data-pipeline-detail="catalog"><summary>${runtimeHealthy ? "训练环境与可用模型" : "训练环境暂不可用 · 查看原因"}</summary><p>${escapeHtml(blockReason)}</p>${!runtimeHealthy ? `<p>${escapeHtml(availability.reason || "没有在线的训练执行服务或可用模型。")}</p>` : ""}<div class="task-capability-grid">${tasks.map(trainingTaskCapabilityCard).join("")}</div><div class="catalog-model-strip">${models.map(trainingCatalogModelCard).join("")}</div>${trainingLicenseMarkup()}</details>`);
   bindCommonProjectEvents(); bindTrainingPageEvents(); restoreTrainingViewState(viewSnapshot);
   if (monitored && !state.trainingMetricsHistory[monitored.id]?.attemptedAt) void loadTrainingMetrics(monitored.id, { render: true });
 }

@@ -79,7 +79,8 @@
 .training-values #all-training-values { margin-top: 10px; }
 .training-card [data-monitor-training][aria-pressed="true"] { color: var(--brand); background: var(--brand-soft); }
 .training-page-actions { display: flex; flex-wrap: wrap; gap: 10px; }
-.training-start-notice { margin: 0 0 18px; }
+.training-start-notice { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0 0 18px; }
+.training-start-notice > span { flex: 1 1 280px; min-width: 0; }
 .training-artifact-notice { margin-bottom: 0; line-height: 1.7; }
 .training-workbench { display: grid; grid-template-columns: 310px minmax(0, 1fr); align-items: start; gap: 22px; }
 .training-sidebar { position: sticky; top: 16px; min-width: 0; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; }
