@@ -97,6 +97,17 @@ class QwenLocalTest(unittest.IsolatedAsyncioTestCase):
         with patch.object(qwen_local, "_load_qwen", return_value=self.models(payload, **options)):
             return await self.provider.predict(self.image_path, 200, 100, "标注目标", ["Car", "Other"], hints)
 
+    async def test_mixed_project_keeps_default_detection_after_task_hint_validation(self):
+        from app.annotation_inference import inference_hints, prepare_inference
+
+        context = prepare_inference({"task_type": "mixed"}, [{"name": "Car"}],
+                                    {"hints": {"task_type": "segment"}}, "Car")
+        hints = inference_hints(context, {"id": 1}, 1)
+        predictions = await self.predict({"objects": [{"label": "Car", "bbox": [100, 200, 300, 600]}]}, hints)
+        self.assertEqual(len(predictions), 1)
+        self.assertEqual(predictions[0].shape_type, "rectangle")
+        self.assertEqual(predictions[0].points, [20, 20, 60, 60])
+
     def test_status_checks_local_files_without_constructing_or_downloading_models(self):
         with patch.object(qwen_local, "_load_qwen", side_effect=AssertionError("status loaded weights")):
             self.assertEqual(qwen_local.local_qwen_runtime_status(str(self.model_path)), (True, ""))

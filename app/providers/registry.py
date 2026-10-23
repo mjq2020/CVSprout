@@ -27,7 +27,7 @@ from .yolo import LocalYoloProvider
 
 def supported_tasks(provider_type: str, config: dict) -> list[str]:
     return {
-        "local_grounding_dino": ["detect"], "local_sam2": ["segment"], "local_sam3": ["segment"],
+        "local_grounding_dino": ["detect"], "local_sam2": ["segment"], "local_sam3": ["detect", "segment"],
         "remote_detection": ["detect"], "remote_segmentation": ["segment"],
         "interactive_segmentation": ["segment"], "remote_classification": ["classify"],
         "remote_keypoints": ["pose"], "local_yolo": [config.get("task", "detect")],
@@ -75,11 +75,11 @@ BUILTINS = [
         "name": "SAM 3（本地）",
         "family": "概念分割",
         "provider_type": "local_sam3",
-        "description": "使用本地 SAM 3 权重，通过文本概念查找全部实例并生成可编辑的多边形标注。",
+        "description": "使用本地 SAM 3 权重，按文本概念查找实例；检测项目输出矩形框，分割项目输出多边形。",
         "endpoint": "local://sam3",
         "model_name": str(settings.sam3_checkpoint),
         "api_key_env": "",
-        "capabilities": ["实例分割", "多边形", "开放词汇"],
+        "capabilities": ["检测框", "实例分割", "多边形", "开放词汇"],
         "modes": ["auto"],
         "badge": "推荐分割",
         "force_sync": True,

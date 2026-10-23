@@ -1,4 +1,4 @@
-import { route, state, api, app, topbar, escapeHtml, notify, openModal, closeModal, jsonOptions, renderLoginScreen } from "./app.js?v=0.25.0";
+import { route, state, api, app, topbar, escapeHtml, notify, openModal, closeModal, jsonOptions, renderLoginScreen } from "./app.js?v=0.25.1";
 
 const roles = {admin:"管理员", reviewer:"审核员", annotator:"标注员"};
 const actions = {login_success:"登录成功", login_failure:"登录失败", login_failed:"登录失败", logout:"退出登录", create:"创建账号", update:"更新账号", password_change:"修改密码", password_changed:"修改密码", password_reset:"重置密码", unlock:"解除登录限制", revoke_sessions:"撤销登录", session_revoked:"撤销登录", revoke_session:"撤销登录", profile_update:"修改个人资料"};

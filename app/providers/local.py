@@ -373,12 +373,16 @@ class _UltralyticsSam3Processor:
 
     def set_image(self, image: Image.Image) -> dict[str, Any]:
         self.predictor.reset_image()
-        self.predictor.reset_prompts()
+        self.reset_all_prompts({})
         self.predictor.set_image(image)
         return {"image_size": (image.height, image.width)}
 
     def reset_all_prompts(self, state: dict[str, Any]) -> None:
         self.predictor.reset_prompts()
+        # Upstream clears text_embeddings but leaves names unchanged. Its
+        # inference path only rebuilds embeddings when names differ, so the
+        # same label on the next image would otherwise miss language_features.
+        self.predictor.model.names = []
 
     def set_text_prompt(self, *, prompt: str, state: dict[str, Any]) -> dict[str, Any]:
         masks, boxes = self.predictor.inference_features(
@@ -456,6 +460,38 @@ def _load_sam3(
             cached = (processor, model)
             _MODEL_CACHE[key] = cached
     return cached[0], cached[1], device
+
+
+def _sam3_detection_prediction(
+    mask: Any, box: Any, score: Any, label: str, width: int, height: int,
+) -> Prediction | None:
+    """Enclose the complete instance mask, including disconnected components.
+
+    Use pixel edges (max index + 1), so a single foreground pixel remains a
+    valid rectangle and masks touching the right/bottom edge stay in bounds.
+    Empty masks retain the model's valid detection box, as the mixed output did.
+    """
+    import numpy as np
+
+    mask_array = mask.detach().cpu().numpy()
+    while mask_array.ndim > 2 and mask_array.shape[0] == 1:
+        mask_array = mask_array[0]
+    if mask_array.shape != (height, width) or not np.isfinite(mask_array).all():
+        return None
+    ys, xs = np.nonzero(mask_array > 0.5)
+    if xs.size:
+        points = [float(xs.min()), float(ys.min()), float(xs.max() + 1), float(ys.max() + 1)]
+    else:
+        coordinates = box.detach().cpu().numpy().reshape(-1)
+        if coordinates.size != 4 or not np.isfinite(coordinates).all():
+            return None
+        x1, y1, x2, y2 = [float(value) for value in coordinates]
+        points = [max(0.0, min(width, x1)), max(0.0, min(height, y1)),
+                  max(0.0, min(width, x2)), max(0.0, min(height, y2))]
+        if points[2] <= points[0] or points[3] <= points[1]:
+            return None
+    return Prediction(label=label, shape_type="rectangle", points=points,
+                      confidence=float(score), attributes={})
 
 
 def _sam3_mask_prediction(
@@ -738,12 +774,14 @@ class LocalSam3Provider(AnnotationProvider):
         if not available:
             raise RuntimeError(error)
         return await asyncio.to_thread(
-            self._predict_sync, image_path, width, height, target_labels, confidence_threshold
+            self._predict_sync, image_path, width, height, target_labels, confidence_threshold,
+            (hints or {}).get("task_type", "segment"),
         )
 
     @serialized_local_inference
     def _predict_sync(
-        self, image_path: Path, width: int, height: int, labels: list[str], confidence_threshold: float = 0.35
+        self, image_path: Path, width: int, height: int, labels: list[str], confidence_threshold: float = 0.35,
+        task_type: str = "segment",
     ) -> list[Prediction]:
         import torch
 
@@ -764,6 +802,7 @@ class LocalSam3Provider(AnnotationProvider):
             state = processor.set_image(image)
 
         predictions: list[Prediction] = []
+        to_prediction = _sam3_detection_prediction if task_type == "detect" else _sam3_mask_prediction
         for index, label in enumerate(labels):
             if index:
                 processor.reset_all_prompts(state)
@@ -776,7 +815,7 @@ class LocalSam3Provider(AnnotationProvider):
             for mask, box, score in zip(
                 output["masks"], output["boxes"], output["scores"]
             ):
-                prediction = _sam3_mask_prediction(
+                prediction = to_prediction(
                     mask, box, score, label, width, height
                 )
                 if prediction is not None:

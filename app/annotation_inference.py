@@ -41,9 +41,13 @@ def inference_hints(context: InferenceContext, asset: dict, asset_count: int) ->
         hints = {"shape_type": hint["shape_type"], "points": json.loads(hint["points_json"]),
                  "label": hint["label_name"], **(hints or {})}
     project = context.project
-    if project.get("task_type") in {"classify", "pose", "segment"}:
+    if project.get("task_type") in {"detect", "classify", "pose", "segment"}:
         hints = {**(hints or {}), "task_type": project["task_type"],
                  "keypoint_schema": json.loads(project.get("keypoint_schema_json") or "{}")}
+    elif project.get("task_type") == "mixed" and hints:
+        # Legacy mixed projects retain each provider's default output. In
+        # particular, Qwen defaults to detection and SAM3 to segmentation.
+        hints = {key: value for key, value in hints.items() if key != "task_type"}
     return {**(hints or {}), "confidence_threshold": float(context.config.get("confidence_threshold", 0.35))}
 
 

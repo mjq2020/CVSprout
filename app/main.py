@@ -98,7 +98,7 @@ async def lifespan(application: FastAPI):
                     await pipeline_task
 
 
-app = FastAPI(title="CVSprout 标注平台", version="0.25.0", lifespan=lifespan)
+app = FastAPI(title="CVSprout 标注平台", version="0.25.1", lifespan=lifespan)
 app.middleware("http")(browser_security)
 app.add_middleware(RequestBodyLimit, policy=request_budget)
 app.include_router(accounts_router)

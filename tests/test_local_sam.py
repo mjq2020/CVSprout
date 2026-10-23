@@ -198,6 +198,38 @@ class LocalSamInferenceTests(unittest.TestCase):
                 stream.truncate(path.stat().st_size - 22)
             self.assertFalse(local._checkpoint_status(path, "SAM3")[0])
 
+    def test_detection_box_encloses_all_mask_components_and_image_edges(self):
+        mask = self.torch.zeros((1, 30, 40), dtype=self.torch.bool)
+        mask[0, 5:10, 3:8] = True
+        mask[0, 29, 39] = True
+        result = local._sam3_detection_prediction(mask, self.torch.tensor([0, 0, 10, 10]), .7, "cat", 40, 30)
+        self.assertEqual(result.shape_type, "rectangle")
+        self.assertEqual(result.points, [3, 5, 40, 30])
+        self.assertEqual(result.label, "cat")
+        self.assertEqual(result.confidence, .7)
+        self.assertEqual(result.keypoints, [])
+
+    def test_detection_single_pixel_and_single_pixel_image_remain_valid(self):
+        mask = self.torch.zeros((30, 40), dtype=self.torch.bool)
+        mask[4, 7] = True
+        result = local._sam3_detection_prediction(mask, self.torch.zeros(4), .8, "cat", 40, 30)
+        self.assertEqual(result.points, [7, 4, 8, 5])
+        for shape in ((1, 1), (1, 1, 1)):
+            result = local._sam3_detection_prediction(self.torch.ones(shape), self.torch.zeros(4), .8, "cat", 1, 1)
+            self.assertEqual(result.points, [0, 0, 1, 1])
+
+    def test_detection_empty_mask_falls_back_to_clipped_valid_model_box(self):
+        mask = self.torch.zeros((30, 40), dtype=self.torch.bool)
+        result = local._sam3_detection_prediction(mask, self.torch.tensor([-5, 2, 50, 35]), .8, "cat", 40, 30)
+        self.assertEqual(result.points, [0, 2, 40, 30])
+        for points in ([20, 10, 5, 2], [50, 2, 60, 10], [0, 1, float("nan"), 10], [1, 2, 3]):
+            with self.subTest(points=points):
+                self.assertIsNone(local._sam3_detection_prediction(mask, self.torch.tensor(points), .8, "cat", 40, 30))
+
+    def test_detection_rejects_wrong_sized_and_nonfinite_masks(self):
+        for mask in (self.torch.ones((2, 3)), self.torch.full((30, 40), float("nan")), self.torch.ones((2, 30, 40))):
+            self.assertIsNone(local._sam3_detection_prediction(mask, self.torch.tensor([1, 1, 10, 10]), .8, "cat", 40, 30))
+
     def test_sam2_hf_numeric_box_runs_inference_and_returns_best_polygon(self):
         torch = self.torch
         masks = torch.zeros((1, 2, 30, 40), dtype=torch.bool)
@@ -317,6 +349,58 @@ class LocalSamInferenceTests(unittest.TestCase):
         self.assertEqual(predictor.reset_prompts.call_count, 2)
         self.assertEqual([call.kwargs["text"] for call in predictor.inference_features.call_args_list], [["cat"], ["dog"]])
         self.assertTrue(all(call.args[1] == (30, 40) for call in predictor.inference_features.call_args_list))
+
+    @unittest.skipUnless(importlib.util.find_spec("ultralytics"), "requires Ultralytics")
+    def test_sam3_text_cache_rebuilds_for_repeated_labels_across_images(self):
+        from ultralytics.models.sam.predict import SAM3SemanticPredictor
+
+        encoded_images, encoded_text, observed = [], [], []
+
+        class Model:
+            names = []
+            text_embeddings = {}
+
+            def set_classes(self, text):
+                self.names = text
+                encoded_text.append(list(text))
+                self.text_embeddings = {"language_features": tuple(text)}
+
+            def forward_grounding(self, backbone_out, **kwargs):
+                backbone_out.update(self.text_embeddings)
+                observed.append((backbone_out["image_id"], backbone_out["language_features"]))
+
+        predictor = SimpleNamespace(model=Model(), device="cpu", features=None)
+
+        def set_image(image):
+            encoded_images.append(image)
+            predictor.features = {"image_id": len(encoded_images)}
+
+        def inference(features, size, *, text):
+            # Exercise the installed implementation's names-based cache gate,
+            # instead of duplicating that gate in a fake inference method.
+            SAM3SemanticPredictor._inference_features(predictor, features, text=text)
+            return None, self.torch.zeros((0, 6))
+
+        predictor.reset_image = lambda: setattr(predictor, "features", None)
+        predictor.reset_prompts = lambda: SAM3SemanticPredictor.reset_prompts(predictor)
+        predictor.set_image = set_image
+        predictor.inference_features = inference
+        processor = local._UltralyticsSam3Processor(predictor)
+        with Image.open(self.image) as image:
+            first = processor.set_image(image)
+            processor.set_text_prompt(prompt="cat", state=first)
+            second = processor.set_image(image)
+            processor.set_text_prompt(prompt="cat", state=second)
+            processor.reset_all_prompts(second)
+            processor.set_text_prompt(prompt="dog", state=second)
+            processor.reset_all_prompts(second)
+            processor.set_text_prompt(prompt="dog", state=second)
+            third = processor.set_image(image)
+            processor.set_text_prompt(prompt="dog", state=third)
+        self.assertEqual(len(encoded_images), 3)
+        self.assertEqual(encoded_text, [["cat"], ["cat"], ["dog"], ["dog"], ["dog"]])
+        self.assertEqual(observed, [(1, ("cat",)), (2, ("cat",)), (2, ("dog",)),
+                                    (2, ("dog",)), (3, ("dog",))])
 
 
 if __name__ == "__main__":
