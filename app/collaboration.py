@@ -49,11 +49,11 @@ def guard_asset(conn: sqlite3.Connection, asset_id: int, actor: Actor, *, editab
 
 
 def guard_job_targets(conn: sqlite3.Connection, project_id: int, asset_ids: list[int], *, exclude: int | None = None,
-                      assist_owner_key: str | None = None) -> None:
+                      owner_key: str | None = None) -> None:
     if not asset_ids:
         raise HTTPException(409, "没有可处理的图片")
     from .work_blocks import guard_block_ai
-    guard_block_ai(conn, project_id, asset_ids, assist_owner_key=assist_owner_key)
+    guard_block_ai(conn, project_id, asset_ids, owner_key=owner_key)
     conflict = active_job_for_assets(conn, project_id, asset_ids, exclude)
     if conflict:
         raise HTTPException(409, f"所选图片与 AI 任务 #{conflict} 重叠，请选择其他图片或等待任务结束")

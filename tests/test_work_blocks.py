@@ -3,12 +3,14 @@ from __future__ import annotations
 import asyncio
 import importlib
 import io
+import json
 import tempfile
 import threading
 import unittest
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
@@ -396,7 +398,7 @@ class WorkBlocksTest(unittest.TestCase):
         accepted = self.request("POST", path, user="alice", json=payload)
         self.assertEqual(accepted.status_code, 202, accepted.text)
         job_id = accepted.json()["id"]
-        self.assertEqual(accepted.json()["settings"]["assist_owner_key"], f"user:{self.users['alice']['id']}")
+        self.assertEqual(accepted.json()["settings"]["block_owner_key"], f"user:{self.users['alice']['id']}")
         current = self.detail(project, block["id"])
         transfer = self.request("POST", self.base(project) + f"/{block['id']}/assign",
                                 json={"expected_revision": current["revision"], "user_id": self.users["bob"]["id"]})
@@ -409,6 +411,241 @@ class WorkBlocksTest(unittest.TestCase):
         self.assertEqual(len(annotations), 1)
         self.assertFalse(one("SELECT negative_confirmed FROM assets WHERE id=?", (assets[0],))["negative_confirmed"])
         self.assertEqual(self.detail(project, block["id"])["owner_user_id"], self.users["alice"]["id"])
+
+    def test_owner_batch_auto_preserves_manual_and_modified_annotations(self):
+        project, assets = self.fixture(3)
+        self.create_blocks(project)
+        block = self.claim(project)
+        manual = self.annotation(project, assets[0], "alice")
+        modified = self.annotation(project, assets[0], "alice")
+        replaceable = self.annotation(project, assets[0], "alice")
+        with db() as conn:
+            conn.execute("UPDATE annotations SET source='auto',human_modified=1 WHERE id=?", (modified["id"],))
+            conn.execute("UPDATE annotations SET source='assist',human_modified=0 WHERE id=?", (replaceable["id"],))
+        preserved = all_rows("SELECT * FROM annotations WHERE id IN (?,?) ORDER BY id", (manual["id"], modified["id"]))
+        self.annotation(project, assets[1], "alice")
+        self.assertEqual(self.workflow(assets[1], "submit").status_code, 200)
+        self.assertEqual(self.workflow(assets[1], "reject", user="review").status_code, 200)
+        payload = {"model_id": "demo", "prompt": "object", "asset_ids": assets}
+        path = f"/api/projects/{project['id']}/jobs"
+        accepted = self.request("POST", path, user="alice", json=payload)
+        self.assertEqual(accepted.status_code, 202, accepted.text)
+        job_id = accepted.json()["id"]
+        self.assertEqual(accepted.json()["total"], 3)
+        self.assertEqual(accepted.json()["settings"]["block_owner_key"], f"user:{self.users['alice']['id']}")
+        self.assertEqual(self.request("POST", path, user="alice", json=payload).status_code, 409)
+        self.assertEqual(self.workflow(assets[0], "submit").status_code, 409)
+        current = self.detail(project, block["id"])
+        for action, extra in (("release", {}), ("assign", {"user_id": self.users["bob"]["id"]})):
+            response = self.request("POST", self.base(project) + f"/{block['id']}/{action}",
+                                    json={"expected_revision": current["revision"], **extra})
+            self.assertEqual(response.status_code, 409, response.text)
+        self.assertEqual(claim_next_job("owner-batch"), job_id)
+        asyncio.run(run_annotation_job(job_id, "owner-batch"))
+        result = self.client.get(f"/api/jobs/{job_id}").json()
+        self.assertEqual(result["status"], "completed", result)
+        self.assertEqual(result["processed"], 3)
+        self.assertEqual(all_rows("SELECT * FROM annotations WHERE id IN (?,?) ORDER BY id", (manual["id"], modified["id"])), preserved)
+        self.assertIsNotNone(one("SELECT deleted_at FROM annotations WHERE id=?", (replaceable["id"],))["deleted_at"])
+        self.assertEqual(one("SELECT COUNT(*) AS n FROM annotations WHERE source='auto' AND human_modified=0 AND deleted_at IS NULL")["n"], 3)
+        self.assertEqual(self.detail(project, block["id"])["owner_user_id"], self.users["alice"]["id"])
+
+    def test_owner_identity_cannot_be_forged_in_payload_or_hints(self):
+        project, assets = self.fixture(1)
+        self.create_blocks(project)
+        self.claim(project)
+        path = f"/api/projects/{project['id']}/jobs"
+        identity = f"user:{self.users['alice']['id']}"
+        for user in ("bob", "admin"):
+            for extra in ({}, {"block_owner_key": identity, "assist_owner_key": identity},
+                          {"hints": {"block_owner_key": identity, "assist_owner_key": identity}}):
+                with self.subTest(user=user, extra=extra):
+                    denied = self.request("POST", path, user=user,
+                                          json={"model_id": "demo", "prompt": "object", "asset_ids": assets, **extra})
+                    self.assertEqual(denied.status_code, 409, denied.text)
+        accepted = self.request("POST", path, user="alice", session="new-browser",
+                                json={"model_id": "demo", "prompt": "object", "asset_ids": assets,
+                                      "block_owner_key": "user:forged", "hints": {"block_owner_key": "user:forged"}})
+        self.assertEqual(accepted.status_code, 202, accepted.text)
+        self.assertEqual(accepted.json()["settings"]["block_owner_key"], identity)
+
+    def test_block_review_protection_cannot_be_bypassed_by_include_reviewed(self):
+        project, assets = self.fixture(4, annotated=True)
+        self.create_blocks(project)
+        self.claim(project, "admin")
+        for asset_id in assets[1:]:
+            self.assertEqual(self.workflow(asset_id, "submit", user="admin").status_code, 200)
+        self.assertEqual(self.workflow(assets[1], "reject", user="review").status_code, 200)
+        self.assertEqual(self.workflow(assets[3], "approve", user="review").status_code, 200)
+        path = f"/api/projects/{project['id']}/jobs"
+        payload = {"model_id": "demo", "prompt": "object", "include_reviewed": True}
+        for reviewed in assets[2:]:
+            response = self.request("POST", path, json={**payload, "asset_ids": [reviewed]})
+            self.assertEqual(response.status_code, 409, response.text)
+        whole = self.request("POST", path, json=payload)
+        self.assertEqual(whole.status_code, 202, whole.text)
+        self.assertEqual(whole.json()["settings"]["asset_ids"], assets[:2])
+        self.assertEqual(self.request("POST", f"/api/jobs/{whole.json()['id']}/cancel").status_code, 200)
+        completed, completed_assets = self.fixture(1, annotated=True)
+        self.create_blocks(completed)
+        self.claim(completed, "admin")
+        self.assertEqual(self.workflow(completed_assets[0], "submit", user="admin").status_code, 200)
+        self.assertEqual(self.workflow(completed_assets[0], "approve", user="review").status_code, 200)
+        denied = self.request("POST", f"/api/projects/{completed['id']}/jobs", json={**payload, "asset_ids": completed_assets})
+        self.assertEqual(denied.status_code, 409, denied.text)
+
+    def test_released_block_requires_a_new_owner_before_ai(self):
+        project, assets = self.fixture(2)
+        self.create_blocks(project)
+        block = self.claim(project)
+        released = self.request("POST", self.base(project) + f"/{block['id']}/release", user="alice",
+                                json={"expected_revision": block["revision"]})
+        self.assertEqual(released.status_code, 200, released.text)
+        path = f"/api/projects/{project['id']}/jobs"
+        payload = {"model_id": "demo", "prompt": "object", "asset_ids": assets}
+        for user in ("alice", "bob", "admin"):
+            self.assertEqual(self.request("POST", path, user=user, json=payload).status_code, 409)
+        self.claim(project, "bob", block["id"])
+        self.assertEqual(self.request("POST", path, user="alice", json=payload).status_code, 409)
+        accepted = self.request("POST", path, user="bob", json=payload)
+        self.assertEqual(accepted.status_code, 202, accepted.text)
+
+    def test_retry_keeps_creator_identity_and_revalidates_transferred_block(self):
+        project, assets = self.fixture(1)
+        self.create_blocks(project)
+        block = self.claim(project)
+        path = f"/api/projects/{project['id']}/jobs"
+        payload = {"model_id": "demo", "prompt": "object", "asset_ids": assets}
+        accepted = self.request("POST", path, user="alice", json=payload)
+        self.assertEqual(accepted.status_code, 202, accepted.text)
+        job_id = accepted.json()["id"]
+        self.assertEqual(self.request("POST", f"/api/jobs/{job_id}/cancel", user="alice").status_code, 200)
+        for user in ("bob", "admin"):
+            self.assertEqual(self.request("POST", f"/api/jobs/{job_id}/retry", user=user).status_code, 403)
+        retried = self.request("POST", f"/api/jobs/{job_id}/retry", user="alice")
+        self.assertEqual(retried.status_code, 200, retried.text)
+        self.assertEqual(self.request("POST", f"/api/jobs/{job_id}/cancel", user="alice").status_code, 200)
+        current = self.detail(project, block["id"])
+        transfer = self.request("POST", self.base(project) + f"/{block['id']}/assign",
+                                json={"expected_revision": current["revision"], "user_id": self.users["bob"]["id"]})
+        self.assertEqual(transfer.status_code, 200, transfer.text)
+        self.assertEqual(self.request("POST", f"/api/jobs/{job_id}/retry", user="alice").status_code, 409)
+        self.assertEqual(self.request("POST", f"/api/jobs/{job_id}/retry", user="bob").status_code, 403)
+        self.assertEqual(self.request("POST", path, user="bob", json=payload).status_code, 202)
+
+    def test_whole_project_ai_filters_and_freezes_owner_scope(self):
+        project, assets = self.fixture(5)
+        blocks = self.create_blocks(project, 1)["blocks"]
+        self.claim(project, "alice", blocks[0]["id"])
+        self.claim(project, "bob", blocks[1]["id"])
+        released = self.claim(project, "review", blocks[2]["id"])
+        self.assertEqual(self.request("POST", self.base(project) + f"/{released['id']}/release", user="review",
+                                     json={"expected_revision": released["revision"]}).status_code, 200)
+        self.claim(project, "admin", blocks[3]["id"])
+        self.annotation(project, assets[3], "admin")
+        self.assertEqual(self.workflow(assets[3], "submit", user="admin").status_code, 200)
+        self.assertEqual(self.workflow(assets[3], "approve", user="review").status_code, 200)
+        accepted = self.request("POST", f"/api/projects/{project['id']}/jobs", user="alice",
+                                json={"model_id": "demo", "prompt": "object"})
+        self.assertEqual(accepted.status_code, 202, accepted.text)
+        self.assertEqual(accepted.json()["settings"]["asset_ids"], [assets[0], assets[4]])
+        late_asset = self.upload(project, 99)
+        job_id = accepted.json()["id"]
+        self.assertEqual(claim_next_job("frozen-owner-scope"), job_id)
+        asyncio.run(run_annotation_job(job_id, "frozen-owner-scope"))
+        result = self.client.get(f"/api/jobs/{job_id}").json()
+        self.assertEqual(result["status"], "completed", result)
+        self.assertEqual([item["asset_id"] for item in all_rows("SELECT asset_id FROM job_asset_results WHERE job_id=? ORDER BY asset_id", (job_id,))], [assets[0], assets[4]])
+        self.assertEqual(self.client.get(f"/api/assets/{late_asset}/annotations").json(), [])
+
+    def test_worker_rechecks_ownership_before_inference(self):
+        project, assets = self.fixture(1)
+        self.create_blocks(project)
+        block = self.claim(project)
+        accepted = self.request("POST", f"/api/projects/{project['id']}/jobs", user="alice",
+                                json={"model_id": "demo", "prompt": "object", "asset_ids": assets, "max_retries": 0})
+        self.assertEqual(accepted.status_code, 202, accepted.text)
+        job_id = accepted.json()["id"]
+        with db() as conn:
+            conn.execute("UPDATE work_blocks SET owner_key=? WHERE id=?", (f"user:{self.users['bob']['id']}", block["id"]))
+        self.assertEqual(claim_next_job("owner-before-inference"), job_id)
+        with patch("app.jobs._predict_with_lease", new_callable=AsyncMock) as inference:
+            asyncio.run(run_annotation_job(job_id, "owner-before-inference"))
+            inference.assert_not_awaited()
+        result = self.client.get(f"/api/jobs/{job_id}").json()
+        self.assertEqual(result["status"], "failed", result)
+        self.assertEqual(result["processed"], 0)
+
+    def test_worker_write_transaction_rechecks_ownership_and_review_races(self):
+        for change in ("owner", "submitted", "approved", "completed"):
+            with self.subTest(change=change):
+                project, assets = self.fixture(1)
+                self.create_blocks(project)
+                block = self.claim(project)
+                item = self.annotation(project, assets[0], "alice")
+                with db() as conn:
+                    conn.execute("UPDATE annotations SET source='auto',human_modified=0 WHERE id=?", (item["id"],))
+                before = one("SELECT * FROM annotations WHERE id=?", (item["id"],))
+                accepted = self.request("POST", f"/api/projects/{project['id']}/jobs", user="alice",
+                                        json={"model_id": "demo", "prompt": "object", "asset_ids": assets, "max_retries": 0})
+                self.assertEqual(accepted.status_code, 202, accepted.text)
+                job_id = accepted.json()["id"]
+
+                async def infer_then_change(*args, **kwargs):
+                    with db() as conn:
+                        if change == "owner":
+                            conn.execute("UPDATE work_blocks SET owner_key=? WHERE id=?", (f"user:{self.users['bob']['id']}", block["id"]))
+                        elif change == "completed":
+                            conn.execute("UPDATE work_blocks SET status='completed' WHERE id=?", (block["id"],))
+                        else:
+                            conn.execute("UPDATE assets SET review_status=? WHERE id=?", (change, assets[0]))
+                    return []
+
+                self.assertEqual(claim_next_job("owner-write-race"), job_id)
+                with patch("app.jobs._predict_with_lease", side_effect=infer_then_change) as inference:
+                    asyncio.run(run_annotation_job(job_id, "owner-write-race"))
+                    inference.assert_awaited_once()
+                result = self.client.get(f"/api/jobs/{job_id}").json()
+                self.assertEqual(result["status"], "failed", result)
+                self.assertEqual(result["processed"], 0)
+                self.assertEqual(one("SELECT * FROM annotations WHERE id=?", (item["id"],)), before)
+                self.assertEqual(all_rows("SELECT * FROM job_asset_results WHERE job_id=?", (job_id,)), [])
+
+    def test_worker_legacy_assist_identity_never_authorizes_auto(self):
+        for mode in ("assist", "auto"):
+            with self.subTest(mode=mode):
+                project, assets = self.fixture(1)
+                self.create_blocks(project)
+                self.claim(project)
+                accepted = self.request("POST", f"/api/projects/{project['id']}/jobs", user="alice",
+                                        json={"model_id": "demo", "prompt": "object", "asset_ids": assets,
+                                              "mode": mode, "max_retries": 0})
+                self.assertEqual(accepted.status_code, 202, accepted.text)
+                job_id = accepted.json()["id"]
+                config = accepted.json()["settings"]
+                config["assist_owner_key"] = config.pop("block_owner_key")
+                with db() as conn:
+                    conn.execute("UPDATE jobs SET settings_json=? WHERE id=?", (json.dumps(config), job_id))
+                self.assertEqual(claim_next_job("legacy-owner"), job_id)
+                asyncio.run(run_annotation_job(job_id, "legacy-owner"))
+                result = self.client.get(f"/api/jobs/{job_id}").json()
+                self.assertEqual(result["status"], "completed" if mode == "assist" else "failed", result)
+
+    def test_unblocked_reviewed_images_keep_existing_reviewer_ai_permission(self):
+        project, assets = self.fixture(1, annotated=True)
+        self.assertEqual(self.workflow(assets[0], "submit", user="admin").status_code, 200)
+        self.assertEqual(self.workflow(assets[0], "approve", user="review").status_code, 200)
+        payload = {"model_id": "demo", "prompt": "object", "asset_ids": assets, "include_reviewed": True}
+        path = f"/api/projects/{project['id']}/jobs"
+        self.assertEqual(self.request("POST", path, user="alice", json=payload).status_code, 403)
+        accepted = self.request("POST", path, user="review", json=payload)
+        self.assertEqual(accepted.status_code, 202, accepted.text)
+        job_id = accepted.json()["id"]
+        self.assertEqual(claim_next_job("legacy-review"), job_id)
+        asyncio.run(run_annotation_job(job_id, "legacy-review"))
+        result = self.client.get(f"/api/jobs/{job_id}").json()
+        self.assertEqual(result["status"], "completed", result)
+        self.assertEqual(one("SELECT review_status FROM assets WHERE id=?", (assets[0],))["review_status"], "draft")
 
     def test_confirmed_empty_images_can_complete_review_and_export(self):
         project, assets = self.fixture(1)

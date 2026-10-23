@@ -1,4 +1,4 @@
-import { modelDownloadSize, modelPreparationDetails } from "./model-preparation-ui.js?v=0.25.1";
+import { modelDownloadSize, modelPreparationDetails } from "./model-preparation-ui.js?v=0.25.2";
 
 export function mountSetup(container, { escapeHtml, onComplete }) {
   container.innerHTML = `<main class="login-shell setup-shell"><section class="login-card"><h1>欢迎使用 CVSprout</h1><p>先创建管理员，再导入数据开始标注与训练。官方训练权重会在任务执行时按需下载。</p><form id="setup-form">

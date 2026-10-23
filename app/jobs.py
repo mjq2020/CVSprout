@@ -86,6 +86,11 @@ async def run_annotation_job(job_id: int, worker_id: str = "embedded") -> None:
 
     try:
         config = json.loads(job["settings_json"])
+        # Persisted identity comes from the authenticated creator. The old key
+        # was only issued for assist jobs and must never authorize auto jobs.
+        block_owner = config.get("block_owner_key")
+        if block_owner is None and job["mode"] == "assist":
+            block_owner = config.get("assist_owner_key")
         project = one("SELECT * FROM projects WHERE id=?", (job["project_id"],))
         asset_ids = config.get("asset_ids")
         params: tuple = (job["project_id"],)
@@ -128,6 +133,8 @@ async def run_annotation_job(job_id: int, worker_id: str = "embedded") -> None:
             if not heartbeat(job_id, worker_id, f"{progress_prefix}：{asset['filename']}"):
                 _cancel(job_id, worker_id)
                 return
+            with db() as conn:
+                guard_block_ai(conn, job["project_id"], [asset["id"]], owner_key=block_owner)
             hints = inference_hints(inference, asset, len(assets))
             predictions = await _predict_with_lease(
                 provider,
@@ -162,7 +169,7 @@ async def run_annotation_job(job_id: int, worker_id: str = "embedded") -> None:
                 if not ownership:
                     return
                 guard_block_ai(conn, job["project_id"], [asset["id"]],
-                               assist_owner_key=config.get("assist_owner_key") if job["mode"] == "assist" else None)
+                               owner_key=block_owner)
                 current = dict(conn.execute("SELECT * FROM assets WHERE id=?", (asset["id"],)).fetchone())
                 if current["revision"] != asset["revision"] or (current["lock_owner"] and current["lock_expires_at"] > now_iso()):
                     raise RuntimeError("图片在推理期间被修改或锁定，已拒绝覆盖，请重试")

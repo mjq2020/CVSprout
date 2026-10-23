@@ -167,26 +167,34 @@ def guard_block_asset(conn: sqlite3.Connection, asset, actor: Actor,
         raise HTTPException(403, "请先领取此任务块；只能修改自己负责的图片，管理员可转交任务块")
 
 
-def eligible_ai_asset_ids(conn: sqlite3.Connection, project_id: int, ids: list[int]) -> list[int]:
-    blocked = {row[0] for row in conn.execute("""SELECT m.asset_id FROM work_block_assets m
-        JOIN work_blocks b ON b.id=m.block_id WHERE b.project_id=?
-        AND (b.owner_key IS NOT NULL OR b.human_started=1 OR b.status='completed')""", (project_id,))}
+def eligible_ai_asset_ids(conn: sqlite3.Connection, project_id: int, ids: list[int], *,
+                          owner_key: str | None = None) -> list[int]:
+    # A claimed block may use AI under its owner's identity, but review queues
+    # and completed work are protected even for that owner and include_reviewed.
+    # Unclaimed, untouched blocks retain the initial AI-preparation workflow.
+    query = """SELECT m.asset_id,a.review_status,b.owner_key,b.human_started,b.status
+        FROM work_block_assets m JOIN work_blocks b ON b.id=m.block_id
+        JOIN assets a ON a.id=m.asset_id WHERE b.project_id=?"""
+    params: tuple = (project_id,)
+    # Workers check before inference and before saving each image. Use the
+    # membership primary key instead of scanning a large project twice per image.
+    if len(ids) == 1:
+        query += " AND m.asset_id=?"
+        params += (ids[0],)
+    blocked = {
+        row["asset_id"] for row in conn.execute(query, params)
+        if (row["status"] == "completed" or row["review_status"] not in {"draft", "rejected"}
+            or (row["owner_key"] is not None and row["owner_key"] != owner_key)
+            or (row["owner_key"] is None and row["human_started"]))
+    }
     return [asset_id for asset_id in ids if asset_id not in blocked]
 
 
 def guard_block_ai(conn: sqlite3.Connection, project_id: int, asset_ids: list[int], *,
-                   assist_owner_key: str | None = None) -> None:
-    if len(eligible_ai_asset_ids(conn, project_id, asset_ids)) == len(asset_ids):
+                   owner_key: str | None = None) -> None:
+    if len(eligible_ai_asset_ids(conn, project_id, asset_ids, owner_key=owner_key)) == len(asset_ids):
         return
-    # The caller derives this identity from the authenticated actor, never from
-    # an arbitrary request field. Workers recheck it inside their write transaction.
-    if assist_owner_key and len(asset_ids) == 1:
-        block = conn.execute("""SELECT b.* FROM work_blocks b JOIN work_block_assets m ON m.block_id=b.id
-            WHERE b.project_id=? AND m.asset_id=?""", (project_id, asset_ids[0])).fetchone()
-        if (block and block["owner_key"] == assist_owner_key
-                and _state(block, _assets(conn, block["id"]), False) != "completed"):
-            return
-    raise HTTPException(409, "所选图片属于已领取、已人工处理或已完成的任务块；批量 AI 不会覆盖这些图片")
+    raise HTTPException(409, "AI 只能处理自己负责的任务块中未提交或退回修改的图片；其他成员、已交回、待审核或已完成的任务块图片受保护")
 
 
 def _list(conn, project, actor: Actor) -> dict:

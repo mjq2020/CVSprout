@@ -1,23 +1,23 @@
-import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.25.1";
-import { renderUsersPage } from "./accounts-ui.js?v=0.25.1";
-import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.25.1";
-import { annotationModelSelectable, modelDownloadSize, modelPreparationStatus, mountModelPreparation } from "./model-preparation-ui.js?v=0.25.1";
-import { mountAuthScreen } from "./auth-ui.js?v=0.25.1";
-import { renderAccountPage } from "./security-ui.js?v=0.25.1";
-import { bindAssetManagement } from "./asset-management-ui.js?v=0.25.1";
-import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.25.1";
-import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.25.1";
-import { loadProjectWorkBlocks } from "./project-api.js?v=0.25.1";
-import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.25.1";
-import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.25.1";
-import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.25.1";
-import { mountOverviewTraining } from "./overview-training.js?v=0.25.1";
-import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.25.1";
-import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.25.1";
-import { mountCanvasGuides } from "./canvas-guides.js?v=0.25.1";
-import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.25.1";
-import { beginWorkspaceLoad, cancelWorkspaceLoad } from "./workspace-feedback.js?v=0.25.1";
-import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.25.1";
+import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.25.2";
+import { renderUsersPage } from "./accounts-ui.js?v=0.25.2";
+import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.25.2";
+import { annotationModelSelectable, modelDownloadSize, modelPreparationStatus, mountModelPreparation } from "./model-preparation-ui.js?v=0.25.2";
+import { mountAuthScreen } from "./auth-ui.js?v=0.25.2";
+import { renderAccountPage } from "./security-ui.js?v=0.25.2";
+import { bindAssetManagement } from "./asset-management-ui.js?v=0.25.2";
+import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.25.2";
+import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.25.2";
+import { loadProjectWorkBlocks } from "./project-api.js?v=0.25.2";
+import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.25.2";
+import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.25.2";
+import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.25.2";
+import { mountOverviewTraining } from "./overview-training.js?v=0.25.2";
+import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.25.2";
+import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.25.2";
+import { mountCanvasGuides } from "./canvas-guides.js?v=0.25.2";
+import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.25.2";
+import { beginWorkspaceLoad, cancelWorkspaceLoad } from "./workspace-feedback.js?v=0.25.2";
+import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.25.2";
 
 const app = document.querySelector("#app");
 const modalRoot = document.querySelector("#modal-root");
@@ -1236,9 +1236,9 @@ async function downloadArtifact(url, fallbackName = "download") {
   } finally { progressNotice.remove(); }
 }
 
-import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.25.1";
-import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.25.1";
-import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.25.1";
+import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.25.2";
+import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.25.2";
+import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.25.2";
 
 const trainingChartViews = new Map();
 const trainingDetailViews = new Map();
@@ -4147,24 +4147,57 @@ function openAiModal(preselectedAssetIds = null) {
   if (!initialPrompt.readOnly && savedConfig.model_id === selectedModel && savedConfig.prompt) initialPrompt.value = savedConfig.prompt;
   const initialConfidence = Number.isFinite(Number(savedConfig.confidence_threshold)) ? Math.max(0, Math.min(100, Math.round(Number(savedConfig.confidence_threshold) * 100))) : 35;
   const defaultScope = explicitSelection.length ? "selected" : state.asset ? "current" : "unlabeled";
-  const eligibleUnlabeled = state.assets.filter(asset => asset.status === "unlabeled" && !["submitted", "approved"].includes(asset.review_status)).length;
+  const scopedToBlock = section === "annotate" && Boolean(state.activeWorkBlockId);
+  const skipLabels = { unknown: "任务块信息未加载，请刷新", completed: "任务块已完成", foreign: "由其他成员负责", released: "已交回且进入人工流程，需先领取", block_reviewed: "任务块内待审核或已通过", reviewed: "待审核或已通过" };
+  const evaluateAssets = (assets, includeReviewed = false) => {
+    const blocks = new Map((state.workBlocks?.blocks || []).map(block => [Number(block.id), block]));
+    if (state.activeWorkBlock && (!state.activeWorkBlock.project_id || state.activeWorkBlock.project_id === projectId)) blocks.set(Number(state.activeWorkBlock.id), state.activeWorkBlock);
+    const membership = new Map();
+    for (const block of blocks.values()) for (const id of block.asset_ids || []) membership.set(Number(id), block);
+    const eligible = [], skipped = new Map();
+    let ownedCount = 0;
+    for (const asset of assets) {
+      const block = asset.work_block_id != null ? blocks.get(Number(asset.work_block_id)) : membership.get(asset.id);
+      let reason = "";
+      const reviewed = ["submitted", "approved"].includes(asset.review_status);
+      if (!block && (asset.work_block_id != null || (asset.work_block_id === undefined && (state.workBlocks?.enabled || scopedToBlock)))) reason = "unknown";
+      else if (block) {
+        if (!Object.hasOwn(block, "human_started") || !["preparing", "available", "in_progress", "submitted", "rejected", "completed"].includes(block.status)) reason = "unknown";
+        else if (block.status === "completed") reason = "completed";
+        else if (reviewed) reason = "block_reviewed";
+        else if (block.owner_key && !block.is_mine) reason = "foreign";
+        else if (block.human_started && !block.is_mine) reason = "released";
+        else if (!block.is_mine && block.owner_key === undefined) reason = "unknown";
+        if (!reason && block.is_mine) ownedCount += 1;
+      } else if (reviewed && !includeReviewed) reason = "reviewed";
+      if (reason) skipped.set(reason, (skipped.get(reason) || 0) + 1);
+      else eligible.push(asset);
+    }
+    return { eligible, skipped, ownedCount };
+  };
+  const eligibleUnlabeled = evaluateAssets(state.assets.filter(asset => asset.status === "unlabeled")).eligible.length;
   const scopeAssets = () => {
     const scope = document.querySelector('input[name="scope"]:checked')?.value || defaultScope;
     return state.assets.filter(asset => scope === "all" || (scope === "current" && asset.id === state.asset?.id) || (scope === "selected" && explicitSelection.includes(asset.id)) || (scope === "unlabeled" && asset.status === "unlabeled"));
   };
-  const eligibleAssets = () => scopeAssets().filter(asset => document.querySelector("#include-reviewed")?.checked || !["submitted", "approved"].includes(asset.review_status));
-  const scopeProblem = () => {
+  const includeReviewed = () => canReview() && Boolean(document.querySelector("#include-reviewed")?.checked);
+  const eligibility = () => evaluateAssets(scopeAssets(), includeReviewed());
+  const eligibleAssets = () => eligibility().eligible;
+  // A protected image can still be inspected without writing to it. Reviewed
+  // previews retain the existing reviewer permission and explicit opt-in.
+  const previewAssets = () => scopeAssets().filter(asset => includeReviewed() || !["submitted", "approved"].includes(asset.review_status));
+  const scopeProblem = ({ previewOnly = false } = {}) => {
     const model = matchingModels.find(item => item.id === selectedModel);
     const scope = document.querySelector('input[name="scope"]:checked')?.value;
     if (!model?.configured || !model.enabled) return model ? modelPreparationStatus(model) : isAdmin() ? "尚无可用模型，请先到“标注模型”完成配置。" : "尚无可用模型，请联系管理员配置。";
-    if (!eligibleAssets().length) return "当前范围内没有可处理图片。请选择其他范围；已提交或已通过的图片默认跳过。";
+    if (!(previewOnly ? previewAssets() : eligibleAssets()).length) return previewOnly ? "当前范围没有可预览图片。已提交或已通过的图片默认跳过。" : "当前范围没有可处理图片。请选择其他范围，或领取尚未完成的任务块。";
     const interactive = ["interactive_segmentation", "local_sam2"].includes(model.provider_type);
     if ((!model.modes.includes("auto") || interactive) && scope !== "current") return "此模型需要在单张图片上提供位置提示。请先打开图片，或选择支持批量标注的模型。";
     if (interactive && !state.assistPoints.length && !state.selectedAnnotation) return "请先返回画布：用“+”标记要保留的位置，或画一个粗框并选中，然后再运行 AI。";
     return "";
   };
-  const readAiPayload = () => {
-      const problem = scopeProblem(); if (problem) throw new Error(problem);
+  const readAiPayload = ({ previewOnly = false } = {}) => {
+      const problem = scopeProblem({ previewOnly }); if (problem) throw new Error(problem);
       const prompt = document.querySelector("#ai-prompt").value.trim(); if (!prompt) throw new Error("请输入标注要求");
       const scope = document.querySelector('input[name="scope"]:checked').value;
       const model = matchingModels.find(item => item.id === selectedModel);
@@ -4172,7 +4205,7 @@ function openAiModal(preselectedAssetIds = null) {
       const conceptModel = ["local_grounding_dino", "local_sam3"].includes(model.provider_type);
       const targetLabels = conceptModel ? parseTargetLabels(prompt) : null;
       if (conceptModel && !targetLabels.length) throw new Error("请至少填写一个目标类别");
-      const scopedAssetIds = eligibleAssets().map(asset => asset.id);
+      const scopedAssetIds = (previewOnly ? previewAssets() : eligibleAssets()).map(asset => asset.id);
       if (Array.isArray(scopedAssetIds) && !scopedAssetIds.length) throw new Error("所选范围内没有可处理的图片");
       let mode = scope === "current" && model.modes.includes("assist") ? "assist" : "auto";
       if (!model.modes.includes(mode)) throw new Error(`${model.name} 不支持当前处理范围所需的${mode === "auto" ? "全自动" : "半自动"}模式`);
@@ -4180,13 +4213,7 @@ function openAiModal(preselectedAssetIds = null) {
       if (interactive && scope !== "current") throw new Error("交互式分割一次只能处理当前图片");
       if (interactive && !state.assistPoints.length && !state.selectedAnnotation) throw new Error("请先用正点/负点工具添加提示，或选中一个人工粗框");
       const hints = scope === "current" && mode === "assist" && state.assistPoints.length ? { points: state.assistPoints, label: state.activeLabel?.name } : null;
-      return { model_id: selectedModel, prompt, target_labels: targetLabels, mode, asset_ids: scopedAssetIds, hint_annotation_id: interactive && state.selectedAnnotation ? state.selectedAnnotation.id : null, hints, replace_existing_auto: sourceModal.querySelector("#replace-auto").checked, confidence_threshold: Number(sourceModal.querySelector("#confidence").value) / 100, include_reviewed: sourceModal.querySelector("#include-reviewed").checked };
-  };
-  const workBlockAiProblem = () => {
-    if (!state.activeWorkBlock?.human_started) return "";
-    const scope = document.querySelector('input[name="scope"]:checked')?.value;
-    const model = matchingModels.find(item => item.id === selectedModel);
-    return state.activeWorkBlock.is_mine && scope === "current" && model?.modes.includes("assist") && canEditCurrentAsset() ? "" : "已领取的任务块不接受批量 AI 覆盖。负责人可在当前图片使用半自动辅助；这里仍可预览效果。";
+      return { model_id: selectedModel, prompt, target_labels: targetLabels, mode, asset_ids: scopedAssetIds, hint_annotation_id: interactive && state.selectedAnnotation ? state.selectedAnnotation.id : null, hints, replace_existing_auto: sourceModal.querySelector("#replace-auto").checked, confidence_threshold: Number(sourceModal.querySelector("#confidence").value) / 100, include_reviewed: includeReviewed() };
   };
   const updateScopeSummary = () => {
     const model = matchingModels.find(item => item.id === selectedModel);
@@ -4194,16 +4221,17 @@ function openAiModal(preselectedAssetIds = null) {
     document.querySelectorAll('input[name="scope"]').forEach(input => { input.disabled = input.value === "current" ? !state.asset : requiresCurrent || (input.value === "selected" && !explicitSelection.length); });
     const current = document.querySelector('input[name="scope"]:checked');
     if (current?.disabled) { current.checked = false; const fallback = document.querySelector('input[name="scope"]:not([disabled])'); if (fallback) fallback.checked = true; }
-    const eligible = eligibleAssets();
-    const skipped = scopeAssets().length - eligible.length;
-    const reviewed = document.querySelector("#include-reviewed").checked ? eligible.filter(asset => ["submitted", "approved"].includes(asset.review_status)).length : 0;
-    const problem = scopeProblem() || workBlockAiProblem();
-    document.querySelector("#ai-scope-summary").innerHTML = `<strong>${problem ? "暂时无法启动" : `将处理 ${eligible.length} 张图片`}</strong><span>${escapeHtml(problem || `${skipped ? `已跳过 ${skipped} 张待审核或已通过图片。` : ""}${reviewed ? `${reviewed} 张图片的审核状态会重置，需要重新提交审核。` : "完成后请检查结果，再提交审核。"}`)}</span>`;
+    const { eligible, skipped, ownedCount } = eligibility();
+    const reviewed = eligible.filter(asset => ["submitted", "approved"].includes(asset.review_status)).length;
+    const problem = scopeProblem();
+    const skippedSummary = skipped.size ? `已跳过 ${[...skipped].map(([reason, count]) => `${count} 张（${skipLabels[reason]}）`).join("、")}。` : "";
+    const summary = `${problem}${skippedSummary}${ownedCount ? `其中 ${ownedCount} 张来自你负责的任务块。` : ""}人工绘制和人工校正的标注始终保留。${reviewed ? `${reviewed} 张未分块图片的审核状态会重置，需要重新提交审核。` : "完成后请检查结果，再提交审核。"}`;
+    document.querySelector("#ai-scope-summary").innerHTML = `<strong>${problem ? "暂时无法启动" : `将处理 ${eligible.length} 张图片`}</strong><span>${escapeHtml(summary)}</span>`;
     const submit = sourceModal.querySelector("#modal-submit");
     submit.disabled = Boolean(problem || previewState.busy);
     submit.textContent = `${previewState.hasFreshResult ? "按预览参数标注" : "启动标注"} ${eligible.length} 张`;
     const feedback = sourceModal.querySelector("#ai-batch-preview-state");
-    if (feedback) feedback.textContent = previewState.busy ? "正在预览，完成后可启动标注。" : previewState.hasFreshResult ? "当前参数已预览。启动后会保存正式标注。" : previewState.stale ? "参数或样本已修改，建议重新预览效果。" : "建议先预览效果，再启动正式标注。";
+    if (feedback) feedback.textContent = previewState.busy ? "正在只读预览，不会保存标注。" : previewState.hasFreshResult ? `当前参数已预览。正式标注只处理上述 ${eligible.length} 张可处理图片。` : previewState.stale ? "参数或样本已修改，建议重新预览效果。" : "预览不保存标注；受保护图片仅供预览，正式标注会跳过。";
     document.querySelector("#ai-model-name").textContent = model?.name || "尚未配置";
   };
   const parametersChanged = () => { updateScopeSummary(); preview?.refresh(); };
@@ -4238,11 +4266,11 @@ function openAiModal(preselectedAssetIds = null) {
     <div id="ai-model-preparation" class="ai-model-preparation" hidden></div>
     <div class="field"><label id="ai-prompt-label" for="ai-prompt">${escapeHtml(initialPrompt.label)}</label><textarea id="ai-prompt" ${initialPrompt.readOnly ? "readonly" : ""} placeholder="${escapeHtml(initialPrompt.placeholder)}">${escapeHtml(initialPrompt.value)}</textarea><div class="hint" id="ai-prompt-hint">${escapeHtml(initialPrompt.hint)}</div></div>
     <div class="field"><label for="confidence">最低置信度</label><div class="range-line"><input id="confidence" type="range" min="0" max="100" step="1" value="${initialConfidence}" aria-describedby="ai-confidence-hint" /><span class="range-value" id="confidence-value">${initialConfidence}%</span></div><div class="hint" id="ai-confidence-hint">调低可发现更多目标，但可能增加误检；调高更严格，但可能漏标。调整后点击“预览效果”比较结果。</div></div>
-    <div class="field"><label>处理范围</label><div class="scope-grid"><label class="scope-option"><input type="radio" name="scope" value="current" ${defaultScope === "current" ? "checked" : ""} ${state.asset ? "" : "disabled"}/><span><strong>当前图片</strong><small>${state.asset ? escapeHtml(state.asset.filename) : "未打开图片"}</small></span></label><label class="scope-option"><input type="radio" name="scope" value="selected" ${defaultScope === "selected" ? "checked" : ""} ${explicitSelection.length ? "" : "disabled"}/><span><strong>已选图片</strong><small>${explicitSelection.length} 张</small></span></label><label class="scope-option"><input type="radio" name="scope" value="unlabeled" ${defaultScope === "unlabeled" ? "checked" : ""}/><span><strong>所有未标注</strong><small>${eligibleUnlabeled} 张可处理</small></span></label><label class="scope-option"><input type="radio" name="scope" value="all" ${defaultScope === "all" ? "checked" : ""}/><span><strong>全部数据</strong><small>${state.assets.length} 张（已审核默认跳过）</small></span></label></div></div>
+    <div class="field"><label>处理范围${scopedToBlock ? ` · ${escapeHtml(state.activeWorkBlock?.name || "当前任务块")}` : ""}</label><div class="scope-grid"><label class="scope-option"><input type="radio" name="scope" value="current" ${defaultScope === "current" ? "checked" : ""} ${state.asset ? "" : "disabled"}/><span><strong>当前图片</strong><small>${state.asset ? escapeHtml(state.asset.filename) : "未打开图片"}</small></span></label><label class="scope-option"><input type="radio" name="scope" value="selected" ${defaultScope === "selected" ? "checked" : ""} ${explicitSelection.length ? "" : "disabled"}/><span><strong>已选图片</strong><small>${explicitSelection.length} 张</small></span></label><label class="scope-option"><input type="radio" name="scope" value="unlabeled" ${defaultScope === "unlabeled" ? "checked" : ""}/><span><strong>${scopedToBlock ? "本块未标注" : "所有未标注"}</strong><small>${eligibleUnlabeled} 张可处理</small></span></label><label class="scope-option"><input type="radio" name="scope" value="all" ${defaultScope === "all" ? "checked" : ""}/><span><strong>${scopedToBlock ? "本块全部图片" : "全部数据"}</strong><small>${state.assets.length} 张（受保护图片会跳过）</small></span></label></div></div>
     <div class="ai-scope-summary" id="ai-scope-summary" role="status" aria-live="polite"></div>
 
     <details class="advanced-settings" id="ai-advanced"><summary>已有标注与审核设置</summary>
-    <div class="check-stack"><label class="check-line"><input id="replace-auto" type="checkbox" checked />替换之前的 AI 结果，保留人工绘制和人工校正的标注</label><label class="check-line" ${canReview() ? "" : "hidden"}><input id="include-reviewed" type="checkbox" ${canReview()?"":"disabled"}/>重新标注待审核或已通过图片（会恢复为草稿，需要再次提交审核）</label></div></details>${state.assistPoints.length ? `<div class="assist-summary">当前画布已有 ${state.assistPoints.filter(point => point.label).length} 个正点、${state.assistPoints.filter(point => !point.label).length} 个负点，将作为半自动分割提示。</div>` : ""}</section>${aiPreviewMarkup()}</div>`,
+    <div class="check-stack"><label class="check-line"><input id="replace-auto" type="checkbox" checked />替换之前的 AI 结果，保留人工绘制和人工校正的标注</label><label class="check-line" ${canReview() ? "" : "hidden"}><input id="include-reviewed" type="checkbox" ${canReview()?"":"disabled"}/>重新标注未分块的待审核或已通过图片（会恢复为草稿，需要再次提交审核）</label></div><p class="hint">任务块内待审核或已通过的图片始终跳过。有审核权限时，上述选项可将它们用于只读预览。</p></details>${state.assistPoints.length ? `<div class="assist-summary">当前画布已有 ${state.assistPoints.filter(point => point.label).length} 个正点、${state.assistPoints.filter(point => !point.label).length} 个负点，将作为半自动分割提示。</div>` : ""}</section>${aiPreviewMarkup()}</div>`,
     submitText: "启动标注任务", onClose: () => { preparation?.dispose(); preview?.dispose(); }, onReady: () => {
       sourceModal = modalRoot.querySelector('.modal');
       sourceModal.classList.add("ai-preview-modal");
@@ -4271,7 +4299,7 @@ function openAiModal(preselectedAssetIds = null) {
       sourceModal.querySelector("#ai-prompt").addEventListener("input", parametersChanged);
       updateScopeSummary();
       preview = mountAiPreview(sourceModal.querySelector("[data-ai-preview]"), {
-        api, jsonOptions, escapeHtml, projectId, getAssets: eligibleAssets, getPayload: readAiPayload,
+        api, jsonOptions, escapeHtml, projectId, getAssets: previewAssets, getPayload: () => readAiPayload({ previewOnly: true }),
         isCurrent: modalCurrent, keypointSchema: state.project.keypoint_schema,
         onChange: value => { previewState = value; if (modalCurrent()) updateScopeSummary(); },
       });
@@ -4283,8 +4311,6 @@ function openAiModal(preselectedAssetIds = null) {
     }, onSubmit: async () => {
       if (!modalCurrent()) throw new Error("页面已切换，请关闭此窗口，在当前项目重新开始 AI 标注。");
       if (previewState.busy) throw new Error("请等待预览完成，再启动正式标注。");
-      const blockProblem = workBlockAiProblem();
-      if (blockProblem) throw new Error(blockProblem);
       const payload = readAiPayload();
       const { prompt, target_labels: targetLabels, asset_ids: scopedAssetIds } = payload;
       const assetId = state.asset?.id;

@@ -98,7 +98,7 @@ async def lifespan(application: FastAPI):
                     await pipeline_task
 
 
-app = FastAPI(title="CVSprout 标注平台", version="0.25.1", lifespan=lifespan)
+app = FastAPI(title="CVSprout 标注平台", version="0.25.2", lifespan=lifespan)
 app.middleware("http")(browser_security)
 app.add_middleware(RequestBodyLimit, policy=request_budget)
 app.include_router(accounts_router)
@@ -1154,13 +1154,13 @@ def create_job(project_id: int, payload: JobCreate, actor: Actor = Depends(get_a
                 raise HTTPException(409, "请先重新打开已提交或审核通过的图片")
             eligible_assets = [row for row in eligible_assets if row["review_status"] not in {"submitted", "approved"}]
         frozen_ids = [row["id"] for row in eligible_assets]
+        block_owner = owner_key(actor)
         if selected is None:
-            frozen_ids = eligible_ai_asset_ids(conn, project_id, frozen_ids)
-        assist_owner = owner_key(actor) if payload.mode == "assist" and len(frozen_ids) == 1 else None
-        guard_job_targets(conn, project_id, frozen_ids, assist_owner_key=assist_owner)
+            frozen_ids = eligible_ai_asset_ids(conn, project_id, frozen_ids, owner_key=block_owner)
+        guard_job_targets(conn, project_id, frozen_ids, owner_key=block_owner)
         job_total = len(frozen_ids)
         settings_json = json.dumps({**json.loads(settings_json), "asset_ids": frozen_ids,
-                                    "assist_owner_key": assist_owner,
+                                    "block_owner_key": block_owner,
                                     "task_type": project["task_type"], "keypoint_schema": project["keypoint_schema"]}, ensure_ascii=False)
         auto_added_labels: list[str] = []
         if concept_provider:
@@ -1274,9 +1274,11 @@ def retry_job(job_id: int, actor: Actor = Depends(get_actor)) -> dict:
         if row["status"] not in {"failed", "cancelled"}:
             raise HTTPException(409, "任务已被重试或仍在运行")
         config = json.loads(row["settings_json"])
-        assist_owner = config.get("assist_owner_key")
-        if assist_owner is not None and assist_owner != owner_key(actor):
-            raise HTTPException(403, "只有发起单图辅助的成员可以重试此任务")
+        block_owner = config.get("block_owner_key")
+        if block_owner is None and row["mode"] == "assist":
+            block_owner = config.get("assist_owner_key")
+        if block_owner is not None and block_owner != owner_key(actor):
+            raise HTTPException(403, "只有发起 AI 标注的成员可以重试此任务")
         if config.get("include_reviewed"):
             require_reviewer(actor)
         requested = config.get("asset_ids")
@@ -1285,7 +1287,7 @@ def retry_job(job_id: int, actor: Actor = Depends(get_actor)) -> dict:
         if not config.get("include_reviewed"):
             targets = [asset for asset in targets if asset["review_status"] not in {"submitted", "approved"}]
         target_ids = [asset["id"] for asset in targets]
-        guard_job_targets(conn, row["project_id"], target_ids, exclude=job_id, assist_owner_key=assist_owner)
+        guard_job_targets(conn, row["project_id"], target_ids, exclude=job_id, owner_key=block_owner)
         config["asset_ids"] = target_ids
         conn.execute("DELETE FROM job_asset_results WHERE job_id=?", (job_id,))
         conn.execute(
