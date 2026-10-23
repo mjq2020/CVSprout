@@ -9,6 +9,7 @@ from typing import Any
 
 from ..config import settings
 from ..database import all_rows, db, now_iso, one
+from ..annotation_models import preparation, sam2_model_path
 from .base import AnnotationProvider, ModelInfo
 from .demo import DemoProvider
 from .local import (
@@ -16,6 +17,7 @@ from .local import (
     LocalSam2Provider,
     LocalSam3Provider,
     local_runtime_status,
+    local_sam2_runtime_status,
     local_sam3_runtime_status,
 )
 from .qwen import QwenProvider
@@ -34,6 +36,13 @@ def supported_tasks(provider_type: str, config: dict) -> list[str]:
 
 
 BUILTINS = [
+    {
+        "id": "qwen3.5-0.8b", "name": "Qwen3.5-0.8B（本地）", "family": "视觉语言模型",
+        "provider_type": "local_qwen", "description": "较小规模的本地图像语义标注模型，支持按需下载；结果需人工检查。",
+        "endpoint": "local://transformers", "model_name": str(settings.models_dir / "qwen3.5-0.8b"),
+        "api_key_env": "", "capabilities": ["检测框", "多边形", "场景分类", "关键点"],
+        "modes": ["auto", "assist"], "badge": "按需下载",
+    },
     {
         "id": "qwen3.5-35b-a3b",
         "name": "Qwen3.5-35B-A3B",
@@ -94,7 +103,21 @@ BUILTINS = [
 
 def seed_builtin_models() -> None:
     now = now_iso()
-    records = list(BUILTINS)
+    records = [dict(item) for item in BUILTINS]
+    for item in records:
+        if item["id"] == "sam2-assist":
+            item["model_name"] = str(sam2_model_path())
+            item["description"] = "本地 SAM 2.1 Tiny 半自动分割；自行放置权重后，使用正负点或粗框生成轮廓。"
+        elif item["id"] == "sam3":
+            item["model_name"] = str(settings.sam3_checkpoint)
+        elif item["id"] == "grounding-dino":
+            item["model_name"] = str(settings.models_dir / "grounding-dino-tiny")
+        elif item["id"].startswith("qwen3.5-"):
+            remote = item["id"] == "qwen3.5-35b-a3b" and settings.qwen_base_url
+            item.update(provider_type="openai_vision" if remote else "local_qwen",
+                        endpoint=settings.qwen_base_url if remote else "local://transformers",
+                        model_name=settings.qwen_model if remote else str(settings.models_dir / item["id"]),
+                        api_key_env="QWEN_API_KEY" if remote else "")
     from ..training import _model_candidates, _declared_model_task
     for path in _model_candidates():
         task = _declared_model_task(path.name)
@@ -152,13 +175,28 @@ def seed_builtin_models() -> None:
                         now, item["id"],
                     ),
                 )
+            elif item["id"].startswith("qwen3.5-"):
+                # Preserve administrator-configured remote endpoints. Only the
+                # empty built-in placeholder or an existing local entry migrate.
+                conn.execute("""UPDATE model_services SET provider_type=?,endpoint=?,model_name=?,api_key_env=?,updated_at=?
+                    WHERE id=? AND builtin=1 AND (provider_type='local_qwen' OR
+                    (provider_type='openai_vision' AND endpoint='' AND model_name='Qwen/Qwen3.5-35B-A3B'))""",
+                    (item["provider_type"], item["endpoint"], item["model_name"], item["api_key_env"], now, item["id"]))
 
 
 def _row_to_public(row: dict[str, Any]) -> dict[str, Any]:
+    row = _runtime_row(row)
     config = json.loads(row["config_json"] or "{}")
     configured = bool(row["enabled"] and row["endpoint"])
     availability_error = ""
-    if row["provider_type"] in {"local_grounding_dino", "local_sam2"}:
+    if row["provider_type"] == "local_qwen":
+        from .qwen_local import local_qwen_runtime_status
+        configured, availability_error = local_qwen_runtime_status(row["model_name"])
+        configured = bool(row["enabled"] and configured)
+    elif row["provider_type"] == "local_sam2":
+        configured, availability_error = local_sam2_runtime_status(row["model_name"])
+        configured = bool(row["enabled"] and configured)
+    elif row["provider_type"] == "local_grounding_dino":
         configured, availability_error = local_runtime_status(row["model_name"])
         configured = bool(row["enabled"] and configured)
     elif row["provider_type"] == "local_sam3":
@@ -191,7 +229,15 @@ def _row_to_public(row: dict[str, Any]) -> dict[str, Any]:
         "badge": config.get("badge", "自定义"),
         "config": config,
         "tasks": supported_tasks(row["provider_type"], config),
+        "preparation": preparation(row),
     }
+
+
+def _runtime_row(row: dict[str, Any]) -> dict[str, Any]:
+    row = dict(row)
+    if row["builtin"] and row["id"] == "sam2-assist" and row["provider_type"] == "local_sam2":
+        row["model_name"] = str(sam2_model_path())
+    return row
 
 
 def list_models() -> list[dict[str, Any]]:
@@ -207,11 +253,17 @@ def get_provider(model_id: str) -> AnnotationProvider | None:
     row = one("SELECT * FROM model_services WHERE id = ? AND enabled = 1", (model_id,))
     if not row:
         return None
+    row = _runtime_row(row)
     capabilities = json.loads(row["capabilities_json"] or "[]")
     modes = json.loads(row["modes_json"] or "[]")
     config = json.loads(row["config_json"] or "{}")
     configured = bool(row["endpoint"])
-    if row["provider_type"] in {"local_grounding_dino", "local_sam2"}:
+    if row["provider_type"] == "local_qwen":
+        from .qwen_local import local_qwen_runtime_status
+        configured, _ = local_qwen_runtime_status(row["model_name"])
+    elif row["provider_type"] == "local_sam2":
+        configured, _ = local_sam2_runtime_status(row["model_name"])
+    elif row["provider_type"] == "local_grounding_dino":
         configured, _ = local_runtime_status(row["model_name"])
     elif row["provider_type"] == "local_sam3":
         configured, _ = local_sam3_runtime_status(
@@ -229,6 +281,9 @@ def get_provider(model_id: str) -> AnnotationProvider | None:
         return WorkerProvider(info)
     if row["provider_type"] == "demo":
         return DemoProvider()
+    if row["provider_type"] == "local_qwen":
+        from .qwen_local import LocalQwenProvider
+        return LocalQwenProvider(info, row["model_name"], settings.model_device)
     if row["provider_type"] == "local_yolo":
         return LocalYoloProvider(info, row["model_name"], config.get("task", "detect"), settings.model_device)
     if row["provider_type"] == "local_grounding_dino":

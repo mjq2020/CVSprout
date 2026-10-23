@@ -1,22 +1,23 @@
-import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.24.0";
-import { renderUsersPage } from "./accounts-ui.js?v=0.24.0";
-import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.24.0";
-import { mountAuthScreen } from "./auth-ui.js?v=0.24.0";
-import { renderAccountPage } from "./security-ui.js?v=0.24.0";
-import { bindAssetManagement } from "./asset-management-ui.js?v=0.24.0";
-import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.24.0";
-import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.24.0";
-import { loadProjectWorkBlocks } from "./project-api.js?v=0.24.0";
-import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.24.0";
-import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.24.0";
-import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.24.0";
-import { mountOverviewTraining } from "./overview-training.js?v=0.24.0";
-import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.24.0";
-import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.24.0";
-import { mountCanvasGuides } from "./canvas-guides.js?v=0.24.0";
-import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.24.0";
-import { beginWorkspaceLoad, cancelWorkspaceLoad } from "./workspace-feedback.js?v=0.24.0";
-import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.24.0";
+import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.25.0";
+import { renderUsersPage } from "./accounts-ui.js?v=0.25.0";
+import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.25.0";
+import { annotationModelSelectable, modelDownloadSize, modelPreparationStatus, mountModelPreparation } from "./model-preparation-ui.js?v=0.25.0";
+import { mountAuthScreen } from "./auth-ui.js?v=0.25.0";
+import { renderAccountPage } from "./security-ui.js?v=0.25.0";
+import { bindAssetManagement } from "./asset-management-ui.js?v=0.25.0";
+import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.25.0";
+import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.25.0";
+import { loadProjectWorkBlocks } from "./project-api.js?v=0.25.0";
+import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.25.0";
+import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.25.0";
+import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.25.0";
+import { mountOverviewTraining } from "./overview-training.js?v=0.25.0";
+import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.25.0";
+import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.25.0";
+import { mountCanvasGuides } from "./canvas-guides.js?v=0.25.0";
+import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.25.0";
+import { beginWorkspaceLoad, cancelWorkspaceLoad } from "./workspace-feedback.js?v=0.25.0";
+import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.25.0";
 
 const app = document.querySelector("#app");
 const modalRoot = document.querySelector("#modal-root");
@@ -565,6 +566,17 @@ function openProjectModal() {
   });
 }
 
+function canPrepareAnnotationModels() { return isAdmin() || ["annotator", "reviewer"].includes(state.session?.role); }
+function annotationModelBadge(model) {
+  if (!model.enabled) return "已停用";
+  if (model.configured) return model.last_health_status === "healthy" ? "健康" : "可用";
+  if (model.preparation?.state?.status === "downloading") return "下载中";
+  if (model.preparation?.installed) return "环境待就绪";
+  if (model.preparation?.mode === "manual") return "手动准备";
+  if (model.preparation?.downloadable) return "可下载";
+  return "待配置";
+}
+
 async function renderModelsPage() {
   const request = ++modelsRequest, epoch = state.selectionEpoch, session = state.session;
   const current = () => request === modelsRequest && epoch === state.selectionEpoch && session === state.session && state.currentSection === "models";
@@ -576,10 +588,21 @@ async function renderModelsPage() {
     state.models = models;
     const configured = state.models.filter((model) => model.configured).length;
     app.innerHTML = `<div class="app-shell">${topbar("models")}<main class="dashboard"><div class="dashboard-inner">
-      <div class="page-head"><div><div class="eyebrow">Model registry</div><h1>标注模型服务</h1><p class="page-subtitle">选择与项目任务匹配的 AI 模型。连接配置由管理员维护，标注时可以直接选择已配置的服务。</p></div><button class="btn primary" id="new-model" ${isAdmin()?"":"disabled"}>${icon("plus")}接入模型</button></div>
-      <section class="overview-strip"><div class="metric"><div class="metric-label">模型服务</div><div class="metric-value">${state.models.length}</div></div><div class="metric"><div class="metric-label">已配置</div><div class="metric-value">${configured}</div></div><div class="metric"><div class="metric-label">全自动</div><div class="metric-value">${state.models.filter(m => m.modes.includes("auto")).length}</div></div><div class="metric"><div class="metric-label">半自动</div><div class="metric-value">${state.models.filter(m => m.modes.includes("assist")).length}</div></div></section>
-      <div class="section-head"><h2>模型目录</h2></div><section class="project-grid">${state.models.map((model) => { const local = model.provider_type.startsWith("local_"); return `<article class="project-card model-service-card" style="min-height:245px"><span class="card-icon">${icon("magic")}</span><span class="badge">${!model.enabled ? "已停用" : model.last_health_status === "healthy" ? "健康" : model.configured ? (local ? "本地可用" : "待检测") : (local ? "权重缺失" : "待配置")}</span><h3>${escapeHtml(model.name)}</h3><p>${escapeHtml(model.description)}</p><div class="capabilities">${model.modes.map(mode => `<span>${mode === "auto" ? "全自动" : "半自动"}</span>`).join("")}${model.capabilities.map(c => `<span>${escapeHtml(c)}</span>`).join("")}</div>${model.availability_error ? `<p class="hint">模型暂不可用，${isAdmin() ? "请展开连接信息检查配置。" : "请联系管理员检查配置。"}</p>` : ""}<details class="technical-details"><summary>连接信息${model.availability_error ? "与不可用原因" : ""}</summary><div class="model-endpoint">${escapeHtml(local ? `本地权重 · ${model.model_name}` : model.endpoint || "尚未配置服务地址")}</div>${model.availability_error ? `<pre>${escapeHtml(model.availability_error)}</pre>` : ""}</details><div class="card-meta"><span>${escapeHtml(model.family)}</span><span class="model-actions">${isAdmin()?`<button class="mini-action" data-toggle-model="${model.id}">${model.enabled?"停用":"启用"}</button>`:""}<button class="mini-action" data-health-model="${model.id}" ${model.configured ? "" : "disabled"}>检测</button>${local ? `<span class="capabilities"><span>内置</span></span>` : isAdmin() ? `<button class="mini-action" data-edit-model="${model.id}">配置</button>` : ""}</span></div></article>`; }).join("")}</section>
+      <div class="page-head"><div><div class="eyebrow">Model registry</div><h1>标注模型服务</h1><p class="page-subtitle">选择与项目任务匹配的 AI 模型。连接配置由管理员维护，标注时选择可下载模型会在后台准备；SAM 系列需按提示手动放置文件。</p></div><button class="btn primary" id="new-model" ${isAdmin()?"":"disabled"}>${icon("plus")}接入模型</button></div>
+      <section class="overview-strip"><div class="metric"><div class="metric-label">模型服务</div><div class="metric-value">${state.models.length}</div></div><div class="metric"><div class="metric-label">已配置</div><div class="metric-value" data-model-configured-count>${configured}</div></div><div class="metric"><div class="metric-label">全自动</div><div class="metric-value">${state.models.filter(m => m.modes.includes("auto")).length}</div></div><div class="metric"><div class="metric-label">半自动</div><div class="metric-value">${state.models.filter(m => m.modes.includes("assist")).length}</div></div></section>
+      <div class="section-head"><h2>模型目录</h2></div><section class="project-grid">${state.models.map((model) => { const local = model.provider_type.startsWith("local_"); return `<article class="project-card model-service-card" data-service-model="${escapeHtml(model.id)}" style="min-height:245px"><span class="card-icon">${icon("magic")}</span><span class="badge" data-model-service-badge>${annotationModelBadge(model)}</span><h3>${escapeHtml(model.name)}</h3><p>${escapeHtml(model.description)}</p><div class="capabilities">${model.modes.map(mode => `<span>${mode === "auto" ? "全自动" : "半自动"}</span>`).join("")}${model.capabilities.map(c => `<span>${escapeHtml(c)}</span>`).join("")}</div>${model.availability_error && !model.preparation ? `<p class="hint">模型暂不可用，${isAdmin() ? "请展开连接信息检查配置。" : "请联系管理员检查配置。"}</p>` : ""}${model.preparation && model.preparation.mode !== "remote" ? `<div data-service-preparation="${escapeHtml(model.id)}"></div>` : `<details class="technical-details"><summary>连接信息${model.availability_error ? "与不可用原因" : ""}</summary><div class="model-endpoint">${escapeHtml(local ? `本地权重 · ${model.model_name}` : model.endpoint || "尚未配置服务地址")}</div>${model.availability_error ? `<pre>${escapeHtml(model.availability_error)}</pre>` : ""}</details>`}<div class="card-meta"><span>${escapeHtml(model.family)}</span><span class="model-actions">${isAdmin()?`<button class="mini-action" data-toggle-model="${model.id}">${model.enabled?"停用":"启用"}</button>`:""}<button class="mini-action" data-health-model="${model.id}" ${model.configured ? "" : "disabled"}>检测</button>${local ? `<span class="capabilities"><span>内置</span></span>` : isAdmin() ? `<button class="mini-action" data-edit-model="${model.id}">配置</button>` : ""}</span></div></article>`; }).join("")}</section>
     </div></main></div>`;
+    app.querySelectorAll("[data-service-preparation]").forEach(container => {
+      const model = state.models.find(item => item.id === container.dataset.servicePreparation);
+      mountModelPreparation(container, { model, api, escapeHtml, isCurrent: current, canPrepare: canPrepareAnnotationModels, onChange: updated => {
+        const index = state.models.findIndex(item => item.id === updated.id);
+        if (index >= 0) state.models[index] = updated;
+        const card = container.closest("[data-service-model]");
+        card.querySelector("[data-model-service-badge]").textContent = annotationModelBadge(updated);
+        card.querySelector("[data-health-model]").disabled = !updated.configured;
+        app.querySelector("[data-model-configured-count]").textContent = state.models.filter(item => item.configured).length;
+      } });
+    });
     if (isAdmin()) {
       const importButton = document.createElement("button");
       importButton.className = "btn";
@@ -599,10 +622,12 @@ async function renderModelsPage() {
       downloadButton.textContent = "下载基础模型";
       document.querySelector("#new-model").before(downloadButton);
       downloadButton.onclick = () => {
+        let downloads;
         openModal({ title: "下载基础模型", wide: true,
           body: '<div id="model-download-panel" role="region" aria-label="基础模型下载">正在读取模型目录…</div>',
-          submitText: "完成", onSubmit: async () => { closeModal(); await renderModelsPage(); },
-          onReady: () => mountModelDownloads(document.querySelector("#model-download-panel"), { api, escapeHtml, notify }) });
+          submitText: "完成", onSubmit: async () => { closeModal(); if (current()) await renderModelsPage(); },
+          onClose: () => downloads?.dispose(),
+          onReady: () => { downloads = mountModelDownloads(document.querySelector("#model-download-panel"), { api, escapeHtml, notify, isCurrent: current }); } });
       };
     }
     document.querySelector("#new-model").onclick = () => openModelModal();
@@ -1087,10 +1112,11 @@ function renderAiPage() {
     statuses: [["queued", "排队中"], ["running", "标注中"], ["completed", "已完成"], ["failed", "未完成"], ["cancelled", "已取消"]] });
   if (!history) return;
   const available = state.models.filter(model => model.enabled && model.configured && modelFitsProject(model));
+  const selectable = state.models.filter(model => modelFitsProject(model) && annotationModelSelectable(model, canPrepareAnnotationModels()));
   const modelsExpanded = Boolean(app.querySelector('.ai-model-strip')?.closest('details')?.open);
   app.innerHTML = projectPageShell("ai", `
-    <div class="page-head compact-head"><div><div class="eyebrow">AI 标注</div><h1>AI 标注中心</h1><p class="page-subtitle">由 AI 批量完成${escapeHtml(TASK_LABELS[projectTask()])}标注，成员按需校正，审核通过后进入训练。</p></div><button class="btn primary" id="new-ai-job" ${available.length && state.assets.length ? "" : "disabled"}>${icon("magic")}开始 AI 标注</button></div><div class="ai-page-tabs">${sectionTabsMarkup("ai", [["configure", "配置标注任务"], ["history", `任务历史（${state.jobs.length}）`]], tab, escapeHtml)}</div><div ${sectionPanelAttributes("ai", "configure", tab)}>${!state.assets.length ? `<div class="step-guidance"><strong>先导入图片</strong><span>导入后才能让 AI 标注。</span><a href="#/projects/${state.project.id}/data">前往导入</a></div>` : !available.length ? `<div class="step-guidance"><strong>暂时没有可用模型</strong><span>${isAdmin() ? "请先配置支持当前任务类型的模型。" : "请联系管理员配置模型后再继续。"}</span>${isAdmin() ? `<a href="#/models">配置模型</a>` : ""}</div>` : ""}
-    <section class="surface ai-config-intro"><div><h2>先试标，再批量处理</h2><p>选择图片和 AI 模型，核对类别与识别阈值。可先选 1–3 张样本预览，调整提示词和置信度；预览满意后，沿用当前参数启动正式标注。</p><div class="ai-config-counts"><span>项目图片 <strong>${state.assets.length}</strong> 张</span><span>可用模型 <strong>${available.length}</strong> 个</span><span>运行中 <strong>${state.jobs.filter(job => ["queued", "running"].includes(job.status)).length}</strong> 个任务</span></div></div><button class="btn primary" id="configure-ai-start" ${available.length && state.assets.length ? "" : "disabled"}>${icon("sliders")}配置与预览效果</button></section>
+    <div class="page-head compact-head"><div><div class="eyebrow">AI 标注</div><h1>AI 标注中心</h1><p class="page-subtitle">由 AI 批量完成${escapeHtml(TASK_LABELS[projectTask()])}标注，成员按需校正，审核通过后进入训练。</p></div><button class="btn primary" id="new-ai-job" ${selectable.length && state.assets.length ? "" : "disabled"}>${icon("magic")}开始 AI 标注</button></div><div class="ai-page-tabs">${sectionTabsMarkup("ai", [["configure", "配置标注任务"], ["history", `任务历史（${state.jobs.length}）`]], tab, escapeHtml)}</div><div ${sectionPanelAttributes("ai", "configure", tab)}>${!state.assets.length ? `<div class="step-guidance"><strong>先导入图片</strong><span>导入后才能让 AI 标注。</span><a href="#/projects/${state.project.id}/data">前往导入</a></div>` : !available.length ? `<div class="step-guidance"><strong>${selectable.length ? "先准备标注模型" : "暂时没有可用模型"}</strong><span>${selectable.length ? "打开配置窗口选择模型，按提示下载或手动准备文件；就绪后即可预览。" : isAdmin() ? "请先配置支持当前任务类型的模型。" : "请联系管理员配置模型后再继续。"}</span>${isAdmin() ? `<a href="#/models">配置模型</a>` : ""}</div>` : ""}
+    <section class="surface ai-config-intro"><div><h2>先试标，再批量处理</h2><p>选择图片和 AI 模型，核对类别与识别阈值。可先选 1–3 张样本预览，调整提示词和置信度；预览满意后，沿用当前参数启动正式标注。</p><div class="ai-config-counts"><span>项目图片 <strong>${state.assets.length}</strong> 张</span><span>可用模型 <strong>${available.length}</strong> 个</span><span>运行中 <strong>${state.jobs.filter(job => ["queued", "running"].includes(job.status)).length}</strong> 个任务</span></div></div><button class="btn primary" id="configure-ai-start" ${selectable.length && state.assets.length ? "" : "disabled"}>${icon("sliders")}配置与预览效果</button></section>
     <details class="advanced-settings" ${modelsExpanded ? "open" : ""}><summary>查看本项目可用的 ${available.length} 个 AI 模型</summary><section class="ai-model-strip">${available.length ? available.map(model => `<article><span class="card-icon">${icon("magic")}</span><div><strong>${escapeHtml(model.name)}</strong><small>${model.modes.includes("auto") ? "批量自动标注" : "交互辅助"} · ${model.capabilities.map(escapeHtml).join(" / ")}</small></div><span class="status-dot"></span></article>`).join("") : `<div class="empty-state"><p>没有可用的标注模型。请联系管理员配置。</p></div>`}</section></details>
     </div><div ${sectionPanelAttributes("ai", "history", tab)}><section class="surface ai-review-entry"><div><h2>跨任务选择与审核</h2><p>单次任务可从下方历史记录提交审核。需要合并多个任务的图片，或批量通过、退回时，可在这里选择。</p><span>待审核 ${state.assets.filter(asset => asset.review_status === "submitted").length} 张 · 已通过 ${state.assets.filter(asset => asset.review_status === "approved").length} 张</span></div><button class="btn primary" data-review-picker ${state.assets.length ? "" : "disabled"}>选择图片，批量提交与审核</button></section>
     <div class="section-head project-section-head"><div><h2>任务历史</h2><p>检查结果后，点击对应任务的“提交审核”，自动使用该任务已保存的图片范围。</p></div>${isAdmin() ? `<a class="btn ghost link-btn" href="#/models">管理标注模型</a>` : ""}</div>
@@ -1210,9 +1236,9 @@ async function downloadArtifact(url, fallbackName = "download") {
   } finally { progressNotice.remove(); }
 }
 
-import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.24.0";
-import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.24.0";
-import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.24.0";
+import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.25.0";
+import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.25.0";
+import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.25.0";
 
 const trainingChartViews = new Map();
 const trainingDetailViews = new Map();
@@ -4108,14 +4134,14 @@ function openAiModal(preselectedAssetIds = null) {
   if (!state.assets.length) return notify("请先上传图片", "error");
   const projectId = state.project.id, projectName = state.project.name, selectionEpoch = state.selectionEpoch, session = state.session, section = state.currentSection;
   const contextCurrent = () => state.project?.id === projectId && state.selectionEpoch === selectionEpoch && state.session === session && state.currentSection === section;
-  let sourceModal, preview;
+  let sourceModal, preview, preparation;
   let previewState = { busy: false, hasFreshResult: false, stale: false };
   const modalCurrent = () => contextCurrent() && sourceModal?.isConnected && modalRoot.querySelector('.modal') === sourceModal;
   const explicitSelection = preselectedAssetIds?.length ? preselectedAssetIds : [...(state.selectedAssetIds || [])];
-  let selectedModel = matchingModels.find(model => model.configured && model.enabled && (model.modes.includes("auto") || Boolean(state.asset && !explicitSelection.length)))?.id || null;
+  let selectedModel = matchingModels.find(model => model.configured && model.enabled && (model.modes.includes("auto") || Boolean(state.asset && !explicitSelection.length)))?.id || matchingModels.filter(model => annotationModelSelectable(model, canPrepareAnnotationModels())).sort((a, b) => Number(a.preparation?.size_bytes || Infinity) - Number(b.preparation?.size_bytes || Infinity))[0]?.id || null;
   let savedConfig = {};
   try { savedConfig = JSON.parse(localStorage.getItem(`visionforge-ai-config-${state.project.id}`) || "{}"); } catch (_) { /* ignore invalid browser state */ }
-  if (matchingModels.some(model => model.id === savedConfig.model_id && model.configured && model.enabled)) selectedModel = savedConfig.model_id;
+  if (matchingModels.some(model => model.id === savedConfig.model_id && annotationModelSelectable(model, canPrepareAnnotationModels()))) selectedModel = savedConfig.model_id;
   const initialPrompt = aiPromptConfig(matchingModels.find(model => model.id === selectedModel));
   if (!initialPrompt.readOnly && savedConfig.model_id === selectedModel && savedConfig.prompt) initialPrompt.value = savedConfig.prompt;
   const initialConfidence = Number.isFinite(Number(savedConfig.confidence_threshold)) ? Math.max(0, Math.min(100, Math.round(Number(savedConfig.confidence_threshold) * 100))) : 35;
@@ -4129,7 +4155,7 @@ function openAiModal(preselectedAssetIds = null) {
   const scopeProblem = () => {
     const model = matchingModels.find(item => item.id === selectedModel);
     const scope = document.querySelector('input[name="scope"]:checked')?.value;
-    if (!model?.configured || !model.enabled) return isAdmin() ? "尚无可用模型，请先到“标注模型”完成配置。" : "尚无可用模型，请联系管理员配置。";
+    if (!model?.configured || !model.enabled) return model ? modelPreparationStatus(model) : isAdmin() ? "尚无可用模型，请先到“标注模型”完成配置。" : "尚无可用模型，请联系管理员配置。";
     if (!eligibleAssets().length) return "当前范围内没有可处理图片。请选择其他范围；已提交或已通过的图片默认跳过。";
     const interactive = ["interactive_segmentation", "local_sam2"].includes(model.provider_type);
     if ((!model.modes.includes("auto") || interactive) && scope !== "current") return "此模型需要在单张图片上提供位置提示。请先打开图片，或选择支持批量标注的模型。";
@@ -4180,9 +4206,35 @@ function openAiModal(preselectedAssetIds = null) {
     document.querySelector("#ai-model-name").textContent = model?.name || "尚未配置";
   };
   const parametersChanged = () => { updateScopeSummary(); preview?.refresh(); };
+  const mountSelectedPreparation = ({ download = false, refresh = false } = {}) => {
+    preparation?.dispose(); preparation = null;
+    const container = sourceModal.querySelector("#ai-model-preparation");
+    const model = matchingModels.find(item => item.id === selectedModel);
+    container.hidden = !model?.preparation;
+    if (!model?.preparation) { container.replaceChildren(); return; }
+    preparation = mountModelPreparation(container, { model, api, escapeHtml, isCurrent: modalCurrent, canPrepare: canPrepareAnnotationModels, onChange: (updated, previous) => {
+      const index = matchingModels.findIndex(item => item.id === updated.id);
+      if (index >= 0) matchingModels[index] = updated;
+      const stateIndex = state.models.findIndex(item => item.id === updated.id);
+      if (stateIndex >= 0) state.models[stateIndex] = updated;
+      const card = sourceModal.querySelector(`[data-model-id="${CSS.escape(updated.id)}"]`);
+      if (card) {
+        card.querySelector(".badge").textContent = annotationModelBadge(updated);
+        card.disabled = !annotationModelSelectable(updated, canPrepareAnnotationModels());
+        card.classList.toggle("unavailable", card.disabled);
+        const hint = card.querySelector(".ai-model-download-hint");
+        if (hint) hint.textContent = updated.preparation?.mode === "manual" ? "手动准备文件，按下方说明重新检查。" : updated.preparation?.installed ? "权重已就绪" : `${modelDownloadSize(updated.preparation?.size_bytes)} · 选择后后台下载`;
+      }
+      updateScopeSummary();
+      if (Boolean(previous.configured) !== Boolean(updated.configured) || previous.enabled !== updated.enabled) preview?.refresh();
+    } });
+    if (download) void preparation.prepare();
+    else if (refresh) void preparation.refresh();
+  };
   openModal({ title: "AI 标注 · 预览与批量运行", subtitle: "先用样本查看效果，调整参数后再处理整批图片。预览不会保存或覆盖现有标注。", wide: true, body: `
     <div class="ai-preview-layout"><section class="ai-parameter-panel" aria-label="AI 标注参数">
-    <details class="advanced-settings ai-model-selector" id="ai-model-selector" ${selectedModel ? "" : "open"}><summary>标注模型：<span id="ai-model-name">${escapeHtml(matchingModels.find(model => model.id === selectedModel)?.name || "尚未配置")}</span> <small>更换模型</small></summary><p class="hint">不同模型擅长的内容不同。建议先用少量图片试标，确认结果后再处理整批图片。</p><div class="model-grid" id="model-grid">${matchingModels.map(model => `<button type="button" class="model-card ${model.id === selectedModel ? "selected" : ""} ${!model.configured || !model.enabled ? "unavailable" : ""}" data-model-id="${model.id}" aria-pressed="${model.id === selectedModel}" ${model.configured && model.enabled ? "" : "disabled"}><span class="badge">${!model.enabled ? "已停用" : model.configured ? "可用" : "未配置"}</span><h3>${escapeHtml(model.name)}</h3><p>${escapeHtml(model.description)}</p><div class="capabilities">${model.modes.map(mode => `<span>${mode === "auto" ? "全自动" : "半自动"}</span>`).join("")}${model.capabilities.map(c => `<span>${escapeHtml(c)}</span>`).join("")}</div></button>`).join("")}</div>${selectedModel ? "" : `<div class="job-error">${isAdmin() ? '尚无可用模型，请先到“标注模型”配置。' : '尚无可用模型，请联系管理员。'}</div>`}</details>
+    <details class="advanced-settings ai-model-selector" id="ai-model-selector" ${selectedModel ? "" : "open"}><summary>标注模型：<span id="ai-model-name">${escapeHtml(matchingModels.find(model => model.id === selectedModel)?.name || "尚未配置")}</span> <small>更换模型</small></summary><p class="hint">不同模型擅长的内容不同。建议先用少量图片试标，确认结果后再处理整批图片。</p><div class="model-grid" id="model-grid">${matchingModels.map(model => `<button type="button" class="model-card ${model.id === selectedModel ? "selected" : ""} ${annotationModelSelectable(model, canPrepareAnnotationModels()) ? "" : "unavailable"}" data-model-id="${escapeHtml(model.id)}" aria-pressed="${model.id === selectedModel}" ${annotationModelSelectable(model, canPrepareAnnotationModels()) ? "" : "disabled"}><span class="badge">${annotationModelBadge(model)}</span><h3>${escapeHtml(model.name)}</h3><p>${escapeHtml(model.description)}</p><div class="capabilities">${model.modes.map(mode => `<span>${mode === "auto" ? "全自动" : "半自动"}</span>`).join("")}${model.capabilities.map(c => `<span>${escapeHtml(c)}</span>`).join("")}</div>${model.preparation ? `<small class="ai-model-download-hint">${model.preparation.mode === "manual" ? "需手动准备文件，选择后查看目录与要求。" : model.preparation.mode === "download" && !model.preparation.installed ? `${modelDownloadSize(model.preparation.size_bytes)} · 选择后后台下载` : ""}</small>` : ""}</button>`).join("")}</div>${selectedModel ? "" : `<div class="job-error">${isAdmin() ? '尚无可用模型，请先到“标注模型”配置。' : '尚无可用模型，请联系管理员。'}</div>`}</details>
+    <div id="ai-model-preparation" class="ai-model-preparation" hidden></div>
     <div class="field"><label id="ai-prompt-label" for="ai-prompt">${escapeHtml(initialPrompt.label)}</label><textarea id="ai-prompt" ${initialPrompt.readOnly ? "readonly" : ""} placeholder="${escapeHtml(initialPrompt.placeholder)}">${escapeHtml(initialPrompt.value)}</textarea><div class="hint" id="ai-prompt-hint">${escapeHtml(initialPrompt.hint)}</div></div>
     <div class="field"><label for="confidence">最低置信度</label><div class="range-line"><input id="confidence" type="range" min="0" max="100" step="1" value="${initialConfidence}" aria-describedby="ai-confidence-hint" /><span class="range-value" id="confidence-value">${initialConfidence}%</span></div><div class="hint" id="ai-confidence-hint">调低可发现更多目标，但可能增加误检；调高更严格，但可能漏标。调整后点击“预览效果”比较结果。</div></div>
     <div class="field"><label>处理范围</label><div class="scope-grid"><label class="scope-option"><input type="radio" name="scope" value="current" ${defaultScope === "current" ? "checked" : ""} ${state.asset ? "" : "disabled"}/><span><strong>当前图片</strong><small>${state.asset ? escapeHtml(state.asset.filename) : "未打开图片"}</small></span></label><label class="scope-option"><input type="radio" name="scope" value="selected" ${defaultScope === "selected" ? "checked" : ""} ${explicitSelection.length ? "" : "disabled"}/><span><strong>已选图片</strong><small>${explicitSelection.length} 张</small></span></label><label class="scope-option"><input type="radio" name="scope" value="unlabeled" ${defaultScope === "unlabeled" ? "checked" : ""}/><span><strong>所有未标注</strong><small>${eligibleUnlabeled} 张可处理</small></span></label><label class="scope-option"><input type="radio" name="scope" value="all" ${defaultScope === "all" ? "checked" : ""}/><span><strong>全部数据</strong><small>${state.assets.length} 张（已审核默认跳过）</small></span></label></div></div>
@@ -4190,13 +4242,16 @@ function openAiModal(preselectedAssetIds = null) {
 
     <details class="advanced-settings" id="ai-advanced"><summary>已有标注与审核设置</summary>
     <div class="check-stack"><label class="check-line"><input id="replace-auto" type="checkbox" checked />替换之前的 AI 结果，保留人工绘制和人工校正的标注</label><label class="check-line" ${canReview() ? "" : "hidden"}><input id="include-reviewed" type="checkbox" ${canReview()?"":"disabled"}/>重新标注待审核或已通过图片（会恢复为草稿，需要再次提交审核）</label></div></details>${state.assistPoints.length ? `<div class="assist-summary">当前画布已有 ${state.assistPoints.filter(point => point.label).length} 个正点、${state.assistPoints.filter(point => !point.label).length} 个负点，将作为半自动分割提示。</div>` : ""}</section>${aiPreviewMarkup()}</div>`,
-    submitText: "启动标注任务", onClose: () => preview?.dispose(), onReady: () => {
+    submitText: "启动标注任务", onClose: () => { preparation?.dispose(); preview?.dispose(); }, onReady: () => {
       sourceModal = modalRoot.querySelector('.modal');
       sourceModal.classList.add("ai-preview-modal");
       const batchHint = document.createElement("span"); batchHint.id = "ai-batch-preview-state"; batchHint.className = "ai-batch-preview-state"; batchHint.setAttribute("role", "status");
       sourceModal.querySelector(".modal-actions").prepend(batchHint);
       document.querySelectorAll(".model-card").forEach(card => card.onclick = () => {
-        const model = matchingModels.find(m => m.id === card.dataset.modelId); if (!model.configured || !model.enabled) return notify(`${model.name} 尚未配置，请联系管理员`, "error");
+        if (!modalCurrent()) return;
+        const model = matchingModels.find(m => m.id === card.dataset.modelId);
+        if (!annotationModelSelectable(model, canPrepareAnnotationModels())) return notify(modelPreparationStatus(model), "error");
+        if (selectedModel === model.id && preparation) { if (!model.configured && !model.preparation?.installed) void preparation.prepare(); return; }
         const promptInput = document.querySelector("#ai-prompt");
         const previousConfig = aiPromptConfig(matchingModels.find(item => item.id === selectedModel));
         const wasDefault = promptInput.value === previousConfig.value;
@@ -4208,6 +4263,7 @@ function openAiModal(preselectedAssetIds = null) {
         promptInput.readOnly = Boolean(config.readOnly);
         if (wasDefault || config.readOnly || previousConfig.readOnly) promptInput.value = config.value;
         if (!model.modes.includes("auto") && state.asset) document.querySelector('input[name="scope"][value="current"]').checked = true;
+        mountSelectedPreparation({ download: !model.configured && model.preparation?.mode === "download" && !model.preparation.installed, refresh: model.preparation?.mode === "manual" || model.preparation?.installed });
         parametersChanged();
       });
       document.querySelectorAll('input[name="scope"], #include-reviewed, #replace-auto').forEach(input => input.onchange = parametersChanged);
@@ -4218,6 +4274,7 @@ function openAiModal(preselectedAssetIds = null) {
         isCurrent: modalCurrent, keypointSchema: state.project.keypoint_schema,
         onChange: value => { previewState = value; if (modalCurrent()) updateScopeSummary(); },
       });
+      mountSelectedPreparation({ refresh: true });
       document.querySelector("#confidence").oninput = event => {
         document.querySelector("#confidence-value").textContent = `${event.target.value}%`;
         parametersChanged();

@@ -4,7 +4,9 @@ from __future__ import annotations
 import fcntl
 import hashlib
 import json
+import logging
 import os
+import stat
 import threading
 import time
 from pathlib import Path
@@ -16,6 +18,7 @@ from .auth import Actor, get_actor, require_admin
 from .config import BASE_DIR, settings
 
 router = APIRouter(prefix="/api/model-downloads", tags=["models"])
+logger = logging.getLogger(__name__)
 
 
 class ModelDownloadCancelled(RuntimeError):
@@ -131,11 +134,68 @@ def _download(model, handle):
         from .providers import seed_builtin_models
         seed_builtin_models()
     except Exception as exc:
-        write_state(model["id"], status="failed", downloaded=completed, total=total,
-                    error=f"下载失败，可重试续传：{type(exc).__name__}: {str(exc)[:300]}")
+        try:
+            write_state(model["id"], status="failed", downloaded=completed, total=total,
+                        error=f"下载失败，可重试续传：{type(exc).__name__}: {str(exc)[:300]}")
+        except (OSError, ValueError):
+            # A full/read-only disk may also prevent writing the error state.
+            # Releasing the lock lets readers report the abandoned download.
+            logger.exception("Could not persist failed download state for %s", model["id"])
     finally:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
         handle.close()
+
+
+def _model_files_installed(model):
+    if not model["files"]:
+        return False
+    for item in model["files"]:
+        try:
+            info = destination(item["path"]).stat()
+        except FileNotFoundError:
+            return False
+        if not stat.S_ISREG(info.st_mode) or info.st_size == 0:
+            return False
+    return True
+
+
+def _download_snapshot(model):
+    """Read existing files only, keeping filesystem failures local to a model."""
+    state, installed = {}, False
+    try:
+        path = destination(f".downloads/{model['id']}.json")
+        try:
+            state = json.loads(path.read_text())
+        except (FileNotFoundError, ValueError, UnicodeError):
+            state = {}
+        if not isinstance(state, dict):
+            state = {}
+        installed = _model_files_installed(model)
+        if state.get("status") == "downloading":
+            lock_path = destination(f".downloads/{model['id']}.lock")
+            try:
+                # Read-only mounts must remain usable. Never create a missing
+                # lock as part of a GET, and never replace the downloader inode.
+                with lock_path.open("rb") as lock:
+                    try:
+                        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    except BlockingIOError:
+                        pass
+                    else:
+                        state.update(status="interrupted", error="上次下载已中断，点击下载继续。")
+            except FileNotFoundError:
+                state.update(status="interrupted", error="上次下载已中断，点击下载继续。")
+        if not installed and state.get("status") == "complete":
+            state.update(status="missing", error="模型文件已移走，请重新下载。")
+        state.setdefault("status", "complete" if installed else "missing")
+        state.setdefault("error", "")
+    except (OSError, ValueError):
+        state.update(status="failed", error="无法读取模型准备状态，请检查模型目录权限、磁盘空间及文件路径后重新检查。")
+    return state, installed
+
+
+def download_status(model):
+    """Read progress without treating an abandoned downloader as still alive."""
+    return _download_snapshot(model)[0]
 
 
 @router.get("")
@@ -143,21 +203,17 @@ def list_downloads(actor: Actor = Depends(get_actor)):
     require_admin(actor)
     result = []
     for model in catalog():
-        path = state_dir() / f"{model['id']}.json"
-        try:
-            state = json.loads(path.read_text()) if path.exists() else {}
-        except (OSError, ValueError):
-            state = {}
-        if state.get("status") == "downloading":
-            with (state_dir() / f"{model['id']}.lock").open("a+") as lock:
-                try:
-                    fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    state.update(status="interrupted", error="上次下载已中断，点击下载继续。")
-                except BlockingIOError:
-                    pass
-        installed = all(destination(item["path"]).is_file() for item in model["files"])
-        if not installed and state.get("status") == "complete":
-            state.update(status="missing", error="模型文件已移走，请重新下载。")
+        if model.get("download_policy") == "manual":
+            from .providers import get_model
+            service = get_model(model["annotation_model_id"])
+            plan = service.get("preparation") if service else None
+            result.append({key: value for key, value in model.items() if key != "files"} | {
+                "size_bytes": 0, "installed": bool(plan and plan["installed"]),
+                "state": plan["state"] if plan else {"status": "missing", "error": "请检查模型服务配置"},
+                "preparation": plan, "availability_error": service.get("availability_error", "") if service else "",
+            })
+            continue
+        state, installed = _download_snapshot(model)
         result.append({key: value for key, value in model.items() if key != "files"} | {
             "size_bytes": sum(item["size"] for item in model["files"]),
             "installed": installed, "state": state,
@@ -168,18 +224,33 @@ def list_downloads(actor: Actor = Depends(get_actor)):
 @router.post("/{model_id}", status_code=202)
 def start_download(model_id: str, actor: Actor = Depends(get_actor)):
     require_admin(actor)
+    return queue_download(model_id)
+
+
+def queue_download(model_id: str, *, idempotent: bool = False):
     model = next((item for item in catalog() if item["id"] == model_id), None)
     if model is None:
         raise HTTPException(404, "下载目录中没有这个模型")
-    handle = (state_dir() / f"{model_id}.lock").open("a+")
+    if model.get("download_policy") == "manual":
+        raise HTTPException(409, "SAM 权重需自行下载并放到指定目录，请在标注模型服务中查看文件名并重新检查。")
+    handle, handed_off = None, False
     try:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        handle.close()
-        raise HTTPException(409, "该模型正在下载")
-    write_state(model_id, status="downloading", downloaded=0, total=sum(f["size"] for f in model["files"]), error="")
-    threading.Thread(target=_download, args=(model, handle), daemon=True).start()
-    return {"id": model_id, "status": "downloading"}
+        handle = (state_dir() / f"{model_id}.lock").open("a+")
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            if idempotent:
+                return {"id": model_id, "status": "downloading"}
+            raise HTTPException(409, "该模型正在下载")
+        write_state(model_id, status="downloading", downloaded=0, total=sum(f["size"] for f in model["files"]), error="")
+        threading.Thread(target=_download, args=(model, handle), daemon=True).start()
+        handed_off = True
+        return {"id": model_id, "status": "downloading"}
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise HTTPException(503, "无法启动模型下载，请检查模型目录写入权限、磁盘空间和进程资源后重试。") from exc
+    finally:
+        if handle is not None and not handed_off:
+            handle.close()
 
 
 @router.post("/import/checkpoint", status_code=201)

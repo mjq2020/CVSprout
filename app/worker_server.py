@@ -73,7 +73,8 @@ class Call(BaseModel):
 @app.post("/internal/call/{operation}", dependencies=[Depends(authenticate)])
 def invoke(operation: str, body: Call):
     from . import training
-    from .providers.local import local_runtime_status, local_sam3_runtime_status
+    from .providers.local import local_runtime_status, local_sam2_runtime_status, local_sam3_runtime_status
+    from .providers.qwen_local import local_qwen_runtime_status
     functions = {
         "backend": training._backend_info,
         "models": training.model_catalog,
@@ -81,7 +82,9 @@ def invoke(operation: str, body: Call):
         "availability": training.training_availability,
         "checkpoint": training._checkpoint_probe,
         "local-status": local_runtime_status,
+        "sam2-status": local_sam2_runtime_status,
         "sam3-status": local_sam3_runtime_status,
+        "qwen-local-status": local_qwen_runtime_status,
     }
     function = functions.get(operation)
     if function is None:
@@ -108,6 +111,7 @@ class Predict(BaseModel):
 @app.post("/internal/predict", dependencies=[Depends(authenticate)])
 async def predict(body: Predict):
     from .providers import get_provider
+    from .providers.qwen_local import QwenLocalError
     from .training import ResourceBusy
     root = settings.media_dir.resolve()
     path = (root / body.image).resolve()
@@ -121,3 +125,5 @@ async def predict(body: Predict):
         return [asdict(prediction) for prediction in result]
     except ResourceBusy as exc:
         raise HTTPException(409, str(exc)) from exc
+    except QwenLocalError as exc:
+        raise HTTPException(422, {"code": "local_model_inference", "message": str(exc)}) from exc

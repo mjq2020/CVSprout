@@ -52,8 +52,11 @@ async def run_preview(project: dict, model: dict, provider, labels: list[dict], 
         raise
     except Exception as exc:
         from .training import ResourceBusy
+        from .providers.qwen_local import QwenLocalError
         if isinstance(exc, ResourceBusy):
             raise HTTPException(409, str(exc), headers={"Retry-After": "3"}) from exc
+        if isinstance(exc, QwenLocalError):
+            raise HTTPException(422, str(exc)) from exc
         logger.warning("AI preview failed for model %s (%s)", model.get("id"), type(exc).__name__)
         raise HTTPException(502, "AI 预览失败，未保存任何标注。请检查模型服务后重试。") from exc
 

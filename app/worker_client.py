@@ -39,6 +39,10 @@ def _result(response: httpx.Response):
     if response.status_code == 409:
         from .training import ResourceBusy
         raise ResourceBusy(response.json().get("detail", "GPU 正在处理其他任务"))
+    if response.status_code == 422:
+        detail = response.json().get("detail")
+        if isinstance(detail, dict) and detail.get("code") == "local_model_inference" and isinstance(detail.get("message"), str):
+            raise HTTPException(422, detail["message"][:1000])
     if response.is_error:
         raise HTTPException(503, "计算服务暂不可用，请检查 worker 状态和日志。")
     return response.json()

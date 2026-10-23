@@ -1,6 +1,6 @@
 # CVSprout 模块与功能说明
 
-本文描述 **0.24.0** 已实现的模块、主要功能、数据流和源码入口，供首次使用者了解产品，也供开发者定位代码。具体操作步骤见[用户指南](user-guide.md)，安装命令见 [README](../README.md)。功能、配置或权限发生变化时，应同步维护本文。
+本文描述 **0.25.0** 已实现的模块、主要功能、数据流和源码入口，供首次使用者了解产品，也供开发者定位代码。具体操作步骤见[用户指南](user-guide.md)，安装命令见 [README](../README.md)。功能、配置或权限发生变化时，应同步维护本文。
 
 ## 阅读导航
 
@@ -165,18 +165,18 @@
 
 | 模型来源 | 当前用途 | 准备方式 |
 |---|---|---|
-| Qwen 视觉接口 | 调用配置的远程视觉模型生成预测 | 配置兼容接口地址、模型名和凭证 |
+| Qwen3.5 | 本地 0.8B / 35B-A3B 图像语义标注，保留远程接口 | 标注时选择后后台下载，或从模型服务提前下载；远程模式配置接口地址 |
 | Grounding DINO Tiny | 本地文本引导目标检测 | 下载目录中的固定权重与配置 |
-| SAM 3 | 本地分割能力 | 自行准备符合模型使用条件的权重及所需源码，不在一键下载目录中 |
-| SAM2.1 Tiny | 本地交互式分割 | 下载对应权重，结合点或框提示 |
+| SAM 3 | 本地文本概念分割 | 获得官方访问权限后自行放置 sam3.pt；页面重新检查，无自动下载，不再要求额外源码 |
+| SAM2.1 Tiny | 本地交互式分割 | 自行放置 Tiny 权重，兼容原完整 HF 目录，结合点或框提示 |
 | Ultralytics 权重 | 支持检测、分割、分类或关键点的本地训练与推理 | 支持 8 个系列、85 个内置训练选项，默认按需下载；可提前下载或由管理员导入兼容 `.pt` 文件 |
 | 自定义远程模型 | 检测、分割、分类、关键点或交互分割协议适配 | 在模型服务中配置对应协议 |
 
 基础模型下载使用固定来源、大小和 SHA-256 校验，并支持中断后续传。导入权重不会覆盖同名文件。模型文件与第三方组件有独立的许可信息，见[第三方说明](../THIRD_PARTY_NOTICES.md)。
 
-网页下载目录当前提供 Grounding DINO Tiny、SAM2.1 Tiny，以及 8 个系列的 85 个训练模型，共 87 项；目录中存在某个模型不代表本机已经下载或具备运行条件。
+网页准备目录共 90 项：85 个训练模型、Grounding DINO、两个 Qwen3.5 型号，以及两个只提供本地文件说明的 SAM 条目。可自动下载的共 88 项；SAM 下载接口明确拒绝请求。页面区分文件已存在、下载中和推理就绪，支持刷新文件检查。标注员、审核员和管理员可准备指定的官方标注模型；自定义下载及权重导入仍由管理员管理。
 
-主要实现：[model_downloads.py](../app/model_downloads.py)、[training_models.py](../app/training_models.py)、[providers](../app/providers)、[setup-ui.js](../static/setup-ui.js)。
+主要实现：[model_downloads.py](../app/model_downloads.py)、[annotation_models.py](../app/annotation_models.py)、[training_models.py](../app/training_models.py)、[providers](../app/providers)、[model-preparation-ui.js](../static/model-preparation-ui.js)、[setup-ui.js](../static/setup-ui.js)。
 
 ### 11. AI 预览与后台标注
 

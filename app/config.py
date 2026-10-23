@@ -17,6 +17,9 @@ class Settings:
     data_dir: Path = Path(os.getenv("MDP_DATA_DIR", BASE_DIR / "data"))
     models_dir: Path = Path(os.getenv("MDP_MODELS_DIR", BASE_DIR / "models"))
     model_device: str = os.getenv("MDP_MODEL_DEVICE", "auto").strip().lower()
+    sam2_checkpoint: Path = Path(
+        os.getenv("MDP_SAM2_CHECKPOINT", MODEL_ROOT / "sam2" / "sam2.1_t.pt")
+    )
     sam3_checkpoint: Path = Path(
         os.getenv("MDP_SAM3_CHECKPOINT", MODEL_ROOT / "sam3" / "sam3.pt")
     )

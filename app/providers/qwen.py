@@ -15,6 +15,30 @@ from .base import (
 )
 
 
+def annotation_instruction(prompt: str, labels: list[str], hints: dict[str, Any] | None = None) -> str:
+    """Shared annotation contract for the HTTP and local Qwen backends."""
+    hint_text = f"\n交互提示（原图像素坐标）：{hints}" if hints else ""
+    task = (hints or {}).get("task_type", "detect")
+    contracts = {
+        "detect": '{"label":"类别名","bbox":[x1,y1,x2,y2],"confidence":0.9,"attributes":{}}',
+        "segment": '{"label":"类别名","polygon":[x1,y1,x2,y2,x3,y3],"confidence":0.9,"attributes":{}}',
+        "classify": '{"label":"类别名","shape_type":"classification","confidence":0.9,"attributes":{}}',
+        "pose": '{"label":"类别名","bbox":[x1,y1,x2,y2],"keypoints":[{"x":100,"y":200,"visibility":2}],"confidence":0.9,"attributes":{}}',
+    }
+    return f"""你是严格的图像数据标注器。请完整找出所有符合要求的目标，不要遗漏。
+标注要求：{prompt}
+允许的类别：{', '.join(labels)}
+{hint_text}
+
+只输出 JSON，不要输出解释或 Markdown。格式必须是：
+{{"objects":[{contracts.get(task, contracts['detect'])}]}}
+当前任务：{task}。分类时整张图只输出一个类别。
+关键点时严格遵循提示中的 keypoint_schema.names 顺序，每个对象输出完整数量的点。
+visibility：0=未标注（x=y=0），1=遮挡但可定位，2=可见。分割时使用完整轮廓多边形。
+坐标按原图位置归一化到 0 到 1000。没有目标时输出 {{"objects":[]}}。
+不得创造类别；不确定的目标不要输出。"""
+
+
 class QwenProvider(AnnotationProvider):
     def __init__(
         self,
@@ -50,26 +74,8 @@ class QwenProvider(AnnotationProvider):
     ) -> list[Prediction]:
         if not self.endpoint:
             raise RuntimeError("QWEN_BASE_URL 未配置")
-        hint_text = f"\n交互提示（原图像素坐标）：{hints}" if hints else ""
         task = (hints or {}).get("task_type", "detect")
-        contracts = {
-            "detect": '{"label":"类别名","bbox":[x1,y1,x2,y2],"confidence":0.9,"attributes":{}}',
-            "segment": '{"label":"类别名","polygon":[x1,y1,x2,y2,x3,y3],"confidence":0.9,"attributes":{}}',
-            "classify": '{"label":"类别名","shape_type":"classification","confidence":0.9,"attributes":{}}',
-            "pose": '{"label":"类别名","bbox":[x1,y1,x2,y2],"keypoints":[{"x":100,"y":200,"visibility":2}],"confidence":0.9,"attributes":{}}',
-        }
-        instruction = f"""你是严格的图像数据标注器。请完整找出所有符合要求的目标，不要遗漏。
-标注要求：{prompt}
-允许的类别：{', '.join(labels)}
-{hint_text}
-
-只输出 JSON，不要输出解释或 Markdown。格式必须是：
-{{"objects":[{contracts.get(task, contracts['detect'])}]}}
-当前任务：{task}。分类时整张图只输出一个类别。
-关键点时严格遵循提示中的 keypoint_schema.names 顺序，每个对象输出完整数量的点。
-visibility：0=未标注（x=y=0），1=遮挡但可定位，2=可见。分割时使用完整轮廓多边形。
-坐标按原图位置归一化到 0 到 1000。没有目标时输出 {{"objects":[]}}。
-不得创造类别；不确定的目标不要输出。"""
+        instruction = annotation_instruction(prompt, labels, hints)
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"

@@ -98,7 +98,7 @@ async def lifespan(application: FastAPI):
                     await pipeline_task
 
 
-app = FastAPI(title="CVSprout 标注平台", version="0.24.0", lifespan=lifespan)
+app = FastAPI(title="CVSprout 标注平台", version="0.25.0", lifespan=lifespan)
 app.middleware("http")(browser_security)
 app.add_middleware(RequestBodyLimit, policy=request_budget)
 app.include_router(accounts_router)
@@ -345,7 +345,10 @@ async def check_model_health(model_id: str, actor: Actor = Depends(get_actor)) -
         elif model["provider_type"] == "local_yolo":
             status = "healthy" if model["configured"] else "unhealthy"
             error = model["availability_error"]
-        elif model["provider_type"] in {"local_grounding_dino", "local_sam2"}:
+        elif model["provider_type"] in {"local_qwen", "local_sam2"}:
+            status = "healthy" if model["configured"] else "unhealthy"
+            error = model["availability_error"]
+        elif model["provider_type"] == "local_grounding_dino":
             available, error = local_runtime_status(model["model_name"])
             status = "healthy" if available else "unhealthy"
         elif model["provider_type"] == "local_sam3":
@@ -383,6 +386,36 @@ async def check_model_health(model_id: str, actor: Actor = Depends(get_actor)) -
         )
     audit(actor.id, "health_check", "model_service", model_id, payload={"status": status})
     return {"status": status, "error": error, "checked_at": now_iso()}
+
+
+@app.get("/api/models/{model_id}/preparation")
+def annotation_model_preparation(model_id: str, _: Actor = Depends(get_actor)) -> dict:
+    model = get_model(model_id)
+    if not model:
+        raise HTTPException(404, "模型服务不存在")
+    return model
+
+
+@app.post("/api/models/{model_id}/prepare", status_code=202)
+def prepare_annotation_model(model_id: str, actor: Actor = Depends(get_actor)) -> dict:
+    if actor.must_change_password:
+        raise password_change_required()
+    if actor.role not in {"admin", "annotator", "reviewer"}:
+        raise HTTPException(403, "需要标注员或审核员权限")
+    model = get_model(model_id)
+    if not model:
+        raise HTTPException(404, "模型服务不存在")
+    plan = model.get("preparation") or {}
+    if not model["enabled"]:
+        raise HTTPException(409, "此模型已停用，请联系管理员")
+    if plan.get("mode") == "manual":
+        raise HTTPException(409, plan["instructions"])
+    if not plan.get("downloadable") or not plan.get("download_id"):
+        raise HTTPException(409, "此服务没有可自动准备的官方权重，请检查配置")
+    if not plan["installed"]:
+        from .model_downloads import queue_download
+        queue_download(plan["download_id"], idempotent=True)
+    return get_model(model_id) or model
 
 
 @app.get("/api/projects")
@@ -1000,7 +1033,9 @@ def _prepare_annotation_request(project_id: int, payload: JobCreate, actor: Acto
     if not model or not provider:
         raise HTTPException(404, "标注模型不存在")
     if not provider.info.configured:
-        raise HTTPException(409, f"{provider.info.name} 尚未配置推理端点")
+        preparation_state = (model.get("preparation") or {}).get("state", {})
+        message = "模型权重正在后台下载，请等待准备完成后再标注" if preparation_state.get("status") == "downloading" else model.get("availability_error")
+        raise HTTPException(409, message or f"{provider.info.name} 尚未配置推理端点")
     supported_tasks = model.get("tasks", ["detect", "segment"])
     if project["task_type"] != "mixed" and project["task_type"] not in supported_tasks:
         raise HTTPException(409, "该 AI 服务不支持项目任务类型，请选择匹配的模型")

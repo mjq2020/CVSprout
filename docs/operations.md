@@ -5,7 +5,9 @@
 先停止旧服务并备份，再在新目录验证。旧版默认读取维护者机器上的绝对模型路径；新版统一到 models/ 或 Compose 的 /models。
 
 - 直接 Python 启动：将自己的权重放到 models/training，或在本机 .env 中显式配置 MDP_TRAINING_BASE_MODEL、MDP_TRAINING_SEGMENTATION_MODEL、MDP_TRAINING_MODEL_DIRS。
-- SAM3：放到 models/sam3/sam3.pt，源码放到 models/sam3/source，或者显式配置对应路径。
+- SAM3：自行下载并放到 models/sam3/sam3.pt，或设置 MDP_SAM3_CHECKPOINT。新版默认推理后端不再依赖额外 SAM3 源码；原有 SDK 用户可保留 MDP_SAM3_SOURCE_DIR。
+- SAM2：自行放置 models/sam2/sam2.1_t.pt（也兼容同目录 sam2.1_hiera_tiny.pt），或设置 MDP_SAM2_CHECKPOINT；原有完整 Hugging Face 目录继续可用。复制后在页面重新检查即可。
+- Qwen3.5：没有配置远程地址的旧内置占位会升级为本地按需下载；已有远程接口地址保留。直接 Python 部署必须更新运行服务的 worker 依赖以支持 Qwen3.5；不要只更新代码而继续使用旧 Transformers。
 - Compose：新安装默认项目名为 cvsprout。由 VisionForge 旧版升级时，在 .env 中保留 `COMPOSE_PROJECT_NAME=visionforge`（若以前使用自定义项目名，则继续使用该名称），这样仍会读取原数据卷。数据卷的内部键名保持兼容；把旧权重复制进模型卷。
 - 旧版 worker/pipeline 拆分改为合并计算服务。停止并移除已确认属于旧部署的 pipeline 容器，避免同时启动两个版本的执行器；保留数据卷。
 - 保留已有 .env 和账号。启动脚本保留已有配置和账号，启动成功后会将实际使用的端口写入 .env 的 `MDP_PORT`。

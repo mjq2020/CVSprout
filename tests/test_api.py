@@ -11,6 +11,7 @@ import unittest
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from PIL import Image
@@ -1676,8 +1677,11 @@ class ApiFlowTest(unittest.TestCase):
         second_resource_task = failed_id + 10_001
         third_resource_task = failed_id + 10_002
         try:
-            with patch.object(
-                training_module, "training_resources", return_value=resource_snapshot
+            with (
+                patch.object(training_module, "training_resources", return_value=resource_snapshot),
+                # The resource snapshot is synthetic; keep physical GPU identity
+                # synthetic too so this mutex test works on CPU-only runners.
+                patch("torch.cuda.get_device_properties", return_value=SimpleNamespace(uuid="test-gpu-fencing")),
             ):
                 first_resource = training_module._acquire_resource_lease(
                     "cuda:0", "balanced", "training", first_resource_task,

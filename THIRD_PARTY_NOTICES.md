@@ -14,7 +14,9 @@
 | Matplotlib / 随包 DejaVu 字体（训练图表） | https://matplotlib.org/stable/project/license.html；字体许可随 Matplotlib 的 fonts/ttf 目录分发 |
 | Grounding DINO Tiny | https://huggingface.co/IDEA-Research/grounding-dino-tiny |
 | SAM 2.1 Hiera Tiny | https://huggingface.co/facebook/sam2.1-hiera-tiny |
-| SAM3（可选） | 使用者提供的源码和权重所附许可证 |
+| SAM3（用户自行准备权重） | https://huggingface.co/facebook/sam3；使用者需获得访问权限并遵守随权重提供的条款 |
+| Qwen3.5（本地标注） | https://huggingface.co/Qwen/Qwen3.5-0.8B；https://huggingface.co/Qwen/Qwen3.5-35B-A3B |
+| Ultralytics CLIP 分词器（SAM3） | https://github.com/ultralytics/CLIP/blob/7ffa84b3bfa40c42ecc1c77147a855e69cb2dd40/LICENSE |
 | TensorRT（可选） | https://developer.nvidia.com/tensorrt |
 | RKNN Toolkit2（可选） | https://github.com/airockchip/rknn-toolkit2 |
 

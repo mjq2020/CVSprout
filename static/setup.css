@@ -9,3 +9,23 @@
 .model-download-list button { flex-shrink: 0; }
 @media(max-width: 540px) { .model-download-list article { align-items: flex-start; flex-direction: column; } }
 .setup-shell { height: 100%; overflow-y: auto; align-items: start; }
+.model-preparation { min-width: 0; margin: 12px 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.7; }
+.model-preparation p, .model-service-card .model-preparation p { margin: 0 0 8px; color: var(--muted); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.model-preparation .model-preparation-status { color: var(--text); }
+.model-preparation .model-preparation-error { color: var(--danger); }
+.model-preparation [hidden] { display: none !important; }
+.model-preparation details > summary { width: fit-content; cursor: pointer; color: var(--muted); }
+.model-preparation details[open] > summary { margin-bottom: 7px; }
+.model-preparation ul { margin: 5px 0 9px; padding-left: 20px; }
+.model-preparation li, .model-preparation code { overflow-wrap: anywhere; word-break: break-word; }
+.model-preparation li > span { color: var(--warning); }
+.model-preparation a { color: var(--brand); text-decoration: underline; }
+.model-preparation-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.model-preparation-actions .btn { white-space: normal; text-align: left; }
+.model-preparation :is(button, summary, a):focus-visible { outline: 2px solid var(--ui-focus-color); outline-offset: 2px; }
+.model-service-card .model-preparation { margin-bottom: 0; }
+.ai-model-preparation { margin-bottom: 16px; }
+.ai-model-download-hint { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.model-download-list article > div { min-width: 0; }
+.model-download-list .model-download-manual { display: block; }
+.model-download-list .model-download-manual .model-preparation { border-top: 0; padding-top: 0; }

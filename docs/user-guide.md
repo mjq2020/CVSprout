@@ -17,10 +17,10 @@ CVSprout 面向多人协作的视觉数据工作流：导入 → AI 批量标注
 - 草稿、待审核、通过、退回和重新打开的审核流程；批量提交/通过/退回、逐项冲突反馈与连续审核
 - 标注软删除、来源/模型记录、审核事件和项目审计日志
 - 运行时模型注册中心：新增、编辑、停用、删除自定义服务和连接检查
-- 开箱即用的本地全自动标注：Grounding DINO Tiny 开放词汇目标检测
-- 开箱即用的本地全自动标注：SAM 3 文本概念实例分割
-- 开箱即用的本地半自动标注：SAM 2.1 Hiera Tiny 正点、负点、粗框和粗多边形提示
-- 可选远程模型：Qwen3.5 或自定义推理服务
+- 按需下载的本地标注：Grounding DINO Tiny 开放词汇检测、Qwen3.5 图像语义标注
+- 自行放置权重后的本地全自动标注：SAM 3 文本概念实例分割
+- 自行放置权重后的本地半自动标注：SAM 2.1 Tiny 正点、负点、粗框和粗多边形提示
+- 可选远程模型：Qwen3.5 兼容接口或自定义推理服务
 - SQLite 持久任务队列：原子领取、worker 租约、推理续租、取消、重试和失联恢复
 - COCO、YOLO、完整 JSON 导出；分类使用 train/val/test 类别目录；导出包包含 SHA-256/revision 清单
 - 不可变数据集版本：复制媒体、标签、标注和资产元数据，记录内容哈希，并按种子确定性划分 train/valid/test；滑动条联动调整比例、预计张数、冻结缩略图和分组图片浏览
@@ -335,11 +335,26 @@ SAM2 使用当前选中的项目标签保存分割结果。
 | 模型 | 模式 | 本地目录 | 作用 |
 |---|---|---|---|
 | Grounding DINO Tiny | 全自动 | `models/grounding-dino-tiny` | 按项目类别查找全部目标并生成矩形框 |
-| SAM 3 | 全自动 | `MDP_SAM3_CHECKPOINT` | 按文本概念查找全部实例并生成多边形轮廓 |
-| SAM 2.1 Hiera Tiny | 半自动 | `models/sam2.1-hiera-tiny` | 根据正负点或粗框生成多边形轮廓 |
+| Qwen3.5-0.8B / 35B-A3B | 全自动、半自动 | `models/qwen3.5-0.8b` / `models/qwen3.5-35b-a3b` | 根据图像和自然语言生成当前任务的标注 |
+| SAM 3 | 全自动 | `models/sam3/sam3.pt` | 按文本概念查找全部实例并生成多边形轮廓 |
+| SAM 2.1 Tiny | 半自动 | `models/sam2/sam2.1_t.pt` | 根据正负点或粗框生成多边形轮廓 |
 
 可自动下载模型的来源、固定版本和许可证见
 [模型下载清单](../model-catalog/models.json)。本地推理使用已下载的权重，不会在处理业务图片时联网下载。
+
+在标注窗口明确选择尚未下载的 Qwen 或 Grounding DINO 后，后台开始下载；也可在模型服务点击“下载并准备”。仅打开窗口不会自动下载默认模型。下载期间显示进度，准备完成后才能预览或提交任务；失败可重试续传，关闭窗口不会取消其他成员共用的下载。名称与提示词等已填内容会保留。
+
+SAM 系列不提供自动下载。SAM3 需先在[官方模型页面](https://huggingface.co/facebook/sam3)申请访问权限，再自行下载 `sam3.pt`；SAM2 Tiny 可从[官方仓库](https://github.com/facebookresearch/sam2)下载 `sam2.1_hiera_tiny.pt`，保留这个名称或使用 `sam2.1_t.pt`，放在 `models/sam2/`。页面显示当前实际检查的目录、文件名和缺失项，复制完成后点击“重新检查”即可，无需重启。原有 `models/sam2.1-hiera-tiny/` 完整 Hugging Face 目录继续兼容。
+
+直接 Python 部署可先运行 `mkdir -p models/sam2 models/sam3`。Compose 的模型保存在持久卷中，不能只复制到宿主机仓库的 `models/`；例如：
+
+```bash
+docker compose exec worker mkdir -p /models/sam2 /models/sam3
+docker compose cp /path/to/sam2.1_hiera_tiny.pt worker:/models/sam2/sam2.1_hiera_tiny.pt
+docker compose cp /path/to/sam3.pt worker:/models/sam3/sam3.pt
+```
+
+可以用 `MDP_SAM2_CHECKPOINT` / `MDP_SAM3_CHECKPOINT` 指定其他可读位置；Compose 中填写容器内路径。新版默认通过随 worker 安装的 Ultralytics 与固定 CLIP 分词器运行 SAM3，不再要求额外下载 SAM3 源码。文件检测和推理依赖分别检查；实际推理加载时还会校验权重结构，放入同名错误文件不能替代正确权重。
 
 标注页使用紧凑的顶部操作区、左侧绘制工具和底部缩放栏。普通说明不占用画布，未完成草稿、只读与保存失败提示会明确显示。点击“专注标注”可收起导航及两侧面板；退出后恢复原来的面板布局。侧栏和专注模式切换不重建画布，未完成的轮廓、关键点及高级输入会保留。
 
@@ -389,7 +404,9 @@ Grounding DINO 与 SAM 3 使用目标类别文本，管理员可在预览中尝�
 
 ## 接入 Qwen3.5
 
-配置支持多模态 Chat Completions 的 vLLM、SGLang 或其他 OpenAI 兼容服务：
+默认提供本地 Qwen3.5-0.8B 和 35B-A3B，按需下载固定官方版本，文件大小与 SHA-256 校验通过后再使用。0.8B 文件约 1.77 GB，35B-A3B 约 71.93 GB；后者虽然每次激活部分专家，仍需加载全部专家权重。当前本地实现使用单个 GPU 或 CPU，不自动量化或跨卡切分；实际运行内存还包括图像与生成缓存。加载前会检查最低权重内存，不足时明确提示。GPU 使用支持的半精度，CPU 使用 FP32；模型输出仍需人工审核。
+
+也可配置支持多模态 Chat Completions 的 vLLM、SGLang 或其他 OpenAI 兼容服务：
 
 ```dotenv
 QWEN_BASE_URL=http://qwen-server:8000/v1
@@ -397,7 +414,7 @@ QWEN_MODEL=Qwen/Qwen3.5-35B-A3B
 QWEN_API_KEY=
 ```
 
-也可以在“模型服务”页面运行时配置。密钥字段保存的是环境变量名称，不会把密钥明文写入数据库。Qwen 适合自然语言规则、属性和复杂语义，但 35B 权重需要独立的多卡 vLLM/SGLang 服务，不会加载进 Web 进程。日常开箱标注可直接使用内置 Grounding DINO、SAM3 与 SAM2。
+已有配置好的远程 Qwen 地址会保留，不会自动改成本地模型。自定义接口仍可在“模型服务”中接入；密钥字段保存的是环境变量名称，不会把密钥明文写入数据库。Compose 中本地模型只由 worker 加载，轻量 Web 负责下载管理与请求转发。直接 Python 部署需在运行服务的环境安装项目固定的 worker 依赖，旧 Transformers 若不支持 Qwen3.5 会显示明确原因。
 
 ## 远程视觉模型协议
 
