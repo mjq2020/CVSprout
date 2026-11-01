@@ -19,5 +19,8 @@
 | Ultralytics CLIP 分词器（SAM3） | https://github.com/ultralytics/CLIP/blob/7ffa84b3bfa40c42ecc1c77147a855e69cb2dd40/LICENSE |
 | TensorRT（可选） | https://developer.nvidia.com/tensorrt |
 | RKNN Toolkit2（可选） | https://github.com/airockchip/rknn-toolkit2 |
+| reCamera Pro Python SDK / 官方 App Center 打包器 | https://github.com/Seeed-Studio/recamera-pro-ext-api；Apache-2.0，随包许可证见 `deploy/recamera/official/LICENSE` |
+
+设备应用打包使用固定修订 `21a7f802647d68edd236fc8b4d9807e03e128972` 的官方构建器和 manifest 校验器，原始文件及 SHA-256 记录于 `deploy/recamera/official/source.json`。CVSprout 不修改这些上游文件，打包前会核验其完整性。设备运行时提供 Kit、recamera_ext、NumPy 与 OpenCV，不将宿主机的 Python 环境复制到应用包中。
 
 model-catalog/models.json 固定受支持下载条目的来源、版本、文件大小和 SHA-256。默认镜像不打包业务模型权重。管理员导入自己的 checkpoint 时应确认来源及分发权限；导出的部署包会包含该训练权重。

@@ -59,6 +59,8 @@ from .training import PipelineWorker, router as training_router
 from .setup import router as setup_router, required as setup_required
 from .model_downloads import router as model_downloads_router
 from .deployment import router as deployment_router
+from .edge import router as edge_router
+from .edge_deployment import EdgeDeploymentWorker, router as edge_deployment_router
 
 
 @asynccontextmanager
@@ -76,10 +78,19 @@ async def lifespan(application: FastAPI):
     pipeline_task = (
         asyncio.create_task(pipeline_worker.run_forever()) if pipeline_worker else None
     )
-    application.state.background_tasks = [task for task in (worker_task, pipeline_task) if task is not None]
+    edge_worker = EdgeDeploymentWorker()
+    edge_task = asyncio.create_task(edge_worker.run_forever())
+    application.state.background_tasks = [task for task in (worker_task, pipeline_task, edge_task) if task is not None]
     try:
         yield
     finally:
+        edge_worker.stop()
+        try:
+            await asyncio.wait_for(edge_task, timeout=5)
+        except TimeoutError:
+            edge_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await edge_task
         if worker and worker_task:
             worker.stop()
             try:
@@ -98,7 +109,7 @@ async def lifespan(application: FastAPI):
                     await pipeline_task
 
 
-app = FastAPI(title="CVSprout 标注平台", version="0.25.2", lifespan=lifespan)
+app = FastAPI(title="CVSprout 标注平台", version="0.26.0", lifespan=lifespan)
 app.middleware("http")(browser_security)
 app.add_middleware(RequestBodyLimit, policy=request_budget)
 app.include_router(accounts_router)
@@ -112,6 +123,8 @@ app.include_router(training_router)
 app.include_router(setup_router)
 app.include_router(model_downloads_router)
 app.include_router(deployment_router)
+app.include_router(edge_router)
+app.include_router(edge_deployment_router)
 
 
 @app.exception_handler(RequestValidationError)

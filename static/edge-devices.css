@@ -1,0 +1,79 @@
+.edge-devices-page { min-width: 0; }
+html:has(.edge-devices-page), body:has(.edge-devices-page), #app:has(.edge-devices-page) { min-width: 320px; }
+.edge-actions, .edge-card-actions, .edge-release-info, .edge-capture-package { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.edge-workflow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; list-style: none; padding: 18px 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); margin: 0 0 14px; }
+.edge-workflow li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 4px 10px; align-items: center; }
+.edge-workflow li > span, .edge-deploy-step h3 > span { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; color: var(--brand); background: var(--brand-soft); font-size: 12px; font-weight: 600; }
+.edge-workflow li > span { grid-row: span 2; }
+.edge-workflow strong { font-size: 13px; font-weight: 600; }
+.edge-workflow small { color: var(--muted); font-size: 11px; line-height: 1.6; }
+.edge-page-note, .edge-help { color: var(--muted); font-size: 12px; line-height: 1.8; }
+.edge-page-note { margin: 0 0 22px; }
+.edge-help { margin: 26px 0 0; padding-top: 18px; border-top: 1px solid var(--line); }
+.edge-help summary { cursor: pointer; font-weight: 600; color: var(--text-secondary); }
+.edge-help p { max-width: 940px; }
+.edge-device-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 18px; align-items: start; }
+.edge-device-card { min-width: 0; padding: 22px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); }
+.edge-card-heading { display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 12px; }
+.edge-card-heading h2 { font-size: 17px; margin: 0 0 6px; font-weight: 600; overflow-wrap: anywhere; }
+.edge-card-heading a { color: var(--muted); font-size: 12px; text-decoration: none; }
+.edge-card-heading a:hover, .edge-text-link:hover { text-decoration: underline; }
+.edge-connection { padding: 4px 8px; border-radius: 6px; font-size: 11px; line-height: 1.6; background: var(--panel-2); color: var(--muted); }
+.edge-connection.recent { background: var(--success-soft); color: var(--success); }
+.edge-connection.waiting, .edge-connection.offline, .edge-connection.paused { background: var(--warning-soft); color: var(--warning); }
+.edge-device-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 22px 0 18px; }
+.edge-device-stats dt { color: var(--muted); font-size: 11px; margin: 0 0 8px; }
+.edge-device-stats dd { margin: 0; font-size: 23px; line-height: 1.2; font-weight: 550; font-variant-numeric: tabular-nums; }
+.edge-device-detail { display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: var(--muted); line-height: 1.6; }
+.edge-card-actions { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+.edge-card-actions > .btn { font-size: 12px; min-height: 34px; height: auto; }
+.edge-more { position: relative; margin-left: auto; font-size: 12px; }
+.edge-more summary { cursor: pointer; padding: 8px; color: var(--muted); }
+.edge-more > div { position: absolute; z-index: 10; top: calc(100% + 4px); right: 0; min-width: 158px; padding: 5px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: 0 8px 24px var(--shadow-color); }
+.edge-more button { display: block; width: 100%; text-align: left; padding: 10px; border: 0; border-radius: 5px; background: transparent; color: var(--text); cursor: pointer; font: inherit; }
+.edge-more button:hover { background: var(--panel-2); }
+.edge-more button.danger { color: var(--danger); }
+.edge-empty { text-align: center; padding: 54px 22px; border: 1px dashed var(--line-strong); border-radius: 12px; background: var(--panel); }
+.edge-empty > strong { font-size: 17px; font-weight: 600; }
+.edge-empty p { margin: 12px 0 24px; color: var(--muted); font-size: 13px; line-height: 1.8; }
+.edge-settings-form select, #edge-model-content select { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; color: var(--text); background: var(--panel); font: inherit; }
+.edge-advanced { margin-top: 16px; color: var(--muted); font-size: 12px; line-height: 1.8; }
+.edge-advanced summary { cursor: pointer; }
+.edge-advanced .form-grid { margin-top: 14px; }
+.edge-advanced code { overflow-wrap: anywhere; }
+.edge-token-control { display: flex; gap: 8px; align-items: center; }
+.edge-token-control input { min-width: 0; flex: 1; }
+.edge-token-control button { flex-shrink: 0; }
+.edge-token-setup .check-line { margin-top: 10px; }
+.edge-record-list article { padding: 14px 0; border-bottom: 1px solid var(--line-soft); }
+.edge-record-list article:first-child { padding-top: 0; }
+.edge-record-list article > div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 13px; }
+.edge-record-list a { color: var(--brand); overflow-wrap: anywhere; }
+.edge-record-list span, .edge-record-list small { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.edge-record-list p { margin: 8px 0 5px; font-size: 12px; }
+.edge-record-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.edge-record-pagination > span { margin-right: auto; font-size: 12px; color: var(--muted); }
+.edge-deploy-step + .edge-deploy-step { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.edge-deploy-step h3 { display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 600; margin: 0 0 12px; }
+.edge-build-row { display: flex; gap: 10px; align-items: end; }
+.edge-build-row .field { flex: 1; min-width: 0; margin-bottom: 0; }
+.edge-build-row > button { flex-shrink: 0; }
+.edge-release-info > span { color: var(--muted); font-size: 12px; }
+.edge-capture-package { margin-top: 18px; }
+.edge-text-link { display: inline-block; margin-top: 12px; color: var(--brand); font-size: 12px; text-decoration: none; }
+.edge-deploy-notice { font-size: 12px; line-height: 1.8; padding: 12px 14px; border-radius: 7px; background: var(--warning-soft); color: var(--warning); }
+.edge-uncertain-confirm { color: var(--warning); font-size: 12px; line-height: 1.8; }
+.edge-uncertain-confirm[hidden] { display: none; }
+.edge-deployment-history { list-style: none; padding: 0; margin: 18px 0 0; }
+.edge-deployment-history li { display: grid; grid-template-columns: 1fr auto; gap: 5px 12px; padding: 12px 0; border-top: 1px solid var(--line-soft); }
+.edge-deployment-history strong { font-size: 12px; font-weight: 550; }
+.edge-deployment-history span, .edge-deployment-history small { color: var(--muted); font-size: 11px; }
+.edge-deployment-history p { grid-column: 1 / -1; margin: 3px 0 0; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .edge-workflow { grid-template-columns: 1fr; gap: 15px; padding: 18px; }
+  .edge-devices-page .page-head { align-items: start; flex-direction: column; gap: 14px; }
+  .edge-device-card { padding: 18px; }
+  .edge-build-row { align-items: stretch; flex-direction: column; }
+  .edge-card-heading { flex-direction: column; }
+  .edge-deployment-history li { grid-template-columns: 1fr; }
+}

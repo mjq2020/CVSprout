@@ -53,6 +53,8 @@ class Settings:
     pipeline_lease_seconds: int = int(os.getenv("MDP_PIPELINE_LEASE_SECONDS", "180"))
     # Keep the RKNN SDK's dependency stack separate from the training environment.
     rknn_python: str = os.getenv("MDP_RKNN_PYTHON", "").strip()
+    recamera_ssh_key: str = os.getenv("MDP_RECAMERA_SSH_KEY", "").strip()
+    recamera_known_hosts: str = os.getenv("MDP_RECAMERA_KNOWN_HOSTS", "").strip()
     worker_url: str = os.getenv("MDP_WORKER_URL", "").rstrip("/")
     worker_token: str = os.getenv("MDP_WORKER_TOKEN", "")
     release_gpu_after_inference: bool = os.getenv("MDP_RELEASE_GPU_AFTER_INFERENCE", "true").lower() == "true"

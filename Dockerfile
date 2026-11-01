@@ -19,6 +19,8 @@ COPY scripts /app/scripts
 COPY deploy /app/deploy
 
 FROM base AS web
+RUN apt-get update && apt-get install -y --no-install-recommends openssh-client \
+    && rm -rf /var/lib/apt/lists/*
 RUN python -m pip install --no-cache-dir --upgrade pip==26.2.2
 COPY --from=source /app /app
 USER visionforge

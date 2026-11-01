@@ -93,6 +93,12 @@ def _resolve_actor(
     Development mode accepts X-Actor-ID for local tests. Account sessions resolve
     current roles from the database; privileged token access ignores actor headers.
     """
+    # Device credentials are deliberately scoped to the edge protocol. Reject
+    # them here even in local auth-disabled mode instead of promoting a camera
+    # into the development-mode administrator identity.
+    if (authorization and authorization.startswith("Bearer ")
+            and authorization.removeprefix("Bearer ").strip().startswith("cvsprout_device_")):
+        raise HTTPException(403, "设备凭据只能用于设备采集接口")
     if settings.auth_mode == "disabled":
         actor_id = (x_actor_id or "local-admin").strip()[:100]
         return Actor(actor_id or "local-admin", "admin")

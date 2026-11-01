@@ -27,6 +27,9 @@ def main():
         for filename in ("start.sh", "start.ps1", "compose.yaml", "compose.gpu.yaml", "README.md", "CONTRIBUTING.md", "LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"):
             shutil.copy2(ROOT / filename, staging / filename)
         shutil.copytree(ROOT / "docs", staging / "docs")
+        edge_deploy = staging / "deploy" / "recamera"
+        edge_deploy.mkdir(parents=True)
+        shutil.copy2(ROOT / "deploy/recamera/compose.ssh.yaml", edge_deploy / "compose.ssh.yaml")
         environment = (ROOT / ".env.example").read_text().replace("MDP_IMAGE_PREFIX=cvsprout", f"MDP_IMAGE_PREFIX={args.image_prefix}").replace("MDP_VERSION=local", f"MDP_VERSION={args.version}")
         (staging / ".env.example").write_text(environment)
         with tarfile.open(args.output / f"{name}.tar.gz", "w:gz") as archive:

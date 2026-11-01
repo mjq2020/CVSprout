@@ -13,6 +13,11 @@ async def request_budget(scope):
     from starlette.concurrency import run_in_threadpool
     from .auth import get_actor, require_admin
     path = scope.get("path", "").rstrip("/")
+    if scope.get("method") == "POST" and path == "/api/edge/v1/captures":
+        from .edge import MAX_CAPTURE_BYTES, get_device
+        request = Request(scope)
+        await run_in_threadpool(get_device, request, request.headers.get("authorization"))
+        return MAX_CAPTURE_BYTES + 1024 * 1024
     checkpoint = path == "/api/model-downloads/import/checkpoint"
     images = re.fullmatch(r"/api/projects/[^/]+/assets", path) is not None
     if scope.get("method") == "POST" and (checkpoint or images):
@@ -67,6 +72,6 @@ async def browser_security(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "same-origin"
     response.headers["Content-Security-Policy"] = "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
-    if path.startswith(("/api/login", "/api/register", "/api/registration-requests", "/api/session", "/api/account", "/api/users", "/api/setup")):
+    if path.startswith(("/api/login", "/api/register", "/api/registration-requests", "/api/session", "/api/account", "/api/users", "/api/setup", "/api/edge/")):
         response.headers["Cache-Control"] = "no-store"
     return response

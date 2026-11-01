@@ -1,23 +1,24 @@
-import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.25.2";
-import { renderUsersPage } from "./accounts-ui.js?v=0.25.2";
-import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.25.2";
-import { annotationModelSelectable, modelDownloadSize, modelPreparationStatus, mountModelPreparation } from "./model-preparation-ui.js?v=0.25.2";
-import { mountAuthScreen } from "./auth-ui.js?v=0.25.2";
-import { renderAccountPage } from "./security-ui.js?v=0.25.2";
-import { bindAssetManagement } from "./asset-management-ui.js?v=0.25.2";
-import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.25.2";
-import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.25.2";
-import { loadProjectWorkBlocks } from "./project-api.js?v=0.25.2";
-import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.25.2";
-import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.25.2";
-import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.25.2";
-import { mountOverviewTraining } from "./overview-training.js?v=0.25.2";
-import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.25.2";
-import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.25.2";
-import { mountCanvasGuides } from "./canvas-guides.js?v=0.25.2";
-import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.25.2";
-import { beginWorkspaceLoad, cancelWorkspaceLoad } from "./workspace-feedback.js?v=0.25.2";
-import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.25.2";
+import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.26.0";
+import { renderUsersPage } from "./accounts-ui.js?v=0.26.0";
+import { renderDevicesPage } from "./edge-devices-ui.js?v=0.26.0";
+import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.26.0";
+import { annotationModelSelectable, modelDownloadSize, modelPreparationStatus, mountModelPreparation } from "./model-preparation-ui.js?v=0.26.0";
+import { mountAuthScreen } from "./auth-ui.js?v=0.26.0";
+import { renderAccountPage } from "./security-ui.js?v=0.26.0";
+import { bindAssetManagement } from "./asset-management-ui.js?v=0.26.0";
+import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.26.0";
+import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.26.0";
+import { loadProjectWorkBlocks } from "./project-api.js?v=0.26.0";
+import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.26.0";
+import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.26.0";
+import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.26.0";
+import { mountOverviewTraining } from "./overview-training.js?v=0.26.0";
+import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.26.0";
+import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.26.0";
+import { mountCanvasGuides } from "./canvas-guides.js?v=0.26.0";
+import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.26.0";
+import { beginWorkspaceLoad, cancelWorkspaceLoad } from "./workspace-feedback.js?v=0.26.0";
+import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.26.0";
 
 const app = document.querySelector("#app");
 const modalRoot = document.querySelector("#modal-root");
@@ -291,7 +292,7 @@ function renderLoadError(error) {
 function topbar(active = "projects") {
   const workerOnline = state.health?.annotation_workers?.status === "online";
   const route = currentProjectRoute(), project = route && state.project?.id === route.id ? state.project : null;
-  const pageName = route ? ({ overview: "项目概览", data: "导入与数据", ai: "AI 标注", blocks: "标注任务块", annotate: "标注与审核", versions: "数据版本", train: "训练与转换" })[route.section] : ({ models: "标注模型服务", users: "用户管理", account: "账号与安全" })[state.currentSection] || "项目工作台";
+  const pageName = route ? ({ overview: "项目概览", data: "导入与数据", ai: "AI 标注", blocks: "标注任务块", annotate: "标注与审核", versions: "数据版本", train: "训练与转换" })[route.section] : ({ models: "标注模型服务", users: "用户管理", devices: "边缘设备", account: "账号与安全" })[state.currentSection] || "项目工作台";
   return `${workspaceNavigationMarkup({ session: state.session, project, admin: isAdmin(), active: state.currentSection === "account" ? "account" : active, authMode: state.authMode, workerOnline, taskLabel: project ? TASK_LABELS[projectTask()] || "视觉标注" : "", icon, escapeHtml })}<header class="topbar workspace-topbar">${navigationToggleMarkup(icon)}<div class="workspace-context"><strong>${escapeHtml(pageName)}</strong></div></header>`;
 }
 
@@ -333,6 +334,7 @@ async function route() {
     return loadProjectSection(Number(match[1]), section, routeEpoch);
   }
   if (location.hash === "#/users") return renderUsersPage();
+  if (location.hash === "#/devices") return renderDevicesPage();
   if (location.hash === "#/models") return renderModelsPage();
   return loadDashboard();
 }
@@ -1236,9 +1238,9 @@ async function downloadArtifact(url, fallbackName = "download") {
   } finally { progressNotice.remove(); }
 }
 
-import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.25.2";
-import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.25.2";
-import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.25.2";
+import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.26.0";
+import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.26.0";
+import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.26.0";
 
 const trainingChartViews = new Map();
 const trainingDetailViews = new Map();
@@ -4753,4 +4755,4 @@ window.addEventListener('online', resumeTrainingUpdates);
 installWorkspaceNavigation();
 route();
 
-export { route, setSaveFeedback, renderLoginScreen, state, app, topbar, icon, api, jsonOptions, escapeHtml, canEditCurrentAsset, notify, renderWorkspace, refreshInspector, refreshShapes, refreshWorkflowState, refreshCanvasStatus, saveAnnotation, defaultAttributes, drawDraft, openModal, closeModal };
+export { route, setSaveFeedback, renderLoginScreen, state, app, topbar, icon, api, jsonOptions, downloadArtifact, escapeHtml, canEditCurrentAsset, notify, renderWorkspace, refreshInspector, refreshShapes, refreshWorkflowState, refreshCanvasStatus, saveAnnotation, defaultAttributes, drawDraft, openModal, closeModal };

@@ -68,6 +68,8 @@ def _owned_files(conn, project_id: int) -> list[dict]:
         items.append({"kind": "run", "name": f"run-{row[0]}", "directory": True})
     for row in conn.execute("SELECT c.id FROM model_conversions c JOIN training_runs r ON r.id=c.training_run_id WHERE r.project_id=?", (project_id,)):
         items.append({"kind": "conversion", "name": f"conversion-{row[0]}", "directory": True})
+    for row in conn.execute("SELECT id FROM edge_releases WHERE project_id=?", (project_id,)):
+        items.append({"kind": "run", "name": f"edge-release-{row[0]}", "directory": True})
 
     # Live-image thumbnails are shared by content hash across projects.
     shared = {row[0] for row in conn.execute("SELECT DISTINCT sha256 FROM assets WHERE project_id<>?", (project_id,))}
@@ -110,6 +112,10 @@ def _protect_shared_files(conn, project_id: int, items: list[dict]) -> None:
 
 
 def _ensure_idle(conn, project_id: int) -> None:
+    if conn.execute("SELECT 1 FROM edge_releases WHERE project_id=? AND status='building'", (project_id,)).fetchone():
+        raise HTTPException(409, "项目正在生成设备安装包，请等待完成")
+    if conn.execute("SELECT 1 FROM edge_deployments WHERE project_id=? AND status IN ('queued','running')", (project_id,)).fetchone():
+        raise HTTPException(409, "项目有排队或进行中的设备部署，请等待完成")
     if conn.execute("SELECT 1 FROM jobs WHERE project_id=? AND status IN ('queued','running') LIMIT 1", (project_id,)).fetchone():
         raise HTTPException(409, "项目还有排队或运行中的 AI 标注任务，请先取消或等待任务结束")
     if conn.execute("SELECT 1 FROM training_runs WHERE project_id=? AND status IN ('queued','running') LIMIT 1", (project_id,)).fetchone():

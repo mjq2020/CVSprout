@@ -126,6 +126,43 @@ CREATE TABLE IF NOT EXISTS annotations (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS edge_devices (
+    id TEXT PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    server_url TEXT NOT NULL DEFAULT '',
+    token_hash TEXT UNIQUE,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    capture_enabled INTEGER NOT NULL DEFAULT 1,
+    capture_interval_seconds INTEGER NOT NULL DEFAULT 10,
+    max_pending_images INTEGER NOT NULL DEFAULT 500,
+    max_pending_bytes INTEGER NOT NULL DEFAULT 268435456,
+    heartbeat_json TEXT NOT NULL DEFAULT '{}',
+    last_seen_at TEXT,
+    last_capture_at TEXT,
+    token_rotated_at TEXT NOT NULL,
+    revoked_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_edge_devices_project ON edge_devices(project_id,id);
+CREATE TABLE IF NOT EXISTS edge_capture_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id TEXT NOT NULL REFERENCES edge_devices(id) ON DELETE CASCADE,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    capture_id TEXT NOT NULL,
+    asset_id INTEGER REFERENCES assets(id) ON DELETE SET NULL,
+    sha256 TEXT NOT NULL,
+    captured_at TEXT NOT NULL,
+    received_at TEXT NOT NULL,
+    batch_id TEXT NOT NULL DEFAULT '',
+    model_release TEXT NOT NULL DEFAULT '',
+    duplicate INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(device_id,capture_id)
+);
+CREATE INDEX IF NOT EXISTS idx_edge_captures_device ON edge_capture_events(device_id,id);
+CREATE INDEX IF NOT EXISTS idx_edge_captures_project ON edge_capture_events(project_id,asset_id);
+
 CREATE TABLE IF NOT EXISTS work_blocks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -607,13 +644,14 @@ def _migrate_dataset_variants(conn: sqlite3.Connection) -> None:
 
 
 def init_db() -> None:
+    from .edge_schema import SCHEMA as EDGE_SCHEMA
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.media_dir.mkdir(parents=True, exist_ok=True)
     settings.thumbnail_dir.mkdir(parents=True, exist_ok=True)
     settings.versions_dir.mkdir(parents=True, exist_ok=True)
     settings.training_dir.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(settings.db_path, timeout=30) as conn:
-        conn.executescript(SCHEMA)
+        conn.executescript(SCHEMA + EDGE_SCHEMA)
         conn.execute("PRAGMA foreign_keys=OFF")
         # Serialize column discovery and ALTERs when API replicas start together.
         conn.execute("BEGIN IMMEDIATE")
@@ -698,6 +736,9 @@ def init_db() -> None:
         conn.execute("INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (10,?)", (now_iso(),))
         conn.execute("INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (11,?)", (now_iso(),))
         conn.execute("INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (12,?)", (now_iso(),))
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_assets_project_sha256 ON assets(project_id,sha256)")
+        conn.execute("INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (13,?)", (now_iso(),))
+        conn.execute("INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (14,?)", (now_iso(),))
 
 
 @contextmanager

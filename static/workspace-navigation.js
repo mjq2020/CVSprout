@@ -1,4 +1,4 @@
-import { enterWorkspaceContent } from "./workspace-feedback.js?v=0.25.2";
+import { enterWorkspaceContent } from "./workspace-feedback.js?v=0.26.0";
 
 const workflow = [
   ["overview", "项目概览", "chart"], ["data", "导入与数据", "database"], ["ai", "AI 标注", "magic"],
@@ -45,7 +45,7 @@ export function workspaceNavigationMarkup({ session, project, admin, active, aut
     <a class="navigation-brand" href="#/" aria-label="CVSprout 项目工作台"><span class="brand-mark">${icon("logo")}</span><span>CVSprout<small>数据工作台</small></span></a><button class="navigation-close tool" data-close-navigation aria-label="关闭导航">${icon("close")}</button>
     <div class="navigation-scroll"><nav class="application-links" aria-label="工作台">${link("#/", "所有项目", "folder", !route && active === "projects")}</nav>
       ${route ? `<div class="navigation-project"><strong title="${esc(projectName)}">${esc(projectName)}</strong>${project ? `<small>${esc(taskLabel)}<span>${project.asset_count || 0} 张图片</span></small>` : ""}</div><nav class="workflow-links" aria-label="项目工作流">${workflow.map(([id, label, name]) => link(`#/projects/${route.id}/${id}`, label, name, route.section === id, `data-workflow-link="${id}"`)).join("")}</nav>` : ""}
-      ${admin ? `<nav class="management-links" aria-label="管理">${link("#/models", "标注模型服务", "cpu", active === "models")}${link("#/users", "用户管理", "users", active === "users")}</nav>` : ""}
+      ${admin ? `<nav class="management-links" aria-label="管理">${link("#/models", "标注模型服务", "cpu", active === "models")}${link("#/devices", "边缘设备", "database", active === "devices")}${link("#/users", "用户管理", "users", active === "users")}</nav>` : ""}
     </div>
     <div class="navigation-footer">
       <div class="navigation-service-status" title="${status}" aria-label="${status}"><span class="status-dot ${workerOnline ? "" : "warning"}" aria-hidden="true"></span><span>${status}</span></div>

@@ -1,0 +1,13 @@
+# Optional overlay. Set RECAMERA_SSH_DIR to a directory containing id_ed25519
+# and independently verified known_hosts, readable by container UID 10001.
+# docker compose -f compose.yaml -f deploy/recamera/compose.ssh.yaml up -d --build
+services:
+  web:
+    environment:
+      MDP_RECAMERA_SSH_KEY: /run/recamera-ssh/id_ed25519
+      MDP_RECAMERA_KNOWN_HOSTS: /run/recamera-ssh/known_hosts
+    volumes:
+      - type: bind
+        source: ${RECAMERA_SSH_DIR:?Set RECAMERA_SSH_DIR to the verified device SSH directory}
+        target: /run/recamera-ssh
+        read_only: true

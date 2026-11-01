@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/Seeed-Studio/recamera-pro-ext-api",
+  "revision": "21a7f802647d68edd236fc8b4d9807e03e128972",
+  "files": {
+    "market/packaging/build.py": "9562dd29f84f7725ab256e17e07e5912591d3603f36bf30292d17bd7fc99cb3f",
+    "market/appmgr/manifest.py": "6f8998d3965aef27f77a944f7d25909e823501129d5fe264106268b9c08cc759",
+    "market/appmgr/__init__.py": "56cfe9c2fea0f108b3a0490da54ddcb209cac28ed9931cd90b6e0a3c3f46b648",
+    "LICENSE": "3c8941171788585471a0c8d3a6175dc44a399e05698f26dc172ff4b5ef5bda96"
+  }
+}

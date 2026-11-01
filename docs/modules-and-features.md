@@ -1,6 +1,6 @@
 # CVSprout 模块与功能说明
 
-本文描述 **0.25.2** 已实现的模块、主要功能、数据流和源码入口，供首次使用者了解产品，也供开发者定位代码。具体操作步骤见[用户指南](user-guide.md)，安装命令见 [README](../README.md)。功能、配置或权限发生变化时，应同步维护本文。
+本文描述 **0.26.0** 已实现的模块、主要功能、数据流和源码入口，供首次使用者了解产品，也供开发者定位代码。具体操作步骤见[用户指南](user-guide.md)，安装命令见 [README](../README.md)。功能、配置或权限发生变化时，应同步维护本文。
 
 ## 阅读导航
 
@@ -273,6 +273,16 @@ RKNN 支持按目标芯片配置浮点或 INT8、均值/标准差、量化算法
 
 主要实现：[deployment.py](../app/deployment.py)、[runtime/server.py](../app/runtime/server.py)、[deploy/runtime](../deploy/runtime)。启动与调用步骤见[模型推理部署](deployment.md)。
 
+### 17. reCamera Pro 设备采集与模型发布
+
+管理员通过“边缘设备”绑定项目并生成专用令牌。采集应用从设备共享帧源取原图，按服务端间隔上传；断网使用有容量上限的持久化队列，收到确认才移除。暂停采集后仍可上传已排队的图片。令牌轮换、撤销以及项目归档立即限制服务端接入。
+
+服务端将采集事件与图片分开保存：同一采集 ID 可安全重试，项目内相同内容只保存一份图片，多次采集仍保留来源。新图片保持未分配，管理员按既有流程创建任务块，已领取块和人工标注不变。
+
+模型发布检查已完成的 RV1126B RKNN 转换、YOLO 检测输出、类别顺序和预处理。固定版本官方打包器将真实模型与推理应用组成 App Center 安装包。管理员可下载，或通过服务器的 SSH 密钥和已核实主机指纹发起直接部署。后台保存任务状态，使用官方预检、异步安装及启动接口；通信中断标记结果待核实，不自动重放安装。历史发布包保留，是否允许安装旧版本由设备策略决定。
+
+主要实现：[edge.py](../app/edge.py)、[edge_deployment.py](../app/edge_deployment.py)、[recamera_packages.py](../app/recamera_packages.py)、[recamera_remote.py](../app/recamera_remote.py)、[edge-devices-ui.js](../static/edge-devices-ui.js)。安装、参数和设备验收边界见 [reCamera Pro 联动](recamera-pro.md)。
+
 ## 角色与权限
 
 正常协作采用 `accounts` 模式。角色决定可执行的操作，任务块归属、编辑租约、审核状态和版本号还会继续限制具体图片的写入。
@@ -467,6 +477,8 @@ Compose 使用 `visionforge-data`、`visionforge-models` 持久卷；这些旧�
 | 训练监控与权重 | `/api/training-runs/{id}/logs`、`/metrics`、`/artifact` |
 | 转换与部署包 | `/api/training-runs/{id}/conversions`、`/api/conversions/{id}`、`/api/training-runs/{id}/deployment` |
 | 转换产物与说明 | `/api/conversions/{id}/artifact`、`/manifest` |
+| 边缘设备与采集 | `/api/edge/devices`；设备专用令牌调用 `/api/edge/v1/config`、`/heartbeat`、`/captures` |
+| 设备应用发布 | `/api/edge/releases`、`/releases/{id}/download`、`/devices/{id}/deployments` |
 | 独立推理服务 | `/health`、`/predict`，使用部署包自己的服务地址和密钥 |
 
 同一行省略前缀的子路径沿用该行前面的资源路径；请求方法和字段应以接口定义为准。
@@ -484,7 +496,7 @@ Compose 使用 `visionforge-data`、`visionforge-models` 持久卷；这些旧�
 | 团队隔离 | 共享项目、角色权限、任务块负责人和页面锁；尚无多租户或按项目成员隔离 |
 | 备份与监控 | 提供健康检查、日志和运维步骤；没有内置定时备份、外部告警或自动故障切换平台 |
 | 完成与回收 | 全部通过的块保留负责人和历史，不自动重领；未完成块通过交回/转交管理，没有定时自动回收 |
-| 模型部署 | 自动生成 `.pt` 独立服务；其他转换格式需结合目标运行环境使用 |
+| 模型部署 | 自动生成 `.pt` 独立服务；已适配检测模型可将 RV1126B RKNN 打包为 reCamera Pro 应用并通过 SSH/App Center 部署，其他格式仍需匹配目标环境 |
 | 发行状态 | 仓库具备构建和发布工作流；是否已有公开镜像或发行包，应以实际发布记录为准 |
 
 现有验收范围和未实测条件见[验证记录](verification.md)。原创代码许可见 [LICENSE](../LICENSE)，第三方依赖和模型许可见[第三方说明](../THIRD_PARTY_NOTICES.md)。
