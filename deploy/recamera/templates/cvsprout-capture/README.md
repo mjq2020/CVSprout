@@ -22,7 +22,25 @@
 | `spool_max_images` | 1000 | 队列最多图片数，10–10000 |
 | `max_session_images` | 0 | 本次应用启动最多采集数量，0 表示不限；重启重新计数 |
 
-以上设备参数修改后需重启。服务端的启停和间隔每 30 秒同步一次。断网时可继续排队最多 5 分钟，此后暂停新增图片，恢复连接后重新同步配置。令牌撤销后收到认证失败会立即暂停。暂停采集不删除已有队列。
+以上设备参数修改后需重启。服务端的启停和间隔每 30 秒同步一次，连接心跳每 15 秒上报，关键状态变化会提前上报。断网时可继续排队最多 5 分钟，此后暂停新增图片，恢复连接后重新同步配置。令牌撤销后收到认证失败会立即暂停。暂停采集不删除已有队列。
+
+## 确认连接与排查不上传
+
+1.0.2 会先检查令牌格式。必须复制 CVSprout 创建或重置设备时显示的完整 `cvsprout_device_...` 令牌，不能填写设备 ID、设备登录密码或管理员令牌。令牌缺失或格式错误会以 `device_token_invalid` 明确阻止启动。不要把真实令牌粘贴到日志或问题报告中。
+
+启动后查看应用日志：`server_configuration_received` 表示服务地址和设备身份验证成功，`server_confirmed` 表示服务器已确认心跳，`first_frame_received` 表示 Kit 已交付原始画面，`first_image_queued` 表示首张 JPEG 已写入可靠队列，`first_image_confirmed` 才表示服务器已经收到图片。SDK 自身输出的 `dets=0 events=0 clients=0` 只是结果通道统计，其中 `clients=0` 不是图片上传连接失败。
+
+| 日志错误 | 处理方式 |
+| --- | --- |
+| `http_401` / `http_403` | 在 CVSprout 设备页重置令牌，把完整新令牌更新到设备应用参数后重启；原令牌会失效 |
+| `server_connection_refused` | 确认 CVSprout 已启动、地址与端口正确，并监听局域网可访问的地址 |
+| `server_timeout` / `server_dns_failed` | 检查设备网络、域名和防火墙；`127.0.0.1` 指向设备自身 |
+| `server_tls_verification_failed` | 检查 HTTPS 证书与设备时间，不要关闭证书校验 |
+| `server_redirect_refused` | 使用服务最终地址，避免 HTTP 到 HTTPS 或登录页跳转 |
+| `jpeg_encode_failed` / `image_exceeds_server_limit` | 检查相机帧和图片大小，可降低 JPEG 质量后重启 |
+| `spool_full_capture_paused` | 队列已满，恢复上传后自动继续；未确认图片不会被删除 |
+
+即使相机暂未交付画面，网络线程仍会连接并发心跳。新版本 CVSprout 设备页可以区分等待配置、等待画面、采集中、服务端暂停、达到本次采集上限、队列已满及采集错误，并显示画面数、已采集数、待上传数和上传确认数。超过 15 秒未收到新画面时状态会变为等待画面，不能把“应用运行中”当成采集成功。新版应用连接旧版 CVSprout 时自动使用原有心跳字段，避免额外字段被拒绝。
 
 队列位于 Kit 公共 `appdata_root()/cvsprout-capture/capture-spool/`，应用升级保留数据。每张图以单个文件保存 JPEG、固定 `capture_id`、所属设备身份和 SHA-256 校验值。写入临时文件后同步文件，再原子改名并同步目录；重启后读取已提交记录并清理未提交临时文件。上传前检查长度和校验值，损坏记录会保留并报 `capture_spool_corrupt`，不会上传损坏数据或自动删除图片。
 

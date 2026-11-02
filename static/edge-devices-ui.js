@@ -1,7 +1,8 @@
-import { state, api, app, topbar, escapeHtml as esc, notify, openModal, jsonOptions, closeModal, downloadArtifact } from "./app.js?v=0.26.0";
-import { isAdmin } from "./task-ui.js?v=0.26.0";
+import { state, api, app, topbar, escapeHtml as esc, notify, openModal, jsonOptions, closeModal, downloadArtifact } from "./app.js?v=0.26.1";
+import { isAdmin } from "./task-ui.js?v=0.26.1";
 
-let devices = [], projects = [], requestSerial = 0, renderedDevicesSignature = "";
+let devices = [], projects = [], requestSerial = 0, listRequest = null, listReceivedAt = 0, listReadFailed = false, listCompletedSerial = 0, tokenSetup = null;
+const DEVICE_REFRESH_MS = 5000, DEVICE_REFRESH_STALE_MS = 15000;
 const dateText = value => value ? new Date(value).toLocaleString("zh-CN") : "暂无记录";
 const numberText = value => Math.max(0, Number(value) || 0).toLocaleString("zh-CN");
 const pathFor = device => `/api/edge/devices/${encodeURIComponent(device.id)}`;
@@ -20,14 +21,84 @@ export function remoteServerURL(value) {
   } catch (_) { return ""; }
 }
 
-export function deviceConnection(device, now = Date.now()) {
-  if (device.revoked_at || device.enabled === false) return { kind: "revoked", label: "已撤销接入" };
-  if (device.project_archived) return { kind: "paused", label: "项目已归档 · 采集暂停" };
-  if (!device.last_seen_at) return { kind: "waiting", label: "等待首次连接" };
-  const age = now - new Date(device.last_seen_at).getTime();
-  return Number.isFinite(age) && age >= -60000 && age < 180000
-    ? { kind: "recent", label: device.capture_enabled ? "最近在线 · 采集已启用" : "最近在线 · 采集暂停" }
-    : { kind: "offline", label: "暂未收到心跳" };
+export function deviceConnection(device, now = Date.now(), { stale = false, observedAt = now } = {}) {
+  if (device.revoked_at || device.enabled === false || device.connection?.state === "revoked") return { kind: "revoked", label: "已撤销接入" };
+  if (stale) return { kind: "unknown", label: "连接状态待确认" };
+  const connection = device.connection;
+  if (connection?.state === "reconnect_required") return { kind: "reconnect", label: "等待使用新令牌连接" };
+  if (connection?.state === "never_connected" || (!connection && !device.last_seen_at)) return { kind: "waiting", label: "尚未连接" };
+  const age = connection ? (typeof connection.age_seconds === "number" ? connection.age_seconds * 1000 + Math.max(0, now - observedAt) : NaN)
+    : now - new Date(device.last_seen_at).getTime();
+  const timeout = connection ? Math.max(1, Number(connection.timeout_seconds) || 90) * 1000 : 90000;
+  return (!connection || connection.state === "online") && Number.isFinite(age) && age >= -60000 && age < timeout
+    ? { kind: "online", label: "在线 · 已连接" } : { kind: "offline", label: "离线 · 联系已超时" };
+}
+
+export function deviceDiagnosis(device, status = deviceConnection(device)) {
+  const ingestion = device.ingestion || {}, pending = ingestion.pending_images ?? device.heartbeat?.pending_images;
+  if (status.kind === "unknown") return { kind: "warning", title: "暂时无法确认设备连接", text: "设备状态更新失败或尚未返回。请检查浏览器到 CVSprout 的连接并点击刷新；以下计数保留上次结果。" };
+  if (status.kind === "revoked") return { kind: "muted", title: "设备接入已撤销", text: "此令牌无法再上传图片。已导入数据保留，需要恢复时请创建新的设备接入。" };
+  if (status.kind === "reconnect") return { kind: "warning", title: "请更新设备上的令牌", text: "旧令牌已经失效。将新 device_token 保存到 CVSprout Capture 应用配置并重启应用，收到有效请求后会自动显示已连接。" };
+  if (status.kind === "waiting") return { kind: "warning", title: "尚未收到设备的有效连接", text: "在设备 App Center 启动 CVSprout Capture，并确认已保存 server_url 和 device_token。地址须为设备能访问的服务器地址，不能使用 localhost；令牌请使用此设备卡片生成的完整 device_token，不是网页登录密码或管理员 API Key。仅创建接入或打开采集开关不会连接设备，请同时检查网络与应用日志。" };
+  if (status.kind === "offline") return { kind: "warning", title: "设备暂时失去联系", text: "请检查采集应用是否仍在运行，以及设备到 CVSprout 的网络、服务地址和令牌。" + (Number(pending) > 0 ? " 上次上报的队列仍有图片，恢复连接后会继续补传。" : "") };
+  const details = {
+    waiting_connection: ["warning", "等待采集应用同步配置", "请确认设备启动的是 CVSprout Capture，并检查服务地址和令牌。"],
+    waiting_heartbeat: ["warning", "已连接，等待采集应用心跳", "服务器已收到设备请求，尚未收到近期运行状态。请稍候；若持续不变，请检查采集应用日志。"],
+    waiting_first_image: ["muted", "已连接，等待第一张图片", "连接正常。图片会按采集间隔自动上传；若持续没有图片，请检查设备采集应用的相机帧与上传日志。"],
+    waiting_camera: ["warning", "已连接，正在等待相机画面", "采集应用尚未获得可用的相机帧。请检查设备相机预览和帧服务，以及应用运行日志。"],
+    no_recent_images: ["warning", "已连接，但近期没有收到新图片", "最近的图片上传已超过预期采集间隔。请检查设备相机画面、采集数量上限与应用日志；连接在线并不代表图片上传正常。"],
+    receiving: ["success", "已收到设备图片", "可以在项目数据页查看已导入的图片，并继续标注和训练。相同内容的图片会去重，每次采集仍保留记录。"],
+    upload_pending: ["warning", "图片已采集，正在等待上传", "设备队列中还有图片，上传成功后这里会自动更新。若队列持续增长，请检查网络和最近上报的错误。"],
+    paused: ["muted", "新图片采集已暂停", "在“采集设置”中启用新图片采集。已进入设备队列的图片仍会继续上传。"],
+    archived: ["warning", "项目已归档，采集已暂停", "请先恢复项目，再检查采集设置。设备中的待上传图片会保留。"],
+    session_complete: ["muted", "本次启动的采集数量已达上限", "如需继续采集，请调整设备应用的 max_session_images 参数并重启；设为 0 表示不限。"],
+    queue_full: ["warning", "设备离线队列已满", "应用保留待上传图片并暂停新增。请先恢复上传或释放设备存储空间，不要删除尚未确认的队列文件。"],
+    error: ["warning", "采集或上传遇到问题", "设备仍在连接服务器，但尚未完成图片上传。请查看最近上报的错误，并检查设备应用日志。"],
+  };
+  const fallback = device.project_archived ? "archived" : device.capture_enabled === false ? "paused"
+    : device.heartbeat?.last_error ? "error" : Number(pending) > 0 ? "upload_pending"
+    : Number(device.capture_count) > 0 ? "receiving" : "waiting_first_image";
+  const [kind, title, explanation] = details[ingestion.state] || details[fallback];
+  const code = ingestion.last_error || (ingestion.heartbeat_fresh === false ? "" : device.heartbeat?.last_error) || "";
+  const actions = {
+    server_unreachable_or_invalid_response: "请确认服务已监听局域网地址、防火墙允许访问、server_url 可从设备访问，HTTPS 证书有效。",
+    server_redirect_refused: "服务地址发生了跳转，请将设备的 server_url 改为最终的 HTTP / HTTPS 地址。",
+    http_401: "设备令牌无效。请将最新 device_token 保存到采集应用配置并重启。",
+    http_403: "服务器拒绝了请求，请检查设备接入权限和服务端日志。",
+    http_409: "请检查项目是否归档，以及服务器返回的采集冲突记录。",
+    http_413: "图片超过上传大小限制，请降低设备应用 JPEG 质量或检查服务器上传限制。",
+    spool_full_capture_paused: "设备队列已满。请先恢复上传或释放存储空间，应用会保留尚未确认的图片。",
+    image_exceeds_server_limit: "采集图片过大，请降低设备应用的 JPEG 质量后重启。",
+    capture_spool_corrupt: "队列记录损坏，已保留原文件。请停止采集并联系维护者恢复，避免手动删除队列。",
+    spool_storage_error: "设备存储发生错误，请检查剩余空间和存储状态，并保留未上传的队列。",
+  };
+  return { kind, title, text: actions[code] || explanation };
+}
+
+function connectionOptions() {
+  return { stale: listReadFailed || Boolean(listReceivedAt && Date.now() - listReceivedAt > DEVICE_REFRESH_STALE_MS), observedAt: listReceivedAt || Date.now() };
+}
+
+function captureSetting(device) {
+  return device.project_archived ? "采集设置：项目已归档，已暂停新采集" : device.capture_enabled === false
+    ? "采集设置：已暂停新采集，队列继续上传" : `采集设置：已启用，每 ${numberText(device.capture_interval_seconds)} 秒一张`;
+}
+
+function cardValues(device, status) {
+  const ingestion = device.ingestion || {}, heartbeat = device.heartbeat || {};
+  const pending = ingestion.pending_images ?? heartbeat.pending_images ?? heartbeat.queue_length;
+  const diagnosis = deviceDiagnosis(device, status);
+  return {
+    name: device.name, project: device.project_name || `项目 ${device.project_id}`,
+    captures: numberText(device.capture_count), assets: numberText(device.asset_count), pending: pending == null ? "—" : numberText(pending),
+    pendingLabel: ingestion.heartbeat_fresh === false ? "待上传（上次上报）" : "设备待上传",
+    setting: captureSetting(device), contact: `最近联系：${dateText(device.connection?.last_contact_at || device.last_seen_at)}`,
+    heartbeat: `最近心跳：${dateText(device.connection?.last_heartbeat_at)}`, uploaded: `最近收到图片：${dateText(device.last_capture_at)}`,
+    version: `采集应用版本：${heartbeat.app_version || "尚未上报"}`,
+    diagnosisTitle: diagnosis.title, diagnosisText: diagnosis.text,
+    error: ingestion.last_error || (ingestion.heartbeat_fresh === false ? "" : heartbeat.last_error) || "",
+    diagnosisKind: diagnosis.kind,
+  };
 }
 
 function pageContext(node = document.querySelector("#edge-device-results")) {
@@ -40,12 +111,12 @@ export async function renderDevicesPage() {
   if (!isAdmin()) { location.hash = "#/"; return; }
   state.currentSection = "devices"; state.project = null; state.asset = null; state.annotations = [];
   state.selectedAnnotation = null; state.lockOwned = false;
-  renderedDevicesSignature = "";
+  devices = []; listReceivedAt = 0; listReadFailed = false; requestSerial++;
   app.innerHTML = `<div class="app-shell">${topbar("devices")}<main class="dashboard edge-devices-page"><div class="dashboard-inner">
     <div class="page-head"><div><h1>边缘设备</h1><p class="page-subtitle">让 reCamera Pro 采集的图片进入项目，把训练后的模型部署回设备。</p></div><div class="edge-actions"><button class="btn ghost" id="refresh-edge-devices">刷新</button><button class="btn primary" id="add-edge-device">连接设备</button></div></div>
     <ol class="edge-workflow" aria-label="设备与训练工作流"><li><span>1</span><strong>连接与采集</strong><small>安装采集应用，图片自动导入</small></li><li><span>2</span><strong>标注与训练</strong><small>沿用项目的审核和数据版本</small></li><li><span>3</span><strong>部署回设备</strong><small>转换 RV1126B 模型并发布应用</small></li></ol>
     <p class="edge-page-note">两个应用可独立运行：采集应用负责上传原图，推理应用使用打包的模型。图片导入后由管理员创建新的任务块，已领取的任务块保持原样。</p>
-    <div id="edge-page-feedback" class="inline-error" role="status" hidden></div><div id="edge-device-results" aria-live="polite"><p class="hint">正在读取设备…</p></div>
+    <p class="edge-refresh-note">页面可见时每 5 秒更新连接和采集状态。<span id="edge-refresh-time">正在读取状态…</span></p><div id="edge-page-feedback" class="inline-error" role="status" hidden></div><div id="edge-device-results"><p class="hint">正在读取设备…</p></div>
     <details class="edge-help"><summary>首次连接前需要准备什么？</summary><p>使用支持 Python SDK 与 App Center 的 reCamera Pro 固件。让设备能访问 CVSprout 的局域网地址或 HTTPS 域名；使用启动脚本时，在 <code>.env</code> 设置 <code>MDP_BIND_ADDRESS=0.0.0.0</code> 并重新启动。连接设备后，将服务地址和一次性显示的设备令牌填入采集应用配置。</p><p>远程部署还需要 CVSprout 服务器能够通过 SSH 访问设备，并由管理员配置可信主机和密钥。也可下载推理应用包，在设备的 App Center 手动安装。</p></details>
   </div></main></div>`;
   const current = pageContext();
@@ -57,51 +128,103 @@ export async function renderDevicesPage() {
   };
   await loadDevices();
   if (!current()) return;
-  state.pollTimer = setInterval(() => {
-    if (current() && !document.hidden && !document.querySelector(".modal")) void loadDevices({ background: true });
-  }, 15000);
+  const timer = setInterval(() => {
+    if (!current()) { clearInterval(timer); return; }
+    if (!document.hidden) { refreshConnectionDisplay(); void loadDevices({ background: true }); }
+  }, DEVICE_REFRESH_MS);
+  state.pollTimer = timer;
 }
 
 async function loadDevices({ background = false } = {}) {
-  const node = document.querySelector("#edge-device-results"), currentPage = pageContext(node), serial = ++requestSerial;
-  const current = () => currentPage() && serial === requestSerial;
-  if (!currentPage()) return;
-  if (!background) node.setAttribute("aria-busy", "true");
-  try {
-    const result = await api("/api/edge/devices");
-    if (!current()) return;
-    const next = result.devices || [], feedback = document.querySelector("#edge-page-feedback");
-    feedback.hidden = true;
-    // Keep keyboard focus, scroll position and expanded controls stable during heartbeats.
-    const focused = node.contains(document.activeElement), unchanged = JSON.stringify(next) === renderedDevicesSignature;
-    devices = next;
-    node.querySelectorAll("[data-edge-device]").forEach(card => {
-      const device = devices.find(item => item.id === card.dataset.edgeDevice), badge = card.querySelector(".edge-connection");
-      if (device && badge) { const status = deviceConnection(device); badge.className = `edge-connection ${status.kind}`; badge.textContent = status.label; }
-    });
-    if (background && focused) return;
-    if (!background || !unchanged) renderDeviceList(node);
-  } catch (error) {
-    if (error.status === 401 || !current()) return;
-    const feedback = document.querySelector("#edge-page-feedback");
-    feedback.textContent = `设备列表更新失败：${error.message}`; feedback.hidden = false;
-    if (!devices.length && !background) node.innerHTML = '<p class="hint">请点击上方“刷新”重试。</p>';
-  } finally { if (current()) node.removeAttribute("aria-busy"); }
+  const node = document.querySelector("#edge-device-results"), currentPage = pageContext(node);
+  if (!currentPage() || (background && document.hidden)) return;
+  // A manual/mutation refresh follows the pending request; polling shares it.
+  // This prevents overlapping requests without losing a just-saved change.
+  if (listRequest?.current()) {
+    if (!background) listRequest.refreshAgain = true;
+    return listRequest.promise;
+  }
+  const serial = ++requestSerial, current = () => currentPage() && serial === requestSerial;
+  const operation = { current, refreshAgain: false, promise: null };
+  listRequest = operation;
+  operation.promise = (async () => {
+    if (!background) node.setAttribute("aria-busy", "true");
+    try {
+      const result = await api("/api/edge/devices");
+      if (!current()) return;
+      if (!Array.isArray(result.devices)) throw new Error("服务器未返回有效的设备列表。");
+      devices = result.devices; listReceivedAt = Date.now(); listReadFailed = false; listCompletedSerial = serial;
+      const feedback = document.querySelector("#edge-page-feedback"); feedback.hidden = true;
+      const updated = document.querySelector("#edge-refresh-time"); if (updated) updated.textContent = `最近更新：${new Date(listReceivedAt).toLocaleTimeString("zh-CN")}`;
+      renderDeviceList(node); refreshTokenStatus();
+    } catch (error) {
+      if (error.status === 401 || !current()) return;
+      listReadFailed = true;
+      const feedback = document.querySelector("#edge-page-feedback");
+      feedback.textContent = `设备状态更新失败：${error.message}。已保留上次数据，连接状态暂无法确认。`; feedback.hidden = false;
+      refreshConnectionDisplay();
+      if (!devices.length && !background) node.innerHTML = '<p class="hint">请点击上方“刷新”重试。</p>';
+    } finally {
+      if (current()) node.removeAttribute("aria-busy");
+      if (listRequest === operation) listRequest = null;
+    }
+    if (current() && operation.refreshAgain) await loadDevices();
+  })();
+  return operation.promise;
 }
 
-export function deviceCardMarkup(device) {
-  const status = deviceConnection(device), revoked = status.kind === "revoked";
-  const queue = device.heartbeat?.pending_images ?? device.heartbeat?.queue_length;
-  return `<article class="edge-device-card" data-edge-device="${esc(device.id)}"><div class="edge-card-heading"><div><h2>${esc(device.name)}</h2><a href="#/projects/${Number(device.project_id)}/data">${esc(device.project_name || `项目 ${device.project_id}`)}</a></div><span class="edge-connection ${status.kind}">${status.label}</span></div>
-    <dl class="edge-device-stats"><div><dt>收到的采集记录</dt><dd>${numberText(device.capture_count)}</dd></div><div><dt>关联的项目图片</dt><dd>${numberText(device.asset_count)}</dd></div><div><dt>设备待上传</dt><dd>${queue == null ? "—" : numberText(queue)}</dd></div></dl>
-    <div class="edge-device-detail"><span>最近心跳：${esc(dateText(device.last_seen_at))}</span><span>最近采集：${esc(dateText(device.last_capture_at))}</span><span>${revoked ? "令牌已失效" : device.project_archived ? "项目已归档，已暂停新采集" : device.capture_enabled ? `每 ${numberText(device.capture_interval_seconds)} 秒采集一张` : "已暂停新采集，队列继续上传"}</span>${device.heartbeat?.last_error ? `<span class="feedback-error">最近上报：${esc(device.heartbeat.last_error)}</span>` : ""}</div>
-    <div class="edge-card-actions"><button class="btn ghost" data-edge-captures="${esc(device.id)}">采集记录</button>${revoked ? "" : `<button class="btn ghost" data-edge-settings="${esc(device.id)}">采集设置</button><button class="btn primary" data-edge-model="${esc(device.id)}">模型部署</button><details class="edge-more"><summary>更多</summary><div><button data-edge-rotate="${esc(device.id)}">重置设备令牌</button><button class="danger" data-edge-revoke="${esc(device.id)}">撤销接入</button></div></details>`}</div></article>`;
+export function deviceCardMarkup(device, options = {}) {
+  const status = deviceConnection(device, Date.now(), options), values = cardValues(device, status);
+  const field = (name, tag = "span") => `<${tag} data-edge-value="${name}">${esc(values[name])}</${tag}>`;
+  const editHidden = status.kind === "revoked" ? " hidden" : "";
+  return `<article class="edge-device-card" data-edge-device="${esc(device.id)}"><div class="edge-card-heading"><div>${field("name", "h2")}<a data-edge-value="project" href="#/projects/${Number(device.project_id)}/data">${esc(values.project)}</a></div><span class="edge-connection ${status.kind}" role="status">${esc(status.label)}</span></div>
+    <p class="edge-capture-setting" data-edge-value="setting">${esc(values.setting)}</p>
+    <dl class="edge-device-stats"><div><dt>收到的采集记录</dt>${field("captures", "dd")}</div><div><dt>关联的项目图片</dt>${field("assets", "dd")}</div><div>${field("pendingLabel", "dt")}${field("pending", "dd")}</div></dl>
+    <div class="edge-device-diagnosis ${values.diagnosisKind}">${field("diagnosisTitle", "strong")}${field("diagnosisText", "p")}</div>
+    <div class="edge-device-detail">${field("contact")}${field("heartbeat")}${field("uploaded")}${field("version")}</div>
+    <details class="edge-diagnostic-details"${values.error ? "" : " hidden"}><summary>查看最近上报的错误</summary>${field("error", "code")}</details>
+    <div class="edge-card-actions"><button class="btn ghost" data-edge-captures="${esc(device.id)}">采集记录</button><button class="btn ghost" data-edge-settings="${esc(device.id)}"${editHidden}>采集设置</button><button class="btn primary" data-edge-model="${esc(device.id)}"${editHidden}>模型部署</button><details class="edge-more" data-edge-edit-control${editHidden}><summary>更多</summary><div><button data-edge-rotate="${esc(device.id)}">重置设备令牌</button><button class="danger" data-edge-revoke="${esc(device.id)}">撤销接入</button></div></details></div></article>`;
+}
+
+function patchDeviceCard(card, device) {
+  const status = deviceConnection(device, Date.now(), connectionOptions()), values = cardValues(device, status);
+  const badge = card.querySelector(".edge-connection");
+  badge.className = `edge-connection ${status.kind}`;
+  if (badge.textContent !== status.label) badge.textContent = status.label;
+  card.querySelectorAll("[data-edge-value]").forEach(node => {
+    const value = String(values[node.dataset.edgeValue] ?? "");
+    if (node.textContent !== value) node.textContent = value;
+  });
+  card.querySelector('[data-edge-value="project"]').href = `#/projects/${Number(device.project_id)}/data`;
+  card.querySelector(".edge-device-diagnosis").className = `edge-device-diagnosis ${values.diagnosisKind}`;
+  card.querySelector(".edge-diagnostic-details").hidden = !values.error;
+  card.querySelectorAll("[data-edge-settings], [data-edge-model], [data-edge-edit-control]").forEach(node => { node.hidden = status.kind === "revoked"; });
+}
+
+function refreshConnectionDisplay() {
+  const node = document.querySelector("#edge-device-results");
+  if (!pageContext(node)()) return;
+  node.querySelectorAll("[data-edge-device]").forEach(card => {
+    const device = devices.find(item => item.id === card.dataset.edgeDevice); if (device) patchDeviceCard(card, device);
+  });
+  refreshTokenStatus();
 }
 
 function renderDeviceList(node) {
-  node.innerHTML = devices.length ? `<div class="edge-device-grid">${devices.map(deviceCardMarkup).join("")}</div>`
-    : '<div class="edge-empty"><strong>连接你的第一台 reCamera Pro</strong><p>选择图片要进入的项目，获取专属令牌，即可开始自动采集。</p><button class="btn primary" id="empty-connect-device">连接设备</button></div>';
-  renderedDevicesSignature = JSON.stringify(devices);
+  if (!devices.length && node.querySelector(".edge-empty")) return;
+  let grid = node.querySelector(".edge-device-grid");
+  if (!grid || !devices.length) {
+    node.innerHTML = devices.length ? `<div class="edge-device-grid">${devices.map(device => deviceCardMarkup(device, connectionOptions())).join("")}</div>`
+      : '<div class="edge-empty"><strong>连接你的第一台 reCamera Pro</strong><p>选择图片要进入的项目，获取专属令牌，即可开始自动采集。</p><button class="btn primary" id="empty-connect-device">连接设备</button></div>';
+  } else {
+    const cards = new Map([...grid.querySelectorAll("[data-edge-device]")].map(card => [card.dataset.edgeDevice, card]));
+    for (const device of devices) {
+      const existing = cards.get(device.id);
+      if (existing) { patchDeviceCard(existing, device); cards.delete(device.id); }
+      else grid.insertAdjacentHTML("beforeend", deviceCardMarkup(device, connectionOptions()));
+    }
+    for (const card of cards.values()) card.remove();
+  }
   node.querySelector("#empty-connect-device")?.addEventListener("click", () => openDeviceSettings());
   const bind = (attribute, handler) => node.querySelectorAll(`[${attribute}]`).forEach(button => {
     button.onclick = () => { button.closest("details")?.removeAttribute("open"); const device = devices.find(item => item.id === button.getAttribute(attribute)); if (device) handler(device); };
@@ -109,6 +232,22 @@ function renderDeviceList(node) {
   bind("data-edge-settings", openDeviceSettings); bind("data-edge-captures", openCaptureRecords);
   bind("data-edge-model", openDeviceDeployment); bind("data-edge-rotate", openRotateToken); bind("data-edge-revoke", openRevokeDevice);
 }
+
+function refreshTokenStatus() {
+  if (!tokenSetup?.node.isConnected) return;
+  const device = (listCompletedSerial >= tokenSetup.minimumSerial ? devices.find(item => item.id === tokenSetup.device.id) : null) || tokenSetup.device;
+  const status = deviceConnection(device, Date.now(), connectionOptions()), diagnosis = deviceDiagnosis(device, status);
+  const node = tokenSetup.node;
+  node.className = `edge-setup-connection ${status.kind}`;
+  const title = node.querySelector("strong"), text = node.querySelector("p");
+  const label = status.kind === "online" ? "已确认设备连接成功" : status.kind === "waiting" ? "等待设备首次连接…" : status.label;
+  if (title.textContent !== label) title.textContent = label;
+  if (text.textContent !== diagnosis.text) text.textContent = diagnosis.text;
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && state.currentSection === "devices") { refreshConnectionDisplay(); void loadDevices({ background: true }); }
+});
 
 async function openDeviceSettings(device = null) {
   if (!isAdmin()) return;
@@ -143,8 +282,10 @@ async function openDeviceSettings(device = null) {
 }
 
 function showDeviceToken(device, token) {
-  openModal({ title: "配置采集应用", subtitle: "设备令牌只显示这一次。请现在复制到 reCamera Pro 的采集应用配置中。", body: `<div class="edge-token-setup"><p>在设备 App Center 安装 <strong>CVSprout Capture</strong>，然后填写：</p><div class="field"><label for="edge-copy-url">server_url · CVSprout 地址</label><input id="edge-copy-url" readonly value="${esc(device.server_url || "")}"/></div><div class="field"><label for="edge-copy-token">device_token · 设备令牌</label><div class="edge-token-control"><input id="edge-copy-token" type="password" readonly autocomplete="off" spellcheck="false"/><button class="btn ghost" type="button" id="edge-copy-token-button">复制令牌</button></div><label class="check-line"><input id="edge-show-token" type="checkbox"/>显示令牌</label></div><p class="hint">令牌只用于设备上传，不是管理员登录凭证。关闭后无法再次查看；丢失时可在设备卡片重置。</p><div id="edge-capture-download"></div></div>`, submitText: "我已保存配置", onReady: () => {
+  openModal({ title: "配置采集应用", subtitle: "设备令牌只显示这一次。请现在复制到 reCamera Pro 的采集应用配置中。", body: `<div class="edge-token-setup"><p>在设备 App Center 安装 <strong>CVSprout Capture</strong>，然后填写：</p><div class="field"><label for="edge-copy-url">server_url · CVSprout 地址</label><input id="edge-copy-url" readonly value="${esc(device.server_url || "")}"/></div><div class="field"><label for="edge-copy-token">device_token · 设备令牌</label><div class="edge-token-control"><input id="edge-copy-token" type="password" readonly autocomplete="off" spellcheck="false"/><button class="btn ghost" type="button" id="edge-copy-token-button">复制令牌</button></div><label class="check-line"><input id="edge-show-token" type="checkbox"/>显示令牌</label></div><p class="hint">请完整复制以 cvsprout_device_ 开头的设备专用令牌，不要填写网页登录密码或管理员 API Key。关闭后无法再次查看；丢失时可在设备卡片重置。</p><div id="edge-capture-download"></div><div id="edge-setup-connection" class="edge-setup-connection waiting" role="status"><strong>等待设备首次连接…</strong><p>保存参数并启动设备上的采集应用后，这里会自动确认连接。请保留此窗口，令牌仍可复制。</p></div></div>`, submitText: "我已保存配置", onReady: () => {
       const input = document.querySelector("#edge-copy-token"), modal = document.querySelector(".modal"); input.value = token;
+      tokenSetup = { device, minimumSerial: requestSerial + 1, node: modal.querySelector("#edge-setup-connection") }; refreshTokenStatus();
+      void loadDevices({ background: true });
       modal.addEventListener("click", handlePackageDownload);
       document.querySelector("#edge-show-token").onchange = event => { input.type = event.target.checked ? "text" : "password"; };
       document.querySelector("#edge-copy-token-button").onclick = async () => {
@@ -154,7 +295,7 @@ function showDeviceToken(device, token) {
       void api(`${pathFor(device)}/deployment-options`).then(result => {
         if (modal.isConnected && result.capture_app?.download_url) document.querySelector("#edge-capture-download").innerHTML = downloadLink(result.capture_app.download_url, "下载采集应用包");
       }).catch(() => {});
-    }, onClose: () => { const input = document.querySelector("#edge-copy-token"); if (input) input.value = ""; token = ""; }, onSubmit: async () => closeModal() });
+    }, onClose: () => { tokenSetup = null; const input = document.querySelector("#edge-copy-token"); if (input) input.value = ""; token = ""; }, onSubmit: async () => closeModal() });
 }
 
 function openRotateToken(device) {

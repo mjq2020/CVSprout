@@ -1,24 +1,24 @@
-import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.26.0";
-import { renderUsersPage } from "./accounts-ui.js?v=0.26.0";
-import { renderDevicesPage } from "./edge-devices-ui.js?v=0.26.0";
-import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.26.0";
-import { annotationModelSelectable, modelDownloadSize, modelPreparationStatus, mountModelPreparation } from "./model-preparation-ui.js?v=0.26.0";
-import { mountAuthScreen } from "./auth-ui.js?v=0.26.0";
-import { renderAccountPage } from "./security-ui.js?v=0.26.0";
-import { bindAssetManagement } from "./asset-management-ui.js?v=0.26.0";
-import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.26.0";
-import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.26.0";
-import { loadProjectWorkBlocks } from "./project-api.js?v=0.26.0";
-import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.26.0";
-import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.26.0";
-import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.26.0";
-import { mountOverviewTraining } from "./overview-training.js?v=0.26.0";
-import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.26.0";
-import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.26.0";
-import { mountCanvasGuides } from "./canvas-guides.js?v=0.26.0";
-import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.26.0";
-import { beginWorkspaceLoad, cancelWorkspaceLoad } from "./workspace-feedback.js?v=0.26.0";
-import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.26.0";
+import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.26.1";
+import { renderUsersPage } from "./accounts-ui.js?v=0.26.1";
+import { renderDevicesPage } from "./edge-devices-ui.js?v=0.26.1";
+import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.26.1";
+import { annotationModelSelectable, modelDownloadSize, modelPreparationStatus, mountModelPreparation } from "./model-preparation-ui.js?v=0.26.1";
+import { mountAuthScreen } from "./auth-ui.js?v=0.26.1";
+import { renderAccountPage } from "./security-ui.js?v=0.26.1";
+import { bindAssetManagement } from "./asset-management-ui.js?v=0.26.1";
+import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.26.1";
+import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.26.1";
+import { loadProjectWorkBlocks } from "./project-api.js?v=0.26.1";
+import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.26.1";
+import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.26.1";
+import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.26.1";
+import { mountOverviewTraining } from "./overview-training.js?v=0.26.1";
+import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.26.1";
+import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.26.1";
+import { mountCanvasGuides } from "./canvas-guides.js?v=0.26.1";
+import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.26.1";
+import { beginWorkspaceLoad, cancelWorkspaceLoad } from "./workspace-feedback.js?v=0.26.1";
+import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.26.1";
 
 const app = document.querySelector("#app");
 const modalRoot = document.querySelector("#modal-root");
@@ -1238,9 +1238,9 @@ async function downloadArtifact(url, fallbackName = "download") {
   } finally { progressNotice.remove(); }
 }
 
-import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.26.0";
-import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.26.0";
-import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.26.0";
+import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.26.1";
+import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.26.1";
+import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.26.1";
 
 const trainingChartViews = new Map();
 const trainingDetailViews = new Map();

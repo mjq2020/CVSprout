@@ -25,6 +25,7 @@ from .storage import _store_image
 router = APIRouter(prefix="/api/edge", tags=["edge-devices"])
 MAX_CAPTURE_BYTES = 10 * 1024 * 1024
 TOKEN_PREFIX = "cvsprout_device_"
+CONNECTION_TIMEOUT_SECONDS = 90
 
 
 def _server_url(value: str) -> str:
@@ -101,6 +102,130 @@ class DeviceHeartbeat(BaseModel):
     uploaded_images: int = Field(default=0, ge=0, le=2**63 - 1, strict=True)
     last_error: str = Field(default="", max_length=500)
     model_release: str = Field(default="", max_length=128)
+    frames_received: int | None = Field(default=None, ge=0, le=2**63 - 1, strict=True)
+    captured_images: int | None = Field(default=None, ge=0, le=2**63 - 1, strict=True)
+    last_frame_age_seconds: float | None = Field(default=None, ge=0, le=2**53, allow_inf_nan=False, strict=True)
+    capture_error: str = Field(default="", max_length=500)
+    upload_error: str = Field(default="", max_length=500)
+    session_complete: bool | None = Field(default=None, strict=True)
+
+
+def _heartbeat_data(device: dict) -> dict:
+    try:
+        value = json.loads(device["heartbeat_json"])
+    except (TypeError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _safe_text(value: str) -> str:
+    # All device strings are untrusted, including version and state fields.
+    value = re.sub(r"cvsprout_device_[A-Za-z0-9_-]+", "[redacted]", value, flags=re.IGNORECASE)
+    value = re.sub(r"(?i)\bbearer\s+[^\s,;]+", "Bearer [redacted]", value)
+    return "".join(" " if ord(char) < 32 or ord(char) == 127 else char for char in value)
+
+
+def _public_heartbeat(values: dict) -> dict:
+    # Ignore internal/future keys and tolerate damaged legacy rows instead of
+    # making the entire device page unavailable. Never reflect arbitrary keys.
+    clean = {key: value for key, value in values.items() if key in DeviceHeartbeat.model_fields}
+    try:
+        clean = DeviceHeartbeat.model_validate(clean).model_dump()
+    except ValueError:
+        return {}
+    return {key: _safe_text(value) if isinstance(value, str) else value for key, value in clean.items()}
+
+
+def _timestamp(value) -> datetime | None:
+    if not isinstance(value, str) or len(value) > 64:
+        return None
+    try:
+        timestamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return timestamp.astimezone(timezone.utc) if timestamp.tzinfo is not None else None
+    except (ValueError, OverflowError):
+        return None
+
+
+def _age_seconds(value, now: datetime) -> float | None:
+    timestamp = _timestamp(value)
+    if timestamp is None:
+        return None
+    age = (now - timestamp).total_seconds()
+    # These are server timestamps. A substantially future value is corrupt or
+    # follows a server clock correction; it cannot prove a current connection.
+    return round(max(0.0, age), 3) if age >= -5 else None
+
+
+def _connection(device: dict, heartbeat: dict, now: datetime) -> dict:
+    age = _age_seconds(device["last_seen_at"], now)
+    heartbeat_at = heartbeat.get("_received_at")
+    heartbeat_age = _age_seconds(heartbeat_at, now)
+    rotated, seen, created = (_timestamp(device[key]) for key in ("token_rotated_at", "last_seen_at", "created_at"))
+    reconnect = (heartbeat.get("_awaiting_reconnect") is True
+                 or (heartbeat.get("_credential_confirmed") is not True
+                     and ((rotated is not None and seen is not None and rotated > seen)
+                          or (seen is None and rotated is not None and created is not None and rotated > created))))
+    if not device["enabled"] or device["revoked_at"]:
+        state = "revoked"
+    elif reconnect:
+        state = "reconnect_required"
+    elif not device["last_seen_at"]:
+        state = "never_connected"
+    elif age is not None and age <= CONNECTION_TIMEOUT_SECONDS:
+        state = "online"
+    else:
+        state = "offline"
+    return {"state": state, "online": state == "online", "server_time": now.isoformat(),
+            "last_contact_at": device["last_seen_at"] if seen is not None else None,
+            "last_heartbeat_at": heartbeat_at if _timestamp(heartbeat_at) is not None else None,
+            "age_seconds": age, "heartbeat_age_seconds": heartbeat_age,
+            "timeout_seconds": CONNECTION_TIMEOUT_SECONDS}
+
+
+def _ingestion(device: dict, heartbeat: dict, internal: dict, now: datetime) -> dict:
+    connection = device["connection"]
+    heartbeat_age = connection["heartbeat_age_seconds"]
+    fresh = (connection["online"] and bool(heartbeat) and internal.get("_heartbeat_stale") is not True
+             and heartbeat_age is not None and heartbeat_age <= CONNECTION_TIMEOUT_SECONDS)
+    report = heartbeat if fresh else {}
+    error = report.get("capture_error") or report.get("upload_error") or report.get("last_error", "")
+    pending = report.get("pending_images")
+    capture_age = _age_seconds(device["last_capture_at"], now)
+    image_timeout = max(CONNECTION_TIMEOUT_SECONDS, device["capture_interval_seconds"] * 3)
+    state = "waiting_first_image"
+    if device["project_archived"]:
+        state = "archived"
+    elif not connection["online"]:
+        state = "waiting_connection"
+    elif not device["capture_enabled"]:
+        state = "paused"
+    elif not fresh:
+        state = "receiving" if capture_age is not None and capture_age <= CONNECTION_TIMEOUT_SECONDS else "waiting_heartbeat"
+    elif report.get("state") == "queue_full":
+        state = "queue_full"
+    elif error or report.get("state") in {"capture_error", "capture_stopped"}:
+        state = "error"
+    elif pending:
+        state = "upload_pending"
+    elif report.get("session_complete") is True or report.get("state") == "session_limit":
+        state = "session_complete"
+    elif report.get("state") == "waiting_frames" or report.get("frames_received") == 0:
+        state = "waiting_camera"
+    elif device["capture_count"]:
+        state = "receiving" if capture_age is not None and capture_age <= image_timeout else "no_recent_images"
+    return {"state": state, "last_error": error, "heartbeat_fresh": fresh,
+            "pending_images": pending, "pending_bytes": report.get("pending_bytes"),
+            "captured_images": report.get("captured_images"), "frames_received": report.get("frames_received"),
+            "last_frame_age_seconds": report.get("last_frame_age_seconds"), "last_capture_age_seconds": capture_age,
+            "image_timeout_seconds": image_timeout}
+
+
+def _contact(conn, device: dict, now: str) -> None:
+    heartbeat = _heartbeat_data(device)
+    heartbeat.pop("_awaiting_reconnect", None)
+    heartbeat["_credential_confirmed"] = True
+    conn.execute("UPDATE edge_devices SET last_seen_at=?,heartbeat_json=? WHERE id=?",
+                 (now, json.dumps(heartbeat, ensure_ascii=False), device["id"]))
 
 
 def _token() -> tuple[str, str]:
@@ -156,12 +281,16 @@ def _present(conn, device: dict) -> dict:
     result = {key: value for key, value in device.items() if key not in {"token_hash", "heartbeat_json"}}
     result["enabled"] = bool(result["enabled"])
     result["capture_enabled"] = bool(result["capture_enabled"])
-    result["heartbeat"] = json.loads(device["heartbeat_json"])
+    internal_heartbeat = _heartbeat_data(device)
+    result["heartbeat"] = _public_heartbeat(internal_heartbeat)
     project = conn.execute("SELECT name,archived_at FROM projects WHERE id=?", (device["project_id"],)).fetchone()
     result["project_name"] = project["name"] if project else ""
     result["project_archived"] = bool(project and project["archived_at"])
     counts = conn.execute("SELECT COUNT(*) AS captures,COUNT(DISTINCT asset_id) AS assets FROM edge_capture_events WHERE device_id=?", (device["id"],)).fetchone()
     result["capture_count"], result["asset_count"] = counts["captures"], counts["assets"]
+    now = _timestamp(now_iso()) or datetime.now(timezone.utc)
+    result["connection"] = _connection(device, internal_heartbeat, now)
+    result["ingestion"] = _ingestion(result, result["heartbeat"], internal_heartbeat, now)
     return result
 
 
@@ -228,7 +357,10 @@ def rotate_token(device_id: str, actor: Actor = Depends(get_actor)) -> dict:
         if device["revoked_at"]:
             raise HTTPException(409, "设备已撤销，请新建设备接入")
         now = now_iso()
-        conn.execute("UPDATE edge_devices SET token_hash=?,token_rotated_at=?,updated_at=? WHERE id=?", (token_hash, now, now, device_id))
+        previous_heartbeat = _heartbeat_data(device)
+        previous_heartbeat.update({"_awaiting_reconnect": True, "_heartbeat_stale": True, "_credential_confirmed": False})
+        conn.execute("UPDATE edge_devices SET token_hash=?,token_rotated_at=?,updated_at=?,heartbeat_json=? WHERE id=?",
+                     (token_hash, now, now, json.dumps(previous_heartbeat, ensure_ascii=False), device_id))
         _audit(conn, actor, "rotate_token", device)
         result = _present(conn, _device(conn, device_id))
     return {"device": result, "device_token": token}
@@ -264,23 +396,27 @@ def list_captures(device_id: str, limit: int = Query(default=25, ge=1, le=200),
 @router.get("/v1/config")
 def device_config(device: dict = Depends(get_device)) -> dict:
     with db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
         device = _current_device(conn, device)
         project = _project(conn, device["project_id"])
+        _contact(conn, device, now_iso())
         return {"device_id": device["id"], "project_id": device["project_id"],
                 "capture_enabled": bool(device["capture_enabled"] and not project["archived_at"]),
                 "capture_interval_seconds": device["capture_interval_seconds"],
                 "max_pending_images": device["max_pending_images"], "max_pending_bytes": device["max_pending_bytes"],
-                "max_image_bytes": MAX_CAPTURE_BYTES, "project_archived": bool(project["archived_at"])}
+                "max_image_bytes": MAX_CAPTURE_BYTES, "project_archived": bool(project["archived_at"]),
+                "heartbeat_schema_version": 2}
 
 
 @router.post("/v1/heartbeat")
 def heartbeat(payload: DeviceHeartbeat, device: dict = Depends(get_device)) -> dict:
-    values = payload.model_dump()
-    values["last_error"] = re.sub(r"cvsprout_device_[A-Za-z0-9_-]+", "[redacted]", values["last_error"])
-    now = now_iso()
+    values = _public_heartbeat(payload.model_dump())
     with db() as conn:
         conn.execute("BEGIN IMMEDIATE")
         device = _current_device(conn, device)
+        now = now_iso()
+        values["_received_at"] = now
+        values["_credential_confirmed"] = True
         conn.execute("UPDATE edge_devices SET last_seen_at=?,heartbeat_json=? WHERE id=?", (now, json.dumps(values, ensure_ascii=False), device["id"]))
     return {"received": True, "server_time": now}
 
@@ -310,6 +446,7 @@ def _commit_capture(device: dict, content: bytes, filename: str, capture_id: str
             conn.execute("BEGIN IMMEDIATE")
             device = _current_device(conn, device)
             _project(conn, device["project_id"], write=True)
+            now = now_iso()
             previous = conn.execute("SELECT * FROM edge_capture_events WHERE device_id=? AND capture_id=?", (device["id"], capture_id)).fetchone()
             if previous:
                 if previous["sha256"] != image.sha256:
@@ -319,7 +456,6 @@ def _commit_capture(device: dict, content: bytes, filename: str, capture_id: str
                 result = {"received": True, "capture_id": capture_id, "asset_id": previous["asset_id"], "duplicate": bool(previous["duplicate"])}
             else:
                 duplicate = conn.execute("SELECT id FROM assets WHERE project_id=? AND sha256=? ORDER BY id LIMIT 1", (device["project_id"], image.sha256)).fetchone()
-                now = now_iso()
                 if duplicate:
                     asset_id = duplicate["id"]
                 else:
@@ -331,10 +467,11 @@ def _commit_capture(device: dict, content: bytes, filename: str, capture_id: str
                     captured_at,received_at,batch_id,model_release,duplicate) VALUES (?,?,?,?,?,?,?,?,?,?)""",
                     (device["id"], device["project_id"], capture_id, asset_id, image.sha256, captured_at, now,
                      batch_id, model_release, bool(duplicate)))
-                conn.execute("UPDATE edge_devices SET last_seen_at=?,last_capture_at=? WHERE id=?", (now, now, device["id"]))
+                conn.execute("UPDATE edge_devices SET last_capture_at=? WHERE id=?", (now, device["id"]))
                 if not duplicate:
                     conn.execute("UPDATE projects SET updated_at=? WHERE id=?", (now, device["project_id"]))
                 result = {"received": True, "capture_id": capture_id, "asset_id": asset_id, "duplicate": bool(duplicate)}
+            _contact(conn, device, now)
         # Only preserve a newly staged file after its SQLite transaction commits.
         retained = previous is None and not duplicate
         return result

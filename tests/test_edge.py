@@ -7,6 +7,7 @@ import json
 import tempfile
 import threading
 import unittest
+from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -80,6 +81,196 @@ class EdgeIngestionTest(unittest.TestCase):
 
     def config(self, token=None):
         return self.client.get("/api/edge/v1/config", headers={"Authorization": "Bearer " + (token or self.token)})
+
+    def listed(self):
+        devices = self.client.get("/api/edge/devices")
+        self.assertEqual(devices.status_code, 200, devices.text)
+        return next(device for device in devices.json()["devices"] if device["id"] == self.device["id"])
+
+    def send_heartbeat(self, **fields):
+        return self.client.post("/api/edge/v1/heartbeat", json=fields,
+                                headers={"Authorization": "Bearer " + self.token})
+
+    def test_connection_requires_authenticated_contact_and_expires_at_server_boundary(self):
+        self.assertEqual(self.listed()["connection"]["state"], "never_connected")
+        self.assertEqual(self.config("invalid").status_code, 401)
+        self.assertEqual(self.listed()["connection"]["state"], "never_connected")
+        contacted = datetime(2100, 1, 1, tzinfo=timezone.utc)
+        with patch.object(edge, "now_iso", return_value=contacted.isoformat()):
+            self.assertEqual(self.config().json()["heartbeat_schema_version"], 2)
+            connected = self.listed()
+        self.assertEqual(connected["connection"]["state"], "online")
+        self.assertEqual(connected["connection"]["age_seconds"], 0)
+        self.assertEqual(connected["connection"]["last_contact_at"], contacted.isoformat())
+        self.assertIsNone(connected["connection"]["last_heartbeat_at"])
+        self.assertEqual(connected["ingestion"]["state"], "waiting_heartbeat")
+        for seconds, expected in ((90, "online"), (90.001, "offline"), (-6, "offline")):
+            with self.subTest(seconds=seconds), patch.object(edge, "now_iso", return_value=(contacted + timedelta(seconds=seconds)).isoformat()):
+                result = self.listed()
+            self.assertEqual(result["connection"]["state"], expected)
+            self.assertEqual(result["connection"]["online"], expected == "online")
+            self.assertEqual(result["connection"]["timeout_seconds"], 90)
+
+    def test_heartbeat_separates_camera_upload_errors_and_receipt_progress(self):
+        now = "2100-01-01T00:00:00+00:00"
+        cases = [
+            ({"state": "waiting_frames", "frames_received": 0}, "waiting_camera"),
+            ({"state": "capturing", "frames_received": 7, "captured_images": 0}, "waiting_first_image"),
+            ({"state": "capturing", "pending_images": 3}, "upload_pending"),
+            ({"state": "queue_full", "pending_images": 500}, "queue_full"),
+            ({"state": "session_limit", "session_complete": True}, "session_complete"),
+            ({"state": "capture_error", "capture_error": "jpeg_encode_failed"}, "error"),
+            ({"state": "capturing", "upload_error": "http_422", "pending_images": 3}, "error"),
+            ({"state": "capture_stopped"}, "error"),
+        ]
+        for heartbeat, expected in cases:
+            with self.subTest(state=heartbeat), patch.object(edge, "now_iso", return_value=now):
+                response = self.send_heartbeat(**heartbeat)
+                self.assertEqual(response.status_code, 200, response.text)
+                result = self.listed()
+            self.assertEqual(result["connection"]["state"], "online")
+            self.assertEqual(result["connection"]["last_heartbeat_at"], now)
+            self.assertTrue(result["ingestion"]["heartbeat_fresh"])
+            self.assertEqual(result["ingestion"]["state"], expected)
+        with patch.object(edge, "now_iso", return_value=now):
+            self.assertEqual(self.capture().status_code, 201)
+            self.assertEqual(self.send_heartbeat(state="capturing", frames_received=12, captured_images=1,
+                                                 last_frame_age_seconds=0.5).status_code, 200)
+            result = self.listed()
+        self.assertEqual(result["ingestion"]["state"], "receiving")
+        self.assertEqual(result["ingestion"]["captured_images"], 1)
+        self.assertEqual(result["ingestion"]["last_frame_age_seconds"], 0.5)
+        self.assertEqual(result["capture_count"], 1)
+
+    def test_old_heartbeat_payload_still_works_without_invented_diagnostics(self):
+        response = self.send_heartbeat(state="capturing", pending_images=0, uploaded_images=7, app_version="1.0.1")
+        self.assertEqual(response.status_code, 200, response.text)
+        result = self.listed()
+        self.assertEqual(result["connection"]["state"], "online")
+        self.assertEqual(result["ingestion"]["state"], "waiting_first_image")
+        self.assertIsNone(result["ingestion"]["frames_received"])
+        self.assertEqual(result["heartbeat"]["app_version"], "1.0.1")
+        self.assertEqual(result["capture_count"], 0)
+        self.assertNotIn("_received_at", result["heartbeat"])
+        self.assertNotIn("_credential_confirmed", result["heartbeat"])
+
+    def test_old_receipts_do_not_report_current_uploads_and_respect_capture_interval(self):
+        received = datetime(2100, 1, 1, tzinfo=timezone.utc)
+        with patch.object(edge, "now_iso", return_value=received.isoformat()):
+            self.assertEqual(self.capture().status_code, 201)
+        for interval, elapsed, expected in ((10, 90, "receiving"), (10, 91, "no_recent_images"),
+                                            (3600, 7200, "receiving"), (3600, 10801, "no_recent_images")):
+            with self.subTest(interval=interval, elapsed=elapsed), patch.object(edge, "now_iso", return_value=(received + timedelta(seconds=elapsed)).isoformat()):
+                self.client.patch(f"/api/edge/devices/{self.device['id']}", json={"capture_interval_seconds": interval})
+                self.assertEqual(self.send_heartbeat(state="capturing", frames_received=9, captured_images=0).status_code, 200)
+                result = self.listed()
+            self.assertEqual(result["connection"]["state"], "online")
+            self.assertEqual(result["ingestion"]["state"], expected)
+            self.assertEqual(result["ingestion"]["image_timeout_seconds"], max(90, interval * 3))
+            self.assertEqual(result["capture_count"], 1)
+
+    def test_rotation_requires_new_token_contact_and_new_heartbeat_even_at_same_timestamp(self):
+        with patch.object(edge, "now_iso", return_value="2100-01-01T00:00:00+00:00"):
+            self.assertEqual(self.send_heartbeat(state="capturing", pending_images=2).status_code, 200)
+            rotated = self.client.post(f"/api/edge/devices/{self.device['id']}/rotate-token").json()
+            self.assertEqual(rotated["device"]["connection"]["state"], "reconnect_required")
+            self.assertFalse(rotated["device"]["ingestion"]["heartbeat_fresh"])
+            self.assertEqual(self.config().status_code, 401)
+            self.assertEqual(self.listed()["connection"]["state"], "reconnect_required")
+            self.token = rotated["device_token"]
+            self.assertEqual(self.config().status_code, 200)
+            result = self.listed()
+            self.assertEqual(result["connection"]["state"], "online")
+            self.assertEqual(result["ingestion"]["state"], "waiting_heartbeat")
+            self.assertIsNone(result["ingestion"]["pending_images"])
+            self.assertEqual(self.send_heartbeat(state="capturing").status_code, 200)
+            self.assertTrue(self.listed()["ingestion"]["heartbeat_fresh"])
+            self.client.delete(f"/api/edge/devices/{self.device['id']}")
+            self.assertEqual(self.listed()["connection"]["state"], "revoked")
+
+    def test_rotation_before_first_contact_is_not_reported_as_never_configured(self):
+        rotated = self.client.post(f"/api/edge/devices/{self.device['id']}/rotate-token").json()
+        self.assertEqual(rotated["device"]["connection"]["state"], "reconnect_required")
+        self.assertIsNone(rotated["device"]["connection"]["last_contact_at"])
+
+    def test_stale_heartbeat_diagnostics_are_not_shown_as_current(self):
+        at = datetime(2100, 1, 1, tzinfo=timezone.utc)
+        with patch.object(edge, "now_iso", return_value=at.isoformat()):
+            self.assertEqual(self.send_heartbeat(state="capture_error", last_error="jpeg_encode_failed", pending_images=3).status_code, 200)
+        with patch.object(edge, "now_iso", return_value=(at + timedelta(seconds=100)).isoformat()):
+            self.assertEqual(self.config().status_code, 200)
+            result = self.listed()
+        self.assertEqual(result["connection"]["state"], "online")
+        self.assertEqual(result["connection"]["heartbeat_age_seconds"], 100)
+        self.assertEqual(result["ingestion"]["state"], "waiting_heartbeat")
+        self.assertFalse(result["ingestion"]["heartbeat_fresh"])
+        self.assertEqual(result["ingestion"]["last_error"], "")
+        self.assertIsNone(result["ingestion"]["pending_images"])
+
+    def test_paused_and_archived_projects_remain_connected_but_explain_no_new_images(self):
+        self.assertEqual(self.config().status_code, 200)
+        self.client.patch(f"/api/edge/devices/{self.device['id']}", json={"capture_enabled": False})
+        self.assertEqual(self.send_heartbeat(state="paused", pending_images=2, upload_error="http_413").status_code, 200)
+        paused = self.listed()
+        self.assertEqual(paused["connection"]["state"], "online")
+        self.assertEqual(paused["ingestion"]["state"], "paused")
+        self.assertEqual(paused["ingestion"]["last_error"], "http_413")
+        self.assertEqual(paused["ingestion"]["pending_images"], 2)
+        with db() as conn:
+            conn.execute("UPDATE projects SET archived_at=? WHERE id=?", (now_iso(), self.project_id))
+        archived = self.listed()
+        self.assertEqual(archived["connection"]["state"], "online")
+        self.assertEqual(archived["ingestion"]["state"], "archived")
+
+    def test_malformed_legacy_heartbeat_and_timestamps_do_not_break_device_listing(self):
+        for stored in ("[]", "not-json", '{"state":{},"_received_at":"future"}', '{"unknown_secret":"hidden"}'):
+            with self.subTest(stored=stored), db() as conn:
+                conn.execute("UPDATE edge_devices SET heartbeat_json=?,last_seen_at=? WHERE id=?", (stored, "bad-time", self.device["id"]))
+            result = self.listed()
+            self.assertEqual(result["connection"]["state"], "offline")
+            self.assertIsNone(result["connection"]["last_contact_at"])
+            self.assertIsNone(result["connection"]["age_seconds"])
+            self.assertNotIn("hidden", json.dumps(result))
+            self.assertEqual(result["ingestion"]["state"], "waiting_connection")
+
+    def test_all_heartbeat_strings_are_redacted_and_new_fields_are_validated(self):
+        self.assertEqual(self.send_heartbeat(state=self.token, app_version=self.token, firmware_version=self.token,
+            sdk_version=self.token, model_release=self.token, capture_error=self.token,
+            upload_error="Authorization: Bearer other-secret\nfailed", last_error=self.token).status_code, 200)
+        text = json.dumps(self.listed())
+        self.assertNotIn(self.token, text)
+        self.assertNotIn("other-secret", text)
+        stored = one("SELECT heartbeat_json FROM edge_devices WHERE id=?", (self.device["id"],))["heartbeat_json"]
+        self.assertNotIn(self.token, stored)
+        self.assertNotIn("other-secret", stored)
+        for fields in ({"frames_received": -1}, {"frames_received": True}, {"captured_images": "2"},
+                       {"last_frame_age_seconds": -1}, {"last_frame_age_seconds": True},
+                       {"session_complete": "true"}, {"_received_at": "2100-01-01T00:00:00Z"}):
+            with self.subTest(fields=fields):
+                self.assertEqual(self.send_heartbeat(**fields).status_code, 422)
+
+    def test_configuration_rechecks_credentials_inside_contact_transaction(self):
+        authenticated = one("SELECT * FROM edge_devices WHERE id=?", (self.device["id"],))
+
+        def revoke_after_authentication():
+            with db() as conn:
+                conn.execute("UPDATE edge_devices SET enabled=0,token_hash=NULL WHERE id=?", (self.device["id"],))
+            return authenticated
+
+        self.app.dependency_overrides[edge.get_device] = revoke_after_authentication
+        self.assertEqual(self.config().status_code, 401)
+        self.assertIsNone(one("SELECT last_seen_at FROM edge_devices WHERE id=?", (self.device["id"],))["last_seen_at"])
+
+    def test_retry_refreshes_contact_without_inventing_new_image_receipt(self):
+        with patch.object(edge, "now_iso", return_value="2100-01-01T00:00:00+00:00"):
+            receipt = self.capture().json()
+        with patch.object(edge, "now_iso", return_value="2100-01-01T00:02:00+00:00"):
+            self.assertEqual(self.capture().json(), receipt)
+            result = self.listed()
+        self.assertEqual(result["connection"]["state"], "online")
+        self.assertEqual(result["connection"]["last_contact_at"], "2100-01-01T00:02:00+00:00")
+        self.assertEqual(result["last_capture_at"], "2100-01-01T00:00:00+00:00")
+        self.assertEqual(result["capture_count"], 1)
 
     def test_one_time_credentials_hash_and_project_scoped_configuration(self):
         self.assertEqual(self.device["server_url"], "http://testserver")

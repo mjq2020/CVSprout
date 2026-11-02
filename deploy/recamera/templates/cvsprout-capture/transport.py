@@ -16,7 +16,7 @@ import urllib.request
 import uuid
 
 
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.0.2"
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MAX_SPOOL_BYTES = 512 * 1024 * 1024
 MAX_SPOOL_IMAGES = 10000
@@ -48,8 +48,13 @@ class EdgeClient:
     def __init__(self, server_url, token, timeout=3):
         self.server_url = normalize_server(server_url)
         self._token = str(token).strip()
-        if not self._token or any(c in self._token for c in "\r\n"):
-            raise ValueError("device_token is required")
+        prefix = "cvsprout_device_"
+        if (not self._token.startswith(prefix) or len(self._token) <= len(prefix)
+                or len(self._token) > 256
+                or any(c not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
+                       for c in self._token)):
+            raise ValueError("device_token_invalid: copy the complete cvsprout_device_... token "
+                             "from CVSprout Edge Devices; do not use a device ID or administrator token")
         self.timeout = timeout
         # Explicitly avoid environment proxies on a device; they may route a
         # local camera credential to an unrelated proxy. TLS stays verified.
@@ -74,7 +79,17 @@ class EdgeClient:
                 return result
         except urllib.error.HTTPError as exc:
             raise DeliveryError("http_%s" % exc.code) from None
-        except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+        except urllib.error.URLError as exc:
+            reason = exc.reason
+            code = ("server_timeout" if isinstance(reason, TimeoutError) else
+                    "server_connection_refused" if isinstance(reason, ConnectionRefusedError) else
+                    "server_dns_failed" if type(reason).__name__ == "gaierror" else
+                    "server_tls_verification_failed" if type(reason).__name__ == "SSLCertVerificationError" else
+                    "server_unreachable_or_invalid_response")
+            raise DeliveryError(code) from None
+        except TimeoutError:
+            raise DeliveryError("server_timeout") from None
+        except (OSError, ValueError):
             raise DeliveryError("server_unreachable_or_invalid_response") from None
 
     def configuration(self):
@@ -310,11 +325,30 @@ class Spool:
 
 
 class Uploader:
+    """Deliver independently of frame acquisition and publish truthful progress."""
+    FRAME_STALE_SECONDS = 15
+    HEARTBEAT_SECONDS = 15
+    SAFE_CODES = frozenset({
+        "waiting_for_server_configuration", "server_configuration_received",
+        "capture_enabled", "capture_paused_by_server", "server_confirmed",
+        "first_frame_received", "first_image_queued", "first_image_confirmed", "recovered",
+        "waiting_config", "waiting_frames", "capturing", "paused", "session_limit",
+        "queue_full", "capture_error", "capture_stopped", "jpeg_encode_failed",
+        "camera_frame_error", "image_exceeds_server_limit", "spool_full_capture_paused",
+        "spool_storage_full", "spool_storage_error", "capture_spool_corrupt",
+        "capture_acknowledgement_mismatch", "heartbeat_acknowledgement_mismatch",
+        "invalid_device_configuration", "invalid_capture_interval", "invalid_capture_size_limit",
+        "invalid_capture_queue_limit", "server_redirect_refused", "server_response_too_large",
+        "invalid_server_response", "server_unreachable_or_invalid_response", "server_timeout",
+        "server_connection_refused", "server_dns_failed", "server_tls_verification_failed",
+        "upload_worker_error", "unexpected_capture_error",
+    })
+
     def __init__(self, client, spool, clock=time.monotonic):
         self.client, self.spool, self.clock = client, spool, clock
         self.local_max_bytes, self.local_max_images = spool.max_bytes, spool.max_images
         self.stop = threading.Event()
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.owner = None
         self.enabled = False
         self.interval = 10.0
@@ -323,13 +357,100 @@ class Uploader:
         self.next_config = self.next_heartbeat = self.next_upload = 0.0
         self.failures = 0
         self.uploaded = 0
-        self.last_error = ""
+        self.frames_received = self.captured_images = 0
+        self.last_frame_at = None
+        self.session_complete = False
+        self.capture_error = ""
+        self.stopped = False
+        self.schema_version = 1
+        self._errors = {}
+        self._reported_state = None
+        self._last_heartbeat = float("-inf")
+        self._last_heartbeat_signature = None
+        self._logs = {}
+        self._configuration_signature = None
+        self._heartbeat_confirmed = False
+        self.log("starting", "waiting_for_server_configuration")
+
+    @classmethod
+    def _safe_code(cls, value):
+        code = str(value)
+        http_code = (len(code) == 8 and code.startswith("http_") and
+                     code[5:].isdigit() and 100 <= int(code[5:]) <= 599)
+        return (code if code in cls.SAFE_CODES or http_code
+                else "unexpected_capture_error")
+
+    def log(self, phase, code):
+        """Only our small event/error vocabulary enters firmware app logs."""
+        code = self._safe_code(code)
+        now = self.clock()
+        with self.lock:
+            previous = self._logs.get(phase)
+            if previous and previous[0] == code and now - previous[1] < 60:
+                return
+            self._logs[phase] = (code, now)
+        print("[cvsprout-capture] %s: %s" % (phase, code), flush=True)
+
+    def _error(self, phase, error):
+        code = self._safe_code(error)
+        with self.lock:
+            self._errors[phase] = code
+        self.log(phase, code)
+
+    def _recovered(self, phase):
+        with self.lock:
+            previous = self._errors.pop(phase, None)
+        if previous:
+            self.log(phase, "recovered")
+
+    @property
+    def last_error(self):
+        with self.lock:
+            return (self.capture_error or self._errors.get("upload") or
+                    self._errors.get("heartbeat") or self._errors.get("configuration") or
+                    self._errors.get("worker") or "")
+
+    def frame_received(self):
+        with self.lock:
+            first = self.frames_received == 0
+            self.frames_received += 1
+            self.last_frame_at = self.clock()
+        if first:
+            self.log("camera", "first_frame_received")
+
+    def capture_failed(self, code):
+        with self.lock:
+            self.capture_error = self._safe_code(code)
+        self.log("capture", self.capture_error)
+
+    def capture_succeeded(self, session_complete=False):
+        with self.lock:
+            previous = self.capture_error
+            self.capture_error = ""
+            self.captured_images += 1
+            self.session_complete = session_complete
+            first = self.captured_images == 1
+        if previous:
+            self.log("capture", "recovered")
+        elif first:
+            self.log("capture", "first_image_queued")
 
     def capture_state(self):
+        now = self.clock()
         with self.lock:
-            return {"owner": self.owner,
-                    "enabled": self.enabled and self.clock() < self.valid_until,
-                    "interval": self.interval, "max_image_bytes": self.max_image_bytes}
+            enabled = self.enabled and now < self.valid_until
+            age = None if self.last_frame_at is None else max(0.0, now - self.last_frame_at)
+            status = ("capture_stopped" if self.stopped else
+                      "waiting_config" if self.owner is None or now >= self.valid_until else
+                      "paused" if not enabled else
+                      "session_limit" if self.session_complete else
+                      "queue_full" if self.capture_error == "spool_full_capture_paused" else
+                      "capture_error" if self.capture_error else
+                      "waiting_frames" if age is None or age >= self.FRAME_STALE_SECONDS else
+                      "capturing")
+            return {"owner": self.owner, "enabled": enabled,
+                    "interval": self.interval, "max_image_bytes": self.max_image_bytes,
+                    "state": status, "last_frame_age_seconds": age}
 
     def _configuration(self, now):
         config = self.client.configuration()
@@ -349,16 +470,79 @@ class Uploader:
             raise DeliveryError("invalid_capture_queue_limit")
         owner = hashlib.sha256(json.dumps([self.client.server_url, str(device), project]).encode()).hexdigest()
         with self.lock:
+            first_connection = self.owner is None
             self.owner = owner
             self.enabled = config.get("capture_enabled") is True and not config.get("project_archived", False)
             self.interval = float(interval)
             self.max_image_bytes = min(limit, MAX_IMAGE_BYTES)
             self.spool.max_bytes = min(pending_bytes, self.local_max_bytes)
             self.spool.max_images = min(pending_images, self.local_max_images)
-            # An offline device can spool briefly; it cannot ignore an unseen
-            # pause or revocation forever. Restart always requires a handshake.
+            version = config.get("heartbeat_schema_version", 1)
+            self.schema_version = version if type(version) is int else 1
+            # A restart must handshake; offline captures expire after 5 minutes.
             self.valid_until = now + 300
+            signature = (owner, self.enabled, self.interval, self.max_image_bytes)
+            changed = signature != self._configuration_signature
+            self._configuration_signature = signature
+        self._recovered("configuration")
+        if first_connection:
+            self.log("connection", "server_configuration_received")
+        if changed:
+            self.log("configuration", "capture_enabled" if self.enabled else "capture_paused_by_server")
         self.next_config = now + 30
+
+    def heartbeat_payload(self):
+        state = self.capture_state()
+        with self.lock:
+            payload = {"app_version": APP_VERSION, "state": state["state"],
+                       **self.spool.stats(), "uploaded_images": self.uploaded,
+                       "last_error": self.last_error[:120]}
+            if self.schema_version >= 2:
+                payload.update(frames_received=self.frames_received, captured_images=self.captured_images,
+                               last_frame_age_seconds=state["last_frame_age_seconds"],
+                               capture_error=self.capture_error,
+                               upload_error=(self._errors.get("upload") or self._errors.get("heartbeat") or
+                                             self._errors.get("configuration") or self._errors.get("worker") or ""),
+                               session_complete=self.session_complete)
+            return payload
+
+    def send_status(self, force=False):
+        """Send on the upload thread, including its best-effort final heartbeat."""
+        now = self.clock()
+        state = self.capture_state()
+        if state["state"] != self._reported_state:
+            self.log("state", state["state"])
+            self._reported_state = state["state"]
+        if not state["owner"]:
+            return
+        payload = self.heartbeat_payload()
+        # Queue changes can be frequent. Push only meaningful status/error
+        # changes and the first ACK early; counters otherwise ride the heartbeat.
+        signature = (payload["state"], payload["last_error"], payload["uploaded_images"] > 0)
+        changed = signature != self._last_heartbeat_signature
+        if not force and (now < self.next_heartbeat and (not changed or now - self._last_heartbeat < 3)):
+            return
+        self._last_heartbeat = now
+        self._last_heartbeat_signature = signature
+        try:
+            receipt = self.client.heartbeat(payload)
+            if receipt.get("received") is not True:
+                raise DeliveryError("heartbeat_acknowledgement_mismatch")
+            self._recovered("heartbeat")
+            if not self._heartbeat_confirmed:
+                self.log("heartbeat", "server_confirmed")
+                self._heartbeat_confirmed = True
+        except DeliveryError as exc:
+            self._error("heartbeat", exc)
+            self._invalidate_on_auth_error(str(exc), now)
+        self.next_heartbeat = now + self.HEARTBEAT_SECONDS
+
+    def _invalidate_on_auth_error(self, code, now):
+        if code in ("http_401", "http_403", "http_404", "http_410"):
+            with self.lock:
+                self.enabled = False
+                self.valid_until = 0
+            self.next_config = min(self.next_config, now + 15)
 
     def step(self):
         now = self.clock()
@@ -366,45 +550,53 @@ class Uploader:
             try:
                 self._configuration(now)
             except DeliveryError as exc:
-                self.last_error = str(exc)
+                self._error("configuration", exc)
                 self.next_config = now + 15
-                if self.last_error in ("http_401", "http_403", "http_404", "http_410"):
-                    with self.lock:
-                        self.enabled = False
-                        self.valid_until = 0
+                self._invalidate_on_auth_error(str(exc), now)
         if self.stop.is_set():
             return 1
+        self.send_status()
         state = self.capture_state()
-        if state["owner"] and now >= self.next_heartbeat:
-            try:
-                self.client.heartbeat({"app_version": APP_VERSION, "state": "capturing" if state["enabled"] else "paused",
-                                       **self.spool.stats(), "uploaded_images": self.uploaded,
-                                       "last_error": self.last_error[:120]})
-            except DeliveryError as exc:
-                self.last_error = str(exc)
-            self.next_heartbeat = now + 30
         if self.stop.is_set() or not state["owner"] or now < self.next_upload:
             return 1
-        capture = self.spool.oldest(state["owner"])
-        if capture:
-            try:
+        capture = None
+        try:
+            # Reading/verifying a queued record can fail too; report it without
+            # silently killing the only heartbeat thread while frames wait.
+            capture = self.spool.oldest(state["owner"])
+            if capture:
                 receipt = self.client.upload(capture)
                 self.spool.acknowledge(capture, receipt)
                 self.failures = 0
                 self.uploaded += 1
-                self.last_error = ""
+                self._recovered("upload")
+                if self.uploaded == 1:
+                    self.log("upload", "first_image_confirmed")
                 self.next_upload = now + 0.1
-            except DeliveryError as exc:
-                self.failures += 1
-                self.last_error = str(exc)
-                self.next_upload = now + min(60, 2 ** min(self.failures, 6))
-                if self.last_error in ("http_401", "http_403", "http_404", "http_410"):
-                    with self.lock:
-                        self.enabled = False
-                        self.valid_until = 0
-                    self.next_config = min(self.next_config, now + 15)
+        except DeliveryError as exc:
+            self.failures += 1
+            self._error("upload", exc)
+            self.next_upload = now + min(60, 2 ** min(self.failures, 6))
+            self._invalidate_on_auth_error(str(exc), now)
         return 0.1 if capture and not self.failures else 1
 
     def run(self):
-        while not self.stop.is_set():
-            self.stop.wait(self.step())
+        try:
+            while not self.stop.is_set():
+                try:
+                    delay = self.step()
+                    self._recovered("worker")
+                except Exception:
+                    # Exceptions from optional/native runtime components are
+                    # not safe to stringify; use a fixed diagnostic code.
+                    self._error("worker", "upload_worker_error")
+                    delay = 5
+                self.stop.wait(delay)
+        finally:
+            # Best effort in this daemon thread. The app joins using one shared
+            # ten-second deadline, so slow DNS/drip HTTP cannot block Kit cleanup
+            # or start a second unbounded request on the main thread.
+            try:
+                self.send_status(force=True)
+            except Exception:
+                self._error("worker", "upload_worker_error")

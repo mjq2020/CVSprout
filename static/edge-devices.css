@@ -19,8 +19,21 @@ html:has(.edge-devices-page), body:has(.edge-devices-page), #app:has(.edge-devic
 .edge-card-heading a { color: var(--muted); font-size: 12px; text-decoration: none; }
 .edge-card-heading a:hover, .edge-text-link:hover { text-decoration: underline; }
 .edge-connection { padding: 4px 8px; border-radius: 6px; font-size: 11px; line-height: 1.6; background: var(--panel-2); color: var(--muted); }
-.edge-connection.recent { background: var(--success-soft); color: var(--success); }
-.edge-connection.waiting, .edge-connection.offline, .edge-connection.paused { background: var(--warning-soft); color: var(--warning); }
+.edge-connection.online { background: var(--success-soft); color: var(--success); }
+.edge-connection.waiting, .edge-connection.offline, .edge-connection.reconnect, .edge-connection.unknown { background: var(--warning-soft); color: var(--warning); }
+.edge-refresh-note { margin: -8px 0 16px; color: var(--muted); font-size: 11px; line-height: 1.8; }
+.edge-refresh-note span { display: inline-block; margin-left: 8px; }
+.edge-capture-setting { margin: 12px 0 0; font-size: 12px; line-height: 1.7; color: var(--text-secondary); }
+.edge-device-diagnosis, .edge-setup-connection { padding: 12px 14px; margin: 0 0 16px; border-radius: 8px; background: var(--panel-2); color: var(--text-secondary); font-size: 12px; line-height: 1.75; overflow-wrap: anywhere; }
+.edge-device-diagnosis strong, .edge-setup-connection strong { font-weight: 600; }
+.edge-device-diagnosis p, .edge-setup-connection p { margin: 4px 0 0; }
+.edge-device-diagnosis.warning, .edge-setup-connection.waiting, .edge-setup-connection.reconnect, .edge-setup-connection.offline, .edge-setup-connection.unknown { background: var(--warning-soft); color: var(--warning); }
+.edge-device-diagnosis.success, .edge-setup-connection.online { background: var(--success-soft); color: var(--success); }
+.edge-setup-connection { margin: 18px 0 0; }
+.edge-diagnostic-details { margin-top: 10px; color: var(--muted); font-size: 11px; line-height: 1.7; }
+.edge-diagnostic-details summary { cursor: pointer; }
+.edge-diagnostic-details code { display: block; margin-top: 6px; color: var(--danger); overflow-wrap: anywhere; }
+.edge-device-card [hidden] { display: none !important; }
 .edge-device-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 22px 0 18px; }
 .edge-device-stats dt { color: var(--muted); font-size: 11px; margin: 0 0 8px; }
 .edge-device-stats dd { margin: 0; font-size: 23px; line-height: 1.2; font-weight: 550; font-variant-numeric: tabular-nums; }

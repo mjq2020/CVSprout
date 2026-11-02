@@ -43,6 +43,7 @@ class CVSproutCaptureApp(App):
         super().__init__()
         self.uploader = None
         self.upload_thread = None
+        self._upload_shutdown_deadline = None
         self.capture_count = 0
 
     def setup(self, config):
@@ -75,16 +76,17 @@ class CVSproutCaptureApp(App):
             for frame in self.frames():
                 if not self.upload_thread.is_alive():
                     raise RuntimeError("capture uploader stopped unexpectedly")
+                self.uploader.frame_received()
                 state = self.uploader.capture_state()
                 now = time.monotonic()
                 if now >= next_status:
-                    stats = self.uploader.spool.stats()
+                    status = self.uploader.heartbeat_payload()
                     self.emit([], frame.pts, results=[], extra={
-                        "capture_state": "capturing" if state["enabled"] else "paused",
-                        "pending_images": stats["pending_images"],
-                        "pending_bytes": stats["pending_bytes"],
-                        "uploaded_images": self.uploader.uploaded,
-                        "last_error": self.uploader.last_error,
+                        "capture_state": status["state"],
+                        "pending_images": status["pending_images"],
+                        "pending_bytes": status["pending_bytes"],
+                        "uploaded_images": status["uploaded_images"],
+                        "last_error": status["last_error"],
                     })
                     next_status = now + 5
                 if not state["enabled"] or now < next_capture:
@@ -93,23 +95,47 @@ class CVSproutCaptureApp(App):
                     continue
                 next_capture = now + state["interval"]
                 captured_at = datetime.now(timezone.utc).isoformat()
-                jpeg = encode_original(frame, self.jpeg_quality)
-                if len(jpeg) > state["max_image_bytes"]:
-                    self.uploader.last_error = "image_exceeds_server_limit"
+                try:
+                    jpeg = encode_original(frame, self.jpeg_quality)
+                except Exception:
+                    self.uploader.capture_failed("jpeg_encode_failed")
                     continue
-                capture_id = self.uploader.spool.enqueue(jpeg, state["owner"], captured_at, self.batch_id)
+                if len(jpeg) > state["max_image_bytes"]:
+                    self.uploader.capture_failed("image_exceeds_server_limit")
+                    continue
+                try:
+                    capture_id = self.uploader.spool.enqueue(jpeg, state["owner"], captured_at, self.batch_id)
+                except DeliveryError as exc:
+                    self.uploader.capture_failed(exc)
+                    # Published-but-unsynced records must stop sampling: the
+                    # finite session quota cannot be advanced ambiguously.
+                    raise
                 if capture_id:
                     self.capture_count += 1
+                    self.uploader.capture_succeeded(bool(self.max_session_images and
+                                                         self.capture_count >= self.max_session_images))
                 else:
-                    self.uploader.last_error = "spool_full_capture_paused"
+                    self.uploader.capture_failed("spool_full_capture_paused")
+        except Exception:
+            if not self.uploader.capture_error:
+                self.uploader.capture_failed("camera_frame_error")
+            raise
         finally:
+            if not self.uploader.capture_error:
+                self.uploader.stopped = True
             self._stop_uploader()
 
     def _stop_uploader(self):
         if self.uploader:
             self.uploader.stop.set()
         if self.upload_thread:
-            self.upload_thread.join(timeout=12)
+            # One total budget across run() and Kit's repeated finish() calls.
+            # HTTP/DNS can outlive a socket timeout; only the daemon worker may
+            # attempt the terminal heartbeat, never this cleanup thread.
+            if self._upload_shutdown_deadline is None:
+                self._upload_shutdown_deadline = time.monotonic() + 10
+            remaining = max(0.0, self._upload_shutdown_deadline - time.monotonic())
+            self.upload_thread.join(timeout=remaining)
             if self.upload_thread.is_alive():
                 raise RuntimeError("capture uploader did not stop within its deadline")
             self.upload_thread = None
