@@ -1,5 +1,5 @@
-import { state, api, app, topbar, escapeHtml as esc, notify, openModal, jsonOptions, closeModal, downloadArtifact } from "./app.js?v=0.26.1";
-import { isAdmin } from "./task-ui.js?v=0.26.1";
+import { state, api, app, topbar, escapeHtml as esc, notify, openModal, jsonOptions, closeModal, downloadArtifact } from "./app.js?v=0.26.2";
+import { isAdmin } from "./task-ui.js?v=0.26.2";
 
 let devices = [], projects = [], requestSerial = 0, listRequest = null, listReceivedAt = 0, listReadFailed = false, listCompletedSerial = 0, tokenSetup = null;
 const DEVICE_REFRESH_MS = 5000, DEVICE_REFRESH_STALE_MS = 15000;
@@ -281,6 +281,47 @@ async function openDeviceSettings(device = null) {
   } catch (error) { if (error.status !== 401 && current()) notify(error.message, "error"); }
 }
 
+export async function copyDeviceToken(value, container, isCurrent = () => true) {
+  if (typeof value !== "string" || !value || !container?.isConnected || !isCurrent()) return false;
+  // On LAN HTTP, Clipboard API is absent. This branch must execute before any
+  // await so the fallback keeps the copy button's trusted user activation.
+  const copySynchronously = () => {
+    if (!container.isConnected || !isCurrent() || typeof document.execCommand !== "function") return false;
+    const previous = document.activeElement, selection = document.getSelection?.();
+    const ranges = [];
+    for (let index = 0; selection && index < selection.rangeCount; index++) ranges.push(selection.getRangeAt(index).cloneRange());
+    let inputSelection = null;
+    try {
+      if (typeof previous?.selectionStart === "number") inputSelection = [previous.selectionStart, previous.selectionEnd, previous.selectionDirection];
+    } catch (_) { /* Some input types do not expose a text selection. */ }
+    const temporary = document.createElement("textarea");
+    temporary.value = value; temporary.readOnly = true; temporary.tabIndex = -1;
+    temporary.setAttribute("data-edge-clipboard", "");
+    temporary.style.cssText = "position:fixed;left:-9999px;top:0;width:1px;height:1px;padding:0;border:0;font-size:16px;";
+    try {
+      // Keep the temporary control inside the modal's focus boundary.
+      container.appendChild(temporary); temporary.focus({ preventScroll: true }); temporary.select();
+      temporary.setSelectionRange(0, temporary.value.length);
+      return document.execCommand("copy") === true;
+    } catch (_) { return false; }
+    finally {
+      temporary.value = ""; temporary.remove();
+      try {
+        if (selection) { selection.removeAllRanges(); ranges.forEach(range => selection.addRange(range)); }
+        if (previous?.isConnected) {
+          previous.focus({ preventScroll: true });
+          if (inputSelection) previous.setSelectionRange(...inputSelection);
+        }
+      } catch (_) { /* A closed dialog no longer has a focus/selection target. */ }
+    }
+  };
+  if (typeof navigator.clipboard?.writeText === "function") {
+    try { await navigator.clipboard.writeText(value); return true; }
+    catch (_) { /* Permission denied: try the selection-based browser copy. */ }
+  }
+  return copySynchronously();
+}
+
 function showDeviceToken(device, token) {
   openModal({ title: "配置采集应用", subtitle: "设备令牌只显示这一次。请现在复制到 reCamera Pro 的采集应用配置中。", body: `<div class="edge-token-setup"><p>在设备 App Center 安装 <strong>CVSprout Capture</strong>，然后填写：</p><div class="field"><label for="edge-copy-url">server_url · CVSprout 地址</label><input id="edge-copy-url" readonly value="${esc(device.server_url || "")}"/></div><div class="field"><label for="edge-copy-token">device_token · 设备令牌</label><div class="edge-token-control"><input id="edge-copy-token" type="password" readonly autocomplete="off" spellcheck="false"/><button class="btn ghost" type="button" id="edge-copy-token-button">复制令牌</button></div><label class="check-line"><input id="edge-show-token" type="checkbox"/>显示令牌</label></div><p class="hint">请完整复制以 cvsprout_device_ 开头的设备专用令牌，不要填写网页登录密码或管理员 API Key。关闭后无法再次查看；丢失时可在设备卡片重置。</p><div id="edge-capture-download"></div><div id="edge-setup-connection" class="edge-setup-connection waiting" role="status"><strong>等待设备首次连接…</strong><p>保存参数并启动设备上的采集应用后，这里会自动确认连接。请保留此窗口，令牌仍可复制。</p></div></div>`, submitText: "我已保存配置", onReady: () => {
       const input = document.querySelector("#edge-copy-token"), modal = document.querySelector(".modal"); input.value = token;
@@ -288,9 +329,16 @@ function showDeviceToken(device, token) {
       void loadDevices({ background: true });
       modal.addEventListener("click", handlePackageDownload);
       document.querySelector("#edge-show-token").onchange = event => { input.type = event.target.checked ? "text" : "password"; };
-      document.querySelector("#edge-copy-token-button").onclick = async () => {
-        try { if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable"); await navigator.clipboard.writeText(input.value); if (modal.isConnected) notify("设备令牌已复制。"); }
-        catch (_) { if (modal.isConnected) { input.type = "text"; document.querySelector("#edge-show-token").checked = true; input.focus(); input.select(); notify("请按 Ctrl+C 或使用系统菜单复制选中的令牌。", "warning"); } }
+      const copyButton = document.querySelector("#edge-copy-token-button");
+      let copying = false;
+      copyButton.onclick = async () => {
+        if (copying) return;
+        copying = true; copyButton.setAttribute("aria-busy", "true");
+        let copied = false;
+        try { copied = await copyDeviceToken(input.value, modal, () => modal.isConnected && input.isConnected); }
+        catch (_) { /* A browser clipboard restriction must not claim success. */ }
+        finally { copying = false; if (copyButton.isConnected) copyButton.removeAttribute("aria-busy"); }
+        if (modal.isConnected) notify(copied ? "设备令牌已复制。" : "浏览器未能复制令牌。请勾选“显示令牌”，选中完整内容后手动复制。", copied ? "success" : "warning");
       };
       void api(`${pathFor(device)}/deployment-options`).then(result => {
         if (modal.isConnected && result.capture_app?.download_url) document.querySelector("#edge-capture-download").innerHTML = downloadLink(result.capture_app.download_url, "下载采集应用包");
@@ -321,24 +369,83 @@ function openRevokeDevice(device) {
 
 function captureRecordMarkup(item, device) {
   const assetId = Number(item.asset_id), available = Number.isSafeInteger(assetId) && assetId > 0;
-  const title = available ? `<a href="#/projects/${Number(device.project_id)}/annotate?asset=${assetId}">${esc(item.filename || `图片 ${assetId}`)}</a>`
+  const filename = item.filename || `图片 ${assetId}`;
+  const thumbnail = available ? `<button type="button" class="edge-record-thumb" data-edge-preview="${assetId}" data-edge-capture="${esc(item.capture_id)}" aria-label="预览 ${esc(filename)}"><span data-edge-image-status>正在加载…</span><img data-edge-image src="/api/assets/${assetId}/thumbnail?size=320" alt="" loading="lazy" decoding="async" width="320" height="240"/><span class="edge-record-thumb-action">查看大图</span></button>`
+    : '<div class="edge-record-thumb unavailable"><span>原图已删除</span></div>';
+  const title = available ? `<a href="#/projects/${Number(device.project_id)}/annotate?asset=${assetId}">${esc(filename)}</a>`
     : `<span>原图已删除${item.filename ? ` · ${esc(item.filename)}` : ""}</span>`;
-  return `<article><div>${title}<span>${esc(dateText(item.captured_at))}</span></div><p>${available ? item.duplicate ? "已有相同图片 · 已关联" : "图片已导入" : "采集记录保留"}${item.model_release ? ` · 模型 ${esc(item.model_release)}` : ""}</p><small>收到时间：${esc(dateText(item.received_at))} · 采集 ID：${esc(item.capture_id)}</small></article>`;
+  return `<article>${thumbnail}<div class="edge-record-info"><div class="edge-record-heading">${title}<span>采集：${esc(dateText(item.captured_at))}</span></div><p>${available ? item.duplicate ? "已有相同图片 · 已关联" : "图片已导入" : "采集记录保留"}${item.model_release ? ` · 模型 ${esc(item.model_release)}` : ""}</p><small>收到时间：${esc(dateText(item.received_at))} · 采集 ID：${esc(item.capture_id)}</small></div></article>`;
+}
+
+function bindCaptureImages(root) {
+  for (const image of root.querySelectorAll("[data-edge-image]")) {
+    const status = image.parentElement.querySelector("[data-edge-image-status]");
+    const loaded = () => { image.classList.add("loaded"); image.hidden = false; status.hidden = true; };
+    const failed = () => { image.hidden = true; status.hidden = false; status.textContent = "图片暂不可用"; };
+    image.addEventListener("load", loaded, { once: true });
+    image.addEventListener("error", failed, { once: true });
+    if (image.complete) image.naturalWidth ? loaded() : failed();
+  }
+}
+
+function showCapturePreview(node, item, device, trigger) {
+  const preview = node.querySelector("#edge-record-preview"), list = node.querySelector("#edge-record-page");
+  const assetId = Number(item.asset_id), filename = item.filename || `图片 ${assetId}`;
+  const body = node.closest(".modal-body"), scrollTop = body.scrollTop;
+  list.hidden = true; preview.hidden = false;
+  preview.innerHTML = `<div class="edge-record-preview-heading"><button type="button" class="btn ghost" data-edge-preview-back>返回记录</button><strong>${esc(filename)}</strong><a class="btn ghost link-btn" href="#/projects/${Number(device.project_id)}/annotate?asset=${assetId}">前往标注</a></div><div class="edge-record-preview-image"><span data-edge-image-status role="status">正在加载原图…</span><img data-edge-image src="/api/assets/${assetId}/image" alt="${esc(filename)}" decoding="async"/></div><p class="hint">采集：${esc(dateText(item.captured_at))} · 收到：${esc(dateText(item.received_at))}</p>`;
+  bindCaptureImages(preview);
+  const back = preview.querySelector("[data-edge-preview-back]");
+  const restore = () => {
+    preview.hidden = true; preview.replaceChildren(); list.hidden = false;
+    node.removeEventListener("keydown", escapePreview);
+    trigger.focus({ preventScroll: true }); body.scrollTop = scrollTop;
+  };
+  const escapePreview = event => {
+    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); restore(); }
+  };
+  back.onclick = restore; node.addEventListener("keydown", escapePreview);
+  body.scrollTop = 0; back.focus({ preventScroll: true });
 }
 
 function openCaptureRecords(device) {
   let offset = 0, serial = 0;
-  openModal({ title: `${device.name} · 采集记录`, subtitle: "同一内容的图片只保留一份，每一次采集仍可追溯。", wide: true, body: '<div id="edge-capture-records" aria-live="polite">正在读取…</div>', submitText: "关闭", onSubmit: async () => closeModal(), onReady: () => { void load(); } });
+  openModal({ title: `${device.name} · 采集记录`, subtitle: "点击缩略图查看大图；同一内容的图片只保留一份，每一次采集仍可追溯。", wide: true, body: '<div id="edge-capture-records" aria-live="polite">正在读取…</div>', submitText: "关闭", onSubmit: async () => closeModal(), onReady: () => { void load(); } });
   async function load() {
     const node = document.querySelector("#edge-capture-records"), request = ++serial;
     if (!node?.isConnected) return;
+    const restoreFocus = node.contains(document.activeElement);
+    const loadingFocus = node.closest(".modal").querySelector("#modal-close");
+    // Keep keyboard focus within the dialog while replacing a paginated list.
+    if (restoreFocus) loadingFocus.focus({ preventScroll: true });
+    node.inert = true; node.setAttribute("aria-busy", "true");
     try {
       const result = await api(`${pathFor(device)}/captures?limit=25&offset=${offset}`);
       if (!node.isConnected || request !== serial) return;
-      node.innerHTML = `<div class="edge-record-list">${(result.items || []).map(item => captureRecordMarkup(item, device)).join("") || '<p class="hint">尚未收到图片。请确认采集应用正在运行，地址和令牌已保存。</p>'}</div><div class="edge-record-pagination"><span>共 ${numberText(result.total)} 条记录</span><button class="btn ghost" id="edge-record-prev" ${offset === 0 ? "disabled" : ""}>上一页</button><button class="btn ghost" id="edge-record-next" ${offset + 25 >= result.total ? "disabled" : ""}>下一页</button></div>`;
+      node.innerHTML = `<div id="edge-record-preview" hidden></div><div id="edge-record-page"><div class="edge-record-list">${(result.items || []).map(item => captureRecordMarkup(item, device)).join("") || '<p class="hint">尚未收到图片。请确认采集应用正在运行，地址和令牌已保存。</p>'}</div><div class="edge-record-pagination"><span>共 ${numberText(result.total)} 条记录</span><button class="btn ghost" id="edge-record-prev" ${offset === 0 ? "disabled" : ""}>上一页</button><button class="btn ghost" id="edge-record-next" ${offset + 25 >= result.total ? "disabled" : ""}>下一页</button></div></div>`;
+      bindCaptureImages(node);
+      for (const button of node.querySelectorAll("[data-edge-preview]")) {
+        button.onclick = () => {
+          const item = (result.items || []).find(record => String(record.capture_id) === button.dataset.edgeCapture);
+          if (item) showCapturePreview(node, item, device, button);
+        };
+      }
       node.querySelector("#edge-record-prev").onclick = () => { offset = Math.max(0, offset - 25); void load(); };
       node.querySelector("#edge-record-next").onclick = () => { offset += 25; void load(); };
-    } catch (error) { if (node.isConnected && request === serial && error.status !== 401) node.innerHTML = `<p class="inline-error">${esc(error.message)}</p><button class="btn ghost" id="edge-record-retry">重试</button>`; node.querySelector("#edge-record-retry")?.addEventListener("click", load); }
+      node.closest(".modal-body").scrollTop = 0;
+    } catch (error) {
+      if (node.isConnected && request === serial && error.status !== 401) {
+        node.innerHTML = `<p class="inline-error">${esc(error.message)}</p><button class="btn ghost" id="edge-record-retry">重试</button>`;
+        node.querySelector("#edge-record-retry")?.addEventListener("click", load);
+      }
+    } finally {
+      if (node.isConnected && request === serial) {
+        node.inert = false; node.removeAttribute("aria-busy");
+        if (restoreFocus && document.activeElement === loadingFocus) {
+          (node.querySelector("#edge-record-retry, [data-edge-preview], #edge-record-prev:not([disabled]), #edge-record-next:not([disabled])") || loadingFocus).focus();
+        }
+      }
+    }
   }
 }
 

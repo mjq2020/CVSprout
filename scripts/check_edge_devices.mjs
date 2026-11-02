@@ -88,8 +88,22 @@ for (const asset_id of [null, undefined, 0, -1, "", "invalid"]) {
   const record = context.captureRecordMarkup({ asset_id, filename: '<scene>.jpg', capture_id: "capture-tombstone" }, device);
   assert(record.includes("原图已删除") && record.includes("采集记录保留") && record.includes("&lt;scene&gt;.jpg"));
   assert(!record.includes("<a ") && !record.includes("annotate?asset="), "Deleted-image history must never navigate to another image");
+  assert(!record.includes("<img ") && !record.includes("data-edge-preview"), "Deleted images must not render broken thumbnails or preview buttons");
 }
-assert(context.captureRecordMarkup({ asset_id: 42, filename: "scene.jpg", capture_id: "capture-live" }, device).includes("annotate?asset=42"));
+const imageRecord = context.captureRecordMarkup({ asset_id: 42, filename: '<scene "x">.jpg', capture_id: 'capture-"<bad>' }, device);
+assert(imageRecord.includes("annotate?asset=42"));
+assert(imageRecord.includes('src="/api/assets/42/thumbnail?size=320"') && imageRecord.includes('data-edge-preview="42"'));
+assert(imageRecord.includes("&lt;scene &quot;x&quot;&gt;.jpg") && imageRecord.includes('data-edge-capture="capture-&quot;&lt;bad&gt;"'));
+assert(!imageRecord.includes('<scene "x">') && !imageRecord.includes('data-edge-capture="capture-"<bad>'));
+for (const [complete, naturalWidth, event, expected] of [[true, 320, null, "loaded"], [true, 0, null, "failed"], [false, 0, "load", "loaded"], [false, 0, "error", "failed"]]) {
+  const status = { hidden: false, textContent: "正在加载…" }, events = {}, classes = new Set();
+  const image = { complete, naturalWidth, hidden: false, parentElement: { querySelector: () => status }, classList: { add: value => classes.add(value) },
+    addEventListener: (name, callback) => { events[name] = callback; } };
+  context.bindCaptureImages({ querySelectorAll: () => [image] });
+  if (event) events[event]();
+  assert.equal(image.hidden, expected === "failed"); assert.equal(status.hidden, expected === "loaded");
+  if (expected === "loaded") assert(classes.has("loaded")); else assert.equal(status.textContent, "图片暂不可用");
+}
 const deployed = context.deploymentHistoryMarkup([{ status: "succeeded", stage: "running" }]);
 assert(deployed.includes("部署完成") && deployed.includes("应用已启动") && !deployed.includes("正在部署"));
 assert(context.deploymentHistoryMarkup([{ status: "running", stage: "connecting" }]).includes("<strong>正在部署</strong>"));
@@ -147,3 +161,96 @@ state.currentSection = "overview"; const beforeLeaving = calls.length; listeners
 assert.equal(calls.length, beforeLeaving);
 
 console.log("PASS edge devices: connection/ingestion states, server-age expiry, escaped cards, stable focused/expanded DOM, single-flight polling, queued manual refresh, hidden/navigation/session guards, failure recovery, setup status and token preservation");
+
+// LAN HTTP has no Clipboard API. Copy must happen in the original click turn,
+// never expose the password input, and remove the temporary token afterwards.
+function clipboardHarness({ writeText, copyResult = true, copyThrows = false, legacyAvailable = true } = {}) {
+  const entries = [], removed = [], copyCalls = [], range = { cloneRange: () => range };
+  const selection = { rangeCount: 1, getRangeAt: () => range, removeAllRanges() { this.rangeCount = 0; }, addRange(value) { assert.equal(value, range); this.rangeCount++; } };
+  const copyDocument = { activeElement: null, addEventListener() {}, getSelection: () => selection };
+  const input = { isConnected: true, type: "password", value: "cvsprout_device_test-secret", selectionStart: 3, selectionEnd: 8, selectionDirection: "forward",
+    focus() { copyDocument.activeElement = this; }, setSelectionRange(start, end, direction) { this.selectionStart = start; this.selectionEnd = end; this.selectionDirection = direction; } };
+  input.focus();
+  const container = { isConnected: true, appendChild(node) { entries.push(node); node.isConnected = true; } };
+  copyDocument.createElement = tag => {
+    assert.equal(tag, "textarea");
+    const node = { value: "", style: {}, isConnected: false, setAttribute() {},
+      focus() { copyDocument.activeElement = this; }, select() {}, setSelectionRange() {},
+      remove() { removed.push({ value: this.value, node: this }); entries.splice(entries.indexOf(this), 1); this.isConnected = false; } };
+    return node;
+  };
+  if (legacyAvailable) copyDocument.execCommand = command => {
+    copyCalls.push({ command, value: copyDocument.activeElement.value });
+    if (copyThrows) throw new Error("Browser refused copy");
+    return copyResult;
+  };
+  const clipboardContext = vm.createContext({ document: copyDocument, navigator: writeText ? { clipboard: { writeText } } : {}, Date, state: { currentSection: "overview" } });
+  vm.runInContext(source, clipboardContext);
+  return { context: clipboardContext, copy: (isCurrent = () => true) => clipboardContext.copyDeviceToken(input.value, container, isCurrent), entries, removed, copyCalls, input, container, document: copyDocument, selection };
+}
+const lan = clipboardHarness();
+const lanCopy = lan.copy();
+assert.equal(lan.copyCalls.length, 1, "HTTP fallback must run synchronously before the click yields");
+assert.deepEqual(lan.copyCalls[0], { command: "copy", value: lan.input.value });
+assert.equal(await lanCopy, true);
+assert.equal(lan.entries.length, 0); assert.equal(lan.removed[0].value, "", "Temporary token must be cleared before removal");
+assert.equal(lan.document.activeElement, lan.input); assert.equal(lan.input.type, "password");
+assert.equal(lan.input.selectionStart, 3); assert.equal(lan.input.selectionEnd, 8); assert.equal(lan.input.selectionDirection, "forward");
+assert.equal(lan.selection.rangeCount, 1);
+
+for (const options of [{ copyResult: false }, { copyThrows: true }, { legacyAvailable: false }]) {
+  const refused = clipboardHarness(options);
+  assert.equal(await refused.copy(), false, "Refused copy must never report success");
+  assert.equal(refused.entries.length, 0); assert.equal(refused.input.type, "password"); assert.equal(refused.document.activeElement, refused.input);
+  assert(refused.removed.every(item => item.value === ""));
+}
+const pendingCopy = deferred(), modernValues = [];
+const modern = clipboardHarness({ writeText: value => { modernValues.push(value); return pendingCopy.promise; } });
+const modernResult = modern.copy(); assert.deepEqual(modernValues, [modern.input.value]); assert.equal(modern.copyCalls.length, 0);
+pendingCopy.resolve(); assert.equal(await modernResult, true); assert.equal(modern.entries.length, 0);
+const denied = clipboardHarness({ writeText: async () => { throw new Error("Permission denied"); } });
+assert.equal(await denied.copy(), true); assert.equal(denied.copyCalls.length, 1); assert.equal(denied.input.type, "password");
+const closedPending = deferred(), closed = clipboardHarness({ writeText: () => closedPending.promise });
+const closedCopy = closed.copy(); closed.container.isConnected = false; closedPending.reject(new Error("Permission denied"));
+assert.equal(await closedCopy, false); assert.equal(closed.copyCalls.length, 0); assert.equal(closed.entries.length, 0);
+const staleDialog = clipboardHarness(); assert.equal(await staleDialog.copy(() => false), false); assert.equal(staleDialog.copyCalls.length, 0);
+console.log("PASS device token clipboard: synchronous HTTP fallback, exact token, Clipboard API success/rejection, denied/throwing copy, mask/focus/selection retention, stale-modal guard and temporary secret cleanup");
+
+// Exercise the actual modal button: feedback follows copy results, the button
+// remains focusable while busy, repeated clicks coalesce, and closing clears it.
+function tokenButtonHarness(options = {}) {
+  const harness = clipboardHarness(options), notifications = [];
+  const button = { isConnected: true, disabled: false, attrs: {},
+    focus() { harness.document.activeElement = this; },
+    setAttribute(name, value) { this.attrs[name] = value; }, removeAttribute(name) { delete this.attrs[name]; } };
+  const showToken = { checked: false }, setupTitle = { textContent: "" }, setupText = { textContent: "" };
+  const setup = { isConnected: true, querySelector: tag => tag === "strong" ? setupTitle : setupText };
+  const modal = harness.container; modal.querySelector = () => setup; modal.addEventListener = () => {};
+  const elements = { "#edge-copy-token": harness.input, ".modal": modal, "#edge-copy-token-button": button, "#edge-show-token": showToken };
+  harness.document.querySelector = selector => elements[selector] || null;
+  harness.context.esc = escapeHtml; harness.context.api = async () => ({});
+  harness.context.notify = (...args) => notifications.push(args);
+  let modalOptions;
+  harness.context.openModal = options => { modalOptions = options; options.onReady(); };
+  harness.context.showDeviceToken({ id: "test", enabled: true, connection: { state: "never_connected" } }, harness.input.value);
+  button.focus();
+  return { ...harness, button, showToken, notifications, close: () => { modalOptions.onClose(); modal.isConnected = false; } };
+}
+for (const copied of [true, false]) {
+  const actual = tokenButtonHarness({ copyResult: copied });
+  const operation = actual.button.onclick();
+  assert.equal(actual.copyCalls.length, 1); assert.equal(actual.button.disabled, false);
+  assert.equal(actual.document.activeElement, actual.button, "Copy button keeps keyboard focus during the operation");
+  assert.equal(actual.button.attrs["aria-busy"], "true");
+  await actual.button.onclick(); assert.equal(actual.copyCalls.length, 1, "Ignore a second click while the first copy is pending");
+  await operation;
+  assert.equal(actual.button.attrs["aria-busy"], undefined);
+  assert.equal(actual.notifications.length, 1); assert.equal(actual.notifications[0][1], copied ? "success" : "warning");
+  assert.equal(actual.notifications[0][0].includes("设备令牌已复制"), copied);
+  assert.equal(actual.input.type, "password"); assert.equal(actual.showToken.checked, false);
+  assert.equal(actual.document.activeElement, actual.button); actual.close(); assert.equal(actual.input.value, "");
+}
+const closingPermission = deferred(), closingButton = tokenButtonHarness({ writeText: () => closingPermission.promise });
+const closingOperation = closingButton.button.onclick(); closingButton.close(); closingPermission.reject(new Error("Denied after close"));
+await closingOperation; assert.equal(closingButton.notifications.length, 0); assert.equal(closingButton.copyCalls.length, 0);
+console.log("PASS token button: accurate success/failure feedback, focusable busy guard, no duplicate copies, masked token and closed-modal cleanup; capture thumbnails: same-origin URLs, escaping, tombstones and cached/async loading states");

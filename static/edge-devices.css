@@ -58,12 +58,27 @@ html:has(.edge-devices-page), body:has(.edge-devices-page), #app:has(.edge-devic
 .edge-token-control input { min-width: 0; flex: 1; }
 .edge-token-control button { flex-shrink: 0; }
 .edge-token-setup .check-line { margin-top: 10px; }
-.edge-record-list article { padding: 14px 0; border-bottom: 1px solid var(--line-soft); }
+.edge-record-list article { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 16px; align-items: start; padding: 16px 0; border-bottom: 1px solid var(--line-soft); }
 .edge-record-list article:first-child { padding-top: 0; }
-.edge-record-list article > div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 13px; }
+.edge-record-heading { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; font-size: 13px; }
 .edge-record-list a { color: var(--brand); overflow-wrap: anywhere; }
 .edge-record-list span, .edge-record-list small { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
-.edge-record-list p { margin: 8px 0 5px; font-size: 12px; }
+.edge-record-list p { margin: 8px 0 5px; font-size: 12px; line-height: 1.6; }
+.edge-record-info { min-width: 0; line-height: 1.6; }
+.edge-record-thumb { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; padding: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel-2); font: inherit; cursor: pointer; }
+.edge-record-thumb.unavailable { cursor: default; }
+.edge-record-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.edge-record-thumb [data-edge-image-status] { padding: 8px; }
+.edge-record-thumb .edge-record-thumb-action { position: absolute; bottom: 0; left: 0; right: 0; padding: 4px; background: var(--panel); color: var(--brand); opacity: 0; transition: opacity 120ms ease; }
+.edge-record-thumb:hover .edge-record-thumb-action, .edge-record-thumb:focus-visible .edge-record-thumb-action { opacity: 1; }
+#edge-capture-records [data-edge-image] { opacity: 0; transition: opacity 160ms ease; }
+#edge-capture-records [data-edge-image].loaded { opacity: 1; }
+#edge-capture-records [hidden] { display: none !important; }
+.edge-record-preview-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
+.edge-record-preview-heading strong { min-width: 0; flex: 1; font-size: 13px; overflow-wrap: anywhere; }
+.edge-record-preview-image { display: grid; place-items: center; min-height: 180px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); overflow: hidden; }
+.edge-record-preview-image img { display: block; width: 100%; max-height: 58vh; object-fit: contain; }
+.edge-record-preview-image [data-edge-image-status] { padding: 32px 16px; color: var(--muted); font-size: 13px; }
 .edge-record-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 .edge-record-pagination > span { margin-right: auto; font-size: 12px; color: var(--muted); }
 .edge-deploy-step + .edge-deploy-step { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
@@ -83,10 +98,15 @@ html:has(.edge-devices-page), body:has(.edge-devices-page), #app:has(.edge-devic
 .edge-deployment-history span, .edge-deployment-history small { color: var(--muted); font-size: 11px; }
 .edge-deployment-history p { grid-column: 1 / -1; margin: 3px 0 0; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
 @media (max-width: 640px) {
+  .edge-record-list article { grid-template-columns: 84px minmax(0, 1fr); gap: 12px; }
+  .edge-record-pagination { flex-wrap: wrap; }
   .edge-workflow { grid-template-columns: 1fr; gap: 15px; padding: 18px; }
   .edge-devices-page .page-head { align-items: start; flex-direction: column; gap: 14px; }
   .edge-device-card { padding: 18px; }
   .edge-build-row { align-items: stretch; flex-direction: column; }
   .edge-card-heading { flex-direction: column; }
   .edge-deployment-history li { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #edge-capture-records [data-edge-image], .edge-record-thumb .edge-record-thumb-action { transition: none; }
 }

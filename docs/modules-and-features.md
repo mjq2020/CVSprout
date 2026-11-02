@@ -281,6 +281,8 @@ RKNN 支持按目标芯片配置浮点或 INT8、均值/标准差、量化算法
 
 服务端将采集事件与图片分开保存：同一采集 ID 可安全重试，项目内相同内容只保存一份图片，多次采集仍保留来源。新图片保持未分配，管理员按既有流程创建任务块，已领取块和人工标注不变。
 
+配置窗口支持局域网 HTTP 下复制设备令牌，复制被浏览器拒绝时明确提示手动操作。采集记录显示缩略图，支持原图预览、返回当前页和前往标注；已删除图片保留记录并显示占位，加载失败给出提示。图片沿用当前登录会话的访问权限。
+
 模型发布检查已完成的 RV1126B RKNN 转换、YOLO 检测输出、类别顺序和预处理。固定版本官方打包器将真实模型与推理应用组成 App Center 安装包。管理员可下载，或通过服务器的 SSH 密钥和已核实主机指纹发起直接部署。后台保存任务状态，使用官方预检、异步安装及启动接口；通信中断标记结果待核实，不自动重放安装。历史发布包保留，是否允许安装旧版本由设备策略决定。
 
 主要实现：[edge.py](../app/edge.py)、[edge_deployment.py](../app/edge_deployment.py)、[recamera_packages.py](../app/recamera_packages.py)、[recamera_remote.py](../app/recamera_remote.py)、[edge-devices-ui.js](../static/edge-devices-ui.js)。安装、参数和设备验收边界见 [reCamera Pro 联动](recamera-pro.md)。

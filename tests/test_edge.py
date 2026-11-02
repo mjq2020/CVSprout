@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from app import edge
-from app.auth import Actor, get_actor
+from app.auth import Actor, create_session_identity, get_actor
 from app.config import settings
 from app.database import all_rows, db, init_db, now_iso, one
 
@@ -307,6 +307,69 @@ class EdgeIngestionTest(unittest.TestCase):
         self.assertEqual(listed["items"][0]["captured_at"], "2026-10-31T08:00:00+00:00")
         device = self.client.get("/api/edge/devices").json()["devices"][0]
         self.assertEqual((device["capture_count"], device["asset_count"]), (2, 1))
+
+    def test_capture_records_reuse_existing_image_and_thumbnail_routes(self):
+        content = io.BytesIO()
+        Image.new("RGB", (640, 480), "green").save(content, "PNG")
+        first = self.capture(content=content.getvalue()).json()
+        duplicate = self.capture("second-capture", content=content.getvalue()).json()
+        self.assertEqual(first["asset_id"], duplicate["asset_id"])
+        records = self.client.get(f"/api/edge/devices/{self.device['id']}/captures").json()
+        self.assertEqual(records["total"], 2)
+        self.assertEqual({record["asset_id"] for record in records["items"]}, {first["asset_id"]})
+        self.assertEqual({record["filename"] for record in records["items"]}, {"scene.png"})
+        thumbnail = self.client.get(f"/api/assets/{first['asset_id']}/thumbnail?size=160")
+        self.assertEqual(thumbnail.status_code, 200, thumbnail.text[:200] if thumbnail.status_code != 200 else "")
+        self.assertEqual(thumbnail.headers["content-type"], "image/webp")
+        self.assertIn("private", thumbnail.headers["cache-control"])
+        with Image.open(io.BytesIO(thumbnail.content)) as opened:
+            self.assertEqual(opened.size, (160, 120))
+        original = self.client.get(f"/api/assets/{first['asset_id']}/image")
+        self.assertEqual(original.status_code, 200)
+        self.assertEqual(original.content, content.getvalue())
+        self.assertEqual(len(list(settings.thumbnail_dir.glob("*.webp"))), 1)
+        # Capture history remains administrator-only; asset previews retain the
+        # existing read permissions needed by annotators and reviewers.
+        for role in ("annotator", "reviewer"):
+            headers = {"x-test-role": role}
+            self.assertEqual(self.client.get(f"/api/assets/{first['asset_id']}/thumbnail?size=160", headers=headers).status_code, 200)
+            self.assertEqual(self.client.get(f"/api/edge/devices/{self.device['id']}/captures", headers=headers).status_code, 403)
+
+    def test_capture_previews_use_human_cookie_authentication_not_device_credentials(self):
+        asset_id = self.capture().json()["asset_id"]
+        self.app.dependency_overrides.pop(get_actor)
+        self.previous["bootstrap_api_key"] = settings.bootstrap_api_key
+        object.__setattr__(settings, "bootstrap_api_key", "isolated-thumbnail-test-bootstrap-key")
+        paths = (f"/api/edge/devices/{self.device['id']}/captures",
+                 f"/api/assets/{asset_id}/thumbnail?size=160", f"/api/assets/{asset_id}/image")
+        for mode in ("token", "accounts"):
+            object.__setattr__(settings, "auth_mode", mode)
+            self.client.cookies.clear()
+            for path in paths:
+                self.assertEqual(self.client.get(path).status_code, 401)
+                self.assertEqual(self.client.get(path, headers={"Authorization": "Bearer " + self.token}).status_code, 403)
+            self.client.cookies.set("mdp_session", create_session_identity())
+            # An ordinary same-origin image request carries the browser's human
+            # session; no device token or URL credential is needed.
+            for path in paths:
+                self.assertEqual(self.client.get(path).status_code, 200)
+
+    def test_deleted_capture_image_keeps_history_without_previewing_cached_media(self):
+        asset_id = self.capture().json()["asset_id"]
+        self.assertEqual(self.capture("same-image-again").status_code, 201)
+        self.assertEqual(self.client.get(f"/api/assets/{asset_id}/thumbnail?size=160").status_code, 200)
+        revision = one("SELECT revision FROM assets WHERE id=?", (asset_id,))["revision"]
+        deleted = self.client.post(f"/api/projects/{self.project_id}/assets/delete-batch", json={
+            "assets": [{"asset_id": asset_id, "expected_revision": revision}]})
+        self.assertEqual(deleted.status_code, 200, deleted.text)
+        self.assertEqual(deleted.json()["counts"]["succeeded"], 1)
+        records = self.client.get(f"/api/edge/devices/{self.device['id']}/captures").json()
+        self.assertEqual(records["total"], 2)
+        self.assertEqual({record["capture_id"] for record in records["items"]}, {"capture-1", "same-image-again"})
+        self.assertTrue(all(record["asset_id"] is None and record["filename"] is None for record in records["items"]))
+        for suffix in ("thumbnail?size=160", "image"):
+            self.assertEqual(self.client.get(f"/api/assets/{asset_id}/{suffix}").status_code, 404)
+        self.assertEqual(self.capture().status_code, 410)
 
     def test_reused_id_with_different_content_conflicts_and_cleans_staging(self):
         original = self.capture().json()
