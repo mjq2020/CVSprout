@@ -451,6 +451,7 @@ class RKNNConversionConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     target_platform: Literal["rk3588", "rk3576", "rk3566", "rk3568", "rk3562", "rv1103", "rv1106", "rv1126b"] = "rk3588"
+    deployment_profile: Literal["generic", "recamera_system"] = "generic"
     quantized: bool = Field(default=False, strict=True)
     quantized_algorithm: Literal["normal", "mmse", "kl_divergence"] = "normal"
     optimization_level: int = Field(default=3, ge=0, le=3, strict=True)
@@ -462,6 +463,11 @@ class RKNNConversionConfig(BaseModel):
 
     @model_validator(mode="after")
     def supported_precision(self):
+        if self.deployment_profile == "recamera_system" and (
+            self.target_platform != "rv1126b" or not self.quantized
+            or self.mean_values != [0, 0, 0] or self.std_values != [255, 255, 255]
+        ):
+            raise ValueError("reCamera 系统模型需要 RV1126B、INT8 和 mean=0/std=255")
         if self.target_platform in {"rv1103", "rv1106"} and not self.quantized:
             raise ValueError("RV1103 / RV1106 仅支持 INT8，请开启量化并选择校准图片数量")
         return self

@@ -405,7 +405,7 @@ def device_config(device: dict = Depends(get_device)) -> dict:
                 "capture_interval_seconds": device["capture_interval_seconds"],
                 "max_pending_images": device["max_pending_images"], "max_pending_bytes": device["max_pending_bytes"],
                 "max_image_bytes": MAX_CAPTURE_BYTES, "project_archived": bool(project["archived_at"]),
-                "heartbeat_schema_version": 2}
+                "heartbeat_schema_version": 2, "system_model_schema_version": 1}
 
 
 @router.post("/v1/heartbeat")

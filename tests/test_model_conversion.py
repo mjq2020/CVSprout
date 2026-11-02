@@ -68,6 +68,130 @@ class ConversionTest(unittest.TestCase):
             training.run_conversion(item["id"], "test-worker", 7)
         return self.client.get(f"/api/conversions/{item['id']}").json()
 
+    def set_source_architecture(self, architecture, task="detect"):
+        with database.db() as conn:
+            source = Path(conn.execute("SELECT artifact_path FROM training_runs WHERE id=?", (self.run,)).fetchone()[0])
+            metadata = training._build_artifact_metadata(source, model_arch=architecture, model_backend="yolo")
+            conn.execute("UPDATE training_runs SET artifact_metadata_json=?,task=? WHERE id=?", (json.dumps(metadata), task, self.run))
+
+    @staticmethod
+    def system_config(**extra):
+        return {"deployment_profile": "recamera_system", "target_platform": "rv1126b", "quantized": True,
+                "mean_values": [0, 0, 0], "std_values": [255, 255, 255], "calibration_count": 1, **extra}
+
+    def test_system_profile_strict_api_config_and_artifact_architecture_capability(self):
+        endpoint = f"/api/training-runs/{self.run}/conversions"
+        # A renamed checkpoint or run display name is not architecture proof.
+        with database.db() as conn:
+            conn.execute("UPDATE training_runs SET model_arch='yolov8n.pt' WHERE id=?", (self.run,))
+        options = self.client.get(f"/api/training-runs/{self.run}/conversion-options").json()
+        self.assertFalse(options["system_model"]["available"])
+        self.assertEqual(self.client.post(endpoint, json={"format": "rknn", "rknn": self.system_config()}).status_code, 422)
+        for architecture, algorithm in (("yolov8n.pt", "yolov8"), ("yolo11s", "yolo11")):
+            self.set_source_architecture(architecture)
+            options = self.client.get(f"/api/training-runs/{self.run}/conversion-options").json()
+            self.assertTrue(options["system_model"]["available"])
+            self.assertEqual(options["system_model"]["algorithm"], algorithm)
+        for changes in ({"deployment_profile": "made_up"}, {"target_platform": "rk3588"}, {"quantized": False},
+                        {"quantized": 1}, {"quantized": "true"}, {"mean_values": [1, 0, 0]},
+                        {"std_values": [127, 255, 255]}, {"input_color": "bgr"}, {"calibration_source": "live_project"},
+                        {"unknown_model_option": True}):
+            with self.subTest(changes=changes):
+                response = self.client.post(endpoint, json={"format": "rknn", "rknn": self.system_config(**changes)})
+                self.assertEqual(response.status_code, 422, response.text)
+        for changes in ({"image_size": 2080}, {"dynamic": True}, {"half": True}, {"batch": 2}):
+            with self.subTest(changes=changes):
+                response = self.client.post(endpoint, json={"format": "rknn", "rknn": self.system_config(), **changes})
+                self.assertEqual(response.status_code, 422, response.text)
+        for architecture, task in (("yolo26n", "detect"), ("rtdetr-l", "detect"), ("yolo11n-seg", "detect"),
+                                   ("yolov8n.pt.exe", "detect"), ("yolo11n", "segment"), ("yolov8n", "classify")):
+            with self.subTest(architecture=architecture, task=task):
+                self.set_source_architecture(architecture, task)
+                self.assertFalse(self.client.get(f"/api/training-runs/{self.run}/conversion-options").json()["system_model"]["available"])
+                response = self.client.post(endpoint, json={"format": "rknn", "rknn": self.system_config()})
+                self.assertEqual(response.status_code, 422, response.text)
+
+    def test_system_profile_worker_keeps_contract_frozen_calibration_and_retry_settings(self):
+        self.set_source_architecture("yolo11n")
+        item = self.create(rknn=self.system_config())
+        self.assertEqual(item["settings"]["rknn"]["deployment_profile"], "recamera_system")
+        calls = []
+
+        def runner(python, request, attempt, stage, check, log):
+            check(); calls.append(request)
+            Path(request["output"]).write_bytes(b"RKNN-system-fixture")
+            return {"artifact": request["output"], "metadata": {"format": "rknn", "deployment_profile": "recamera_system", "preprocessing": request["preprocessing"]}}
+
+        result = self.execute(item, runner)
+        self.assertEqual(result["status"], "completed", result)
+        self.assertEqual([request["operation"] for request in calls], ["recamera_system_onnx", "rknn"])
+        self.assertEqual(calls[0]["algorithm"], "yolo11")
+        self.assertEqual({key: calls[0]["kwargs"][key] for key in ("format", "device", "half", "dynamic", "batch", "nms", "end2end", "opset")},
+                         {"format": "onnx", "device": "cpu", "half": False, "dynamic": False, "batch": 1, "nms": False, "end2end": False, "opset": 12})
+        for request in calls:
+            self.assertEqual(request["preprocessing"]["padding_position"], "bottom_right")
+            self.assertEqual(request["preprocessing"]["resize_rounding"], "floor_even")
+            self.assertEqual(request["preprocessing"]["padding_value"], 114)
+        self.assertEqual(calls[1]["rknn"], item["settings"]["rknn"])
+        sample = Path(calls[1]["dataset_path"]).read_text().splitlines()[0]
+        with Image.open(sample) as image:
+            self.assertNotEqual(image.getpixel((0, 0)), (114, 114, 114))
+            self.assertEqual(image.getpixel((0, 31)), (114, 114, 114))
+        manifest = self.client.get(result["manifest_url"]).json()["deployment"]
+        self.assertEqual(manifest["calibration"]["version_id"], self.version)
+        self.assertEqual(manifest["calibration"]["source"], "version_train")
+        self.assertEqual(manifest["preprocessing"]["resize_rounding"], "floor_even")
+        retry_source = self.create(rknn=self.system_config(quantized_algorithm="mmse"))
+        self.client.post(f"/api/conversions/{retry_source['id']}/cancel")
+        response = self.client.post(f"/api/conversions/{retry_source['id']}/retry")
+        self.assertEqual(response.status_code, 202, response.text)
+        self.assertEqual(response.json()["settings"]["rknn"], retry_source["settings"]["rknn"])
+
+    def test_system_calibration_floor_even_bottom_right_and_generic_center_are_distinct(self):
+        # Freeze deliberately odd geometry: 80x43 at 32 gives 32x16 for the
+        # device's floor-even rule, while generic letterbox remains 32x17.
+        row = support.calibration_assets(self.version)[0]
+        path = settings.versions_dir / f"version-{self.version}" / row["storage_name"]
+        path.chmod(0o644)
+        color = (20, 100, 180)
+        Image.new("RGB", (80, 43), color).save(path, format="PNG")
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        with database.db() as conn:
+            conn.execute("UPDATE dataset_version_assets SET sha256=? WHERE id=?", (digest, row["id"]))
+            conn.execute("DELETE FROM assets WHERE project_id=?", (self.project,))
+        for filename in settings.media_dir.rglob("*"):
+            if filename.is_file(): filename.unlink()
+        results = {}
+        for profile in ("generic", "recamera_system"):
+            attempt = Path(self.temp.name) / f"geometry-{profile}"; attempt.mkdir()
+            dataset, manifest = support.prepare_calibration(self.version, "detect", 32, 1, attempt, lambda: None, deployment_profile=profile)
+            self.assertEqual(manifest["source_sha256"], [digest])
+            with Image.open(dataset.read_text().strip()) as image:
+                results[profile] = image.copy()
+        self.assertEqual(results["recamera_system"].getpixel((0, 0)), color)
+        self.assertEqual(results["recamera_system"].getpixel((31, 15)), color)
+        self.assertEqual(results["recamera_system"].getpixel((0, 16)), (114, 114, 114))
+        self.assertEqual(results["generic"].getpixel((0, 6)), (114, 114, 114))
+        self.assertEqual(results["generic"].getpixel((0, 7)), color)
+        self.assertEqual(results["generic"].getpixel((31, 23)), color)
+        self.assertEqual(results["generic"].getpixel((0, 24)), (114, 114, 114))
+        self.assertEqual(support.preprocessing_contract("detect", 32, {})["padding_position"], "center")
+        self.assertEqual(support.preprocessing_contract("detect", 32, {})["resize_rounding"], "round")
+        # The corresponding portrait input pads the right edge, never left.
+        Image.new("RGB", (43, 80), color).save(path, format="PNG")
+        with database.db() as conn:
+            conn.execute("UPDATE dataset_version_assets SET sha256=? WHERE id=?", (hashlib.sha256(path.read_bytes()).hexdigest(), row["id"]))
+        attempt = Path(self.temp.name) / "portrait-system"; attempt.mkdir()
+        dataset, _manifest = support.prepare_calibration(self.version, "detect", 32, 1, attempt, lambda: None, deployment_profile="recamera_system")
+        with Image.open(dataset.read_text().strip()) as image:
+            self.assertEqual(image.getpixel((0, 0)), color)
+            self.assertEqual(image.getpixel((15, 31)), color)
+            self.assertEqual(image.getpixel((16, 0)), (114, 114, 114))
+        path.chmod(0o644); path.write_bytes(b"corrupt")
+        attempt = Path(self.temp.name) / "system-corrupt"; attempt.mkdir()
+        with self.assertRaisesRegex(RuntimeError, "校验失败"):
+            support.prepare_calibration(self.version, "detect", 32, 1, attempt, lambda: None, deployment_profile="recamera_system")
+
     def test_schema_rejects_incompatible_settings(self):
         bad = [dict(format="rknn"), dict(format="rknn", rknn={"target_platform": "rv1126"}),
                dict(format="rknn", rknn={"target_platform": "rv1106"}), dict(format="rknn", rknn={}, dynamic=True),

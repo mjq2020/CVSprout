@@ -1564,6 +1564,15 @@ def _validate_conversion_architecture(run: dict[str, Any], format: str, image_si
         raise HTTPException(422, "RT-DETR 当前仅支持固定输入尺寸转换，请关闭动态尺寸。")
 
 
+def _system_model_options(run: dict[str, Any]) -> dict[str, Any]:
+    from .recamera_export import system_algorithm
+    metadata = _parse_json(run.get("artifact_metadata_json"))
+    algorithm = system_algorithm(metadata.get("model_arch", ""))
+    available = run["task"] == "detect" and algorithm is not None
+    return {"available": available, "profile": "recamera_system", "algorithms": ["yolov8", "yolo11"],
+            "algorithm": algorithm, "reason": "" if available else "系统模型首期支持 YOLOv8 / YOLO11 目标检测；请使用通用导出或选择兼容训练模型。"}
+
+
 @router.get("/training-runs/{run_id}/artifact")
 def download_training_artifact(
     run_id: int, _: Actor = Depends(get_actor)
@@ -1598,6 +1607,7 @@ def conversion_options(run_id: int, _: Actor = Depends(get_actor)) -> dict[str, 
     rknn = {"target_platform": "rk3588", "quantized": False, "quantized_algorithm": "normal", "optimization_level": 3, "mean_values": [0, 0, 0], "std_values": [255, 255, 255], "input_color": "rgb", "calibration_source": "version_train", "calibration_count": max(1, min(100, count))}
     model_backend = _run_model_backend(run)
     return {"training_run_id": run_id, "task": run["task"], "formats": _conversion_formats_for_run(run),
+            "system_model": _system_model_options(run),
             "model_backend": model_backend, "constraints": {"min_image_size":128, "dynamic":False} if model_backend == "rtdetr" else {},
             "calibration": {"source": "version_train", "version_id": run["version_id"], "available_count": count, "default_count": max(1, min(100, count)), "max_count": min(1000, count), "reason": "" if count else "训练使用的冻结版本没有训练集图片，无法进行 INT8 校准。"},
             "defaults": {"image_size": image_size, "device": "auto", "batch": 1, "workspace": None, "rknn": rknn}}
@@ -1607,6 +1617,12 @@ def _validate_conversion_config(run: dict[str, Any], payload: ConversionCreate, 
     if run["task"] not in SUPPORTED_TRAINING_TASKS:
         raise HTTPException(422, "当前训练任务类型暂不支持转换。")
     _validate_conversion_architecture(run, payload.format, payload.image_size, payload.dynamic)
+    if payload.rknn and payload.rknn.deployment_profile == "recamera_system":
+        system = _system_model_options(run)
+        if not system["available"]:
+            raise HTTPException(422, system["reason"])
+        if payload.image_size > 2048:
+            raise HTTPException(422, "reCamera 系统模型输入尺寸不能超过 2048。")
     if check_availability:
         available = training_availability()["conversion_formats"][payload.format]
         if not available["available"]:
@@ -3111,11 +3127,12 @@ def run_conversion(
             dataset = None
             if rknn["quantized"]:
                 _conversion_stage(conversion_id, worker_id, claim_generation, 0.15, "正在准备冻结训练集的校准图片")
-                dataset, calibration = conversion_tools.prepare_calibration(run["version_id"], run["task"], config["image_size"], rknn["calibration_count"], attempt_dir, check)
+                dataset, calibration = conversion_tools.prepare_calibration(run["version_id"], run["task"], config["image_size"], rknn["calibration_count"], attempt_dir, check, deployment_profile=rknn.get("deployment_profile", "generic"))
             onnx_path = attempt_dir / "intermediate.onnx"
             kwargs.update(format="onnx", device="cpu", half=False, dynamic=False, batch=1, nms=False, end2end=False, opset=12, simplify=config.get("simplify", True))
             _conversion_stage(conversion_id, worker_id, claim_generation, 0.25, "正在导出 RKNN 使用的静态 ONNX 模型")
-            conversion_tools.run_converter_process(sys.executable, {"operation": "ultralytics", "source": str(local_source.resolve()), "output": str(onnx_path.resolve()), "task": run["task"], "kwargs": kwargs, "preprocessing": preprocessing}, attempt_dir, "onnx", check, log)
+            system_export = rknn.get("deployment_profile") == "recamera_system"
+            conversion_tools.run_converter_process(sys.executable, {"operation": "recamera_system_onnx" if system_export else "ultralytics", "algorithm": _system_model_options(run)["algorithm"] if system_export else None, "source": str(local_source.resolve()), "output": str(onnx_path.resolve()), "task": run["task"], "kwargs": kwargs, "preprocessing": preprocessing}, attempt_dir, "onnx", check, log)
             _conversion_stage(conversion_id, worker_id, claim_generation, 0.5, "正在量化并构建 RKNN 模型" if rknn["quantized"] else "正在构建 RKNN 浮点模型")
             result = conversion_tools.run_converter_process(conversion_tools.rknn_python(), {"operation": "rknn", "source": str(onnx_path.resolve()), "output": str(artifact.resolve()), "task": run["task"], "rknn": rknn, "dataset_path": str(dataset.resolve()) if dataset else None, "preprocessing": preprocessing}, attempt_dir, "rknn", check, log)
         else:

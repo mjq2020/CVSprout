@@ -17,7 +17,7 @@ assert(validateConversionPayload({ ...basePayload, dynamic: true }, validContext
 assert.deepEqual(validateConversionPayload({ ...basePayload, image_size: 32, dynamic: true }, { config: { available: true } }), []);
 
 // This small DOM fixture retains the rendered attributes and form event bindings.
-function fixture({ task = 'detect', backend = 'rtdetr', imageSize = 640 } = {}) {
+function fixture({ task = 'detect', backend = 'rtdetr', imageSize = 640, systemModel } = {}) {
   let container, active = null;
   const matches = (node, selector) => {
     if (selector === '*') return true;
@@ -60,7 +60,7 @@ function fixture({ task = 'detect', backend = 'rtdetr', imageSize = 640 } = {}) 
   container = new Element('div');
   let valid = false;
   const options = {
-    model_backend: backend, constraints: backend === 'rtdetr' ? constraints : {},
+    system_model: systemModel, model_backend: backend, constraints: backend === 'rtdetr' ? constraints : {},
     formats: { onnx: { available: true }, torchscript: { available: true }, engine: { available: true }, rknn: { available: backend !== 'rtdetr', reason: backend === 'rtdetr' ? 'RT-DETR 暂不支持 RKNN 转换。' : '' } },
     defaults: { image_size: imageSize }, calibration: { available_count: 12, default_count: 12 },
   };
@@ -103,3 +103,25 @@ for (const task of ['detect', 'segment', 'pose', 'classify']) {
   h.change('convert-rknn-count', 12); assert.equal(h.valid, true);
 }
 console.log('PASS conversion form: model-aware min size and dynamic limits, RT-DETR RKNN reason and no YOLO warning, final payload validation, YOLO task warnings, format switching, GPU workspace and calibration limits');
+
+// System deployment is explicit, preserves generic edits, and cannot bypass capability restrictions.
+{
+  const h = fixture({ backend: 'yolo', systemModel: { available: true } }); h.format('rknn');
+  h.change('convert-rknn-target', 'rk3576'); h.change('convert-rknn-mean', '1, 2, 3'); h.change('convert-rknn-std', '100, 110, 120');
+  assert.equal(h.form.payload().rknn.deployment_profile, 'generic');
+  h.change('convert-rknn-profile', 'recamera_system');
+  const system = h.form.payload().rknn;
+  assert.equal(system.deployment_profile, 'recamera_system'); assert.equal(system.target_platform, 'rv1126b'); assert.equal(system.quantized, true);
+  assert.deepEqual(system.mean_values, [0, 0, 0]); assert.deepEqual(system.std_values, [255, 255, 255]);
+  for (const key of ['target', 'quantized', 'mean', 'std']) assert.equal(h.q(`convert-rknn-${key}`).disabled, true);
+  h.format('onnx'); assert(!h.form.payload().rknn); h.format('rknn'); assert.equal(h.form.payload().rknn.deployment_profile, 'recamera_system');
+  h.change('convert-rknn-profile', 'generic'); const generic = h.form.payload().rknn;
+  assert.equal(generic.target_platform, 'rk3576'); assert.equal(generic.quantized, false); assert.deepEqual(generic.mean_values, [1, 2, 3]); assert.deepEqual(generic.std_values, [100, 110, 120]);
+  assert.equal(h.q('convert-rknn-std').disabled, false);
+}
+for (const setup of [{ task: 'segment' }, { task: 'detect', systemModel: { available: false, reason: '当前模型导出契约不受支持' } }]) {
+  const h = fixture({ backend: 'yolo', ...setup }); h.format('rknn');
+  assert.equal(h.q('convert-rknn-profile').querySelector('option[value="recamera_system"]').disabled, true);
+  h.change('convert-rknn-profile', 'recamera_system'); assert.equal(h.valid, false); assert.throws(() => h.form.payload());
+}
+console.log('PASS system RKNN profile: explicit selection, fixed deployment contract, generic value restoration, format retention and unsupported-task/capability validation');

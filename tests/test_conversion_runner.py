@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import copy
 import json
 import os
 from pathlib import Path
@@ -116,6 +117,104 @@ class ConversionRunnerTest(unittest.TestCase):
         self.assertEqual(metadata["calibration_count"], 1)
         self.assertEqual(metadata["source_onnx"]["inputs"][0]["dtype"], "FLOAT")
         self.assertEqual(metadata["compatibility"]["runtime_tensor_attributes"], "query_on_target")
+
+    def system_fixture(self):
+        from app.recamera_export import system_contract
+        sample = self.root / "system-sample.png"
+        sample.write_bytes(b"private-calibration-fixture")
+        dataset = self.root / "system-calibration.txt"
+        dataset.write_text(str(sample) + "\n")
+        self.raw.update(dataset_path=str(dataset), preprocessing={"input_color": "rgb", "image_size": [64, 64],
+                        "resize": "letterbox", "padding_position": "bottom_right", "padding_value": 114,
+                        "resize_rounding": "floor_even", "preserve_aspect_ratio": True})
+        self.raw["rknn"].update(deployment_profile="recamera_system", quantized=True, calibration_count=1,
+                                mean_values=[0, 0, 0], std_values=[255, 255, 255])
+        contract = system_contract("yolov8", 64, ["object", "other"])
+        metadata = copy.deepcopy(self.onnx_metadata)
+        metadata["model_metadata"]["cvsprout_system_model"] = json.dumps(contract)
+        metadata["outputs"] = [{"name": f"output{index}", "shape": item["shape"], "dtype": "FLOAT"}
+                               for index, item in enumerate(contract["outputs"])]
+        return contract, metadata
+
+    def test_system_profile_build_preserves_six_dfl_branches_and_int8_contract(self):
+        contract, onnx = self.system_fixture()
+        with self.sdk(), patch.object(self.runner, "_onnx_metadata", return_value=onnx):
+            result = self.runner.export_rknn(self.request())
+        self.assertTrue(self.converter.released)
+        self.assertEqual(result["deployment_profile"], "recamera_system")
+        self.assertEqual(result["system_model"], contract)
+        self.assertEqual(result["precision"], "int8")
+        self.assertEqual(result["source_onnx"]["outputs"], onnx["outputs"])
+        self.assertEqual(result["postprocessing"]["executor"], "device_builtin")
+        self.assertEqual(result["postprocessing"]["family"], "recamera_system_dfl")
+        self.assertEqual(result["postprocessing"]["strides"], [8, 16, 32])
+        self.assertFalse(result["postprocessing"]["board_validated"])
+        self.assertFalse(result["compatibility"]["board_validated"])
+        self.assertEqual(result["preprocessing"]["padding_position"], "bottom_right")
+        self.assertEqual(result["preprocessing"]["resize_rounding"], "floor_even")
+        self.assertEqual(self.converter.config_options["quantized_dtype"], "w8a8")
+        self.assertEqual(self.converter.config_options["target_platform"], "rv1126b")
+        self.assertEqual(self.converter.config_options["mean_values"], [[0, 0, 0]])
+        self.assertEqual(self.converter.config_options["std_values"], [[255, 255, 255]])
+        self.assertFalse(self.converter.config_options["quant_img_RGB2BGR"])
+        self.assertEqual(self.converter.build_options, {"do_quantization": True, "dataset": self.raw["dataset_path"]})
+        self.assertEqual(Path(self.raw["output"]).read_bytes(), b"RKNN-fixture")
+
+    def test_system_profile_rejects_forged_or_incompatible_onnx_before_sdk_build(self):
+        contract, base = self.system_fixture()
+        cases = []
+
+        def changed(label, change):
+            metadata = copy.deepcopy(base)
+            change(metadata)
+            cases.append((label, metadata))
+
+        changed("legacy single output", lambda value: value.update(outputs=self.onnx_metadata["outputs"]))
+        changed("wrong class channels", lambda value: value["outputs"][1]["shape"].__setitem__(1, 3))
+        changed("wrong branch order", lambda value: value["outputs"].reverse())
+        changed("float16 branch", lambda value: value["outputs"][0].update(dtype="FLOAT16"))
+        changed("non-square input", lambda value: value["inputs"][0]["shape"].__setitem__(3, 96))
+        changed("missing contract", lambda value: value["model_metadata"].pop("cvsprout_system_model"))
+        changed("malformed contract", lambda value: value["model_metadata"].update(cvsprout_system_model="{bad"))
+        changed("NMS graph", lambda value: value.update(contains_non_max_suppression=True))
+        for key, value in (("algorithm", "yolo26"), ("classes", []), ("profile", "generic"), ("input_size", 96), ("schema_version", 2)):
+            forged = {**contract, key: value}
+            changed(f"forged {key}", lambda data, forged=forged: data["model_metadata"].update(cvsprout_system_model=json.dumps(forged)))
+        for label, metadata in cases:
+            with self.subTest(label=label), self.sdk(), patch.object(self.runner, "_onnx_metadata", return_value=metadata):
+                with self.assertRaises(ValueError):
+                    self.runner.export_rknn(self.request())
+                self.assertFalse(hasattr(self, "converter"), "Invalid contracts must not invoke the compiler")
+                self.assertFalse(Path(self.raw["output"]).exists())
+        self.raw["task"] = "segment"
+        with self.sdk(), patch.object(self.runner, "_onnx_metadata", return_value=base), self.assertRaises(ValueError):
+            self.runner.export_rknn(self.request())
+
+    def test_system_profile_rejects_mismatched_calibration_preprocessing(self):
+        _contract, metadata = self.system_fixture()
+        original = copy.deepcopy(self.raw["preprocessing"])
+        for key, value in (("padding_position", "center"), ("resize_rounding", "round"), ("padding_value", 0),
+                           ("input_color", "bgr"), ("resize", "resize_stretch"), ("preserve_aspect_ratio", False)):
+            self.raw["preprocessing"] = {**original, key: value}
+            with self.subTest(key=key), self.sdk(), patch.object(self.runner, "_onnx_metadata", return_value=metadata):
+                with self.assertRaises(ValueError):
+                    self.runner.export_rknn(self.request())
+                self.assertFalse(hasattr(self, "converter"))
+                self.assertFalse(Path(self.raw["output"]).exists())
+
+    def test_system_rknn_profile_validation_does_not_change_generic_custom_settings(self):
+        valid = {"deployment_profile": "recamera_system", "target_platform": "rv1126b", "quantized": True}
+        self.assertEqual(self.runner._rknn_config(valid)["deployment_profile"], "recamera_system")
+        for change in ({"target_platform": "rk3588"}, {"quantized": False}, {"mean_values": [1, 0, 0]},
+                       {"std_values": [127, 255, 255]}, {"deployment_profile": "unknown"}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                self.runner._rknn_config({**valid, **change})
+        generic = self.runner._rknn_config({"target_platform": "rk3576", "quantized": False,
+                                            "mean_values": [1, 2, 3], "std_values": [100, 110, 120]})
+        self.assertEqual(generic["deployment_profile"], "generic")
+        self.assertEqual(generic["target_platform"], "rk3576")
+        self.assertEqual(generic["mean_values"], [1, 2, 3])
+        self.assertEqual(generic["std_values"], [100, 110, 120])
 
     def test_bad_sdk_artifact_is_not_published(self):
         with self.sdk(invalid_header=True), patch.object(self.runner, "_onnx_metadata", return_value=self.onnx_metadata):

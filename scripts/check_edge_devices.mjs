@@ -254,3 +254,29 @@ const closingPermission = deferred(), closingButton = tokenButtonHarness({ write
 const closingOperation = closingButton.button.onclick(); closingButton.close(); closingPermission.reject(new Error("Denied after close"));
 await closingOperation; assert.equal(closingButton.notifications.length, 0); assert.equal(closingButton.copyCalls.length, 0);
 console.log("PASS token button: accurate success/failure feedback, focusable busy guard, no duplicate copies, masked token and closed-modal cleanup; capture thumbnails: same-origin URLs, escaping, tombstones and cached/async loading states");
+
+// Upload-only completion must never be described as verified inference.
+assert.equal(context.systemDeploymentLabel({ status: 'succeeded', stage: 'uploaded', activate: false }), '已加入系统模型库');
+assert.equal(context.systemDeploymentLabel({ status: 'succeeded', stage: 'verified', activate: true }), '已验证系统推理运行');
+assert(!context.systemDeploymentLabel({ status: 'succeeded', stage: 'activated', activate: true }).includes('已验证'));
+assert(context.systemDeploymentLabel({ status: 'running', stage: 'activating', lease_expired: true }).includes('待核实'));
+assert(context.systemDeploymentLabel({ status: 'unknown', stage: 'uploaded' }).includes('待核实'));
+const systemReport = { capabilities: { model_api: true, algorithms: ['yolov8', 'yolo11'] }, system_status: { fresh: true }, current: { sModel: '<bad>.rknn', sStatus: 'running', iFPS: 30, iActualFPS: 12, bExternalHold: false } };
+assert(context.systemModelStatusMarkup(systemReport).includes('系统推理运行中'));
+assert(context.systemModelStatusMarkup(systemReport).includes('&lt;bad&gt;.rknn'));
+assert(context.systemModelStatusMarkup({ ...systemReport, system_status: { fresh: false } }).includes('系统状态已过期'));
+assert(!context.systemModelStatusMarkup({ ...systemReport, system_status: { fresh: false } }).includes('30 / 12'));
+assert(context.systemModelStatusMarkup({ ...systemReport, system_status: { fresh: true, age_seconds: 80 } }, now + 11000, now).includes('系统状态已过期'), 'A delayed refresh must not retain proof of running after the reported status expires');
+assert(context.systemModelStatusMarkup({ ...systemReport, current: { ...systemReport.current, bExternalHold: true } }).includes('正在等待 NPU'));
+assert(context.systemModelStatusMarkup({}).includes('等待联动应用上报系统能力'));
+const unauthorizedSystem = context.systemModelStatusMarkup({ ...systemReport, system_status: { fresh: true, error_code: 'system_api_unauthorized' } });
+assert(unauthorizedSystem.includes('接口未授权') && !unauthorizedSystem.includes('30 / 12'));
+const queueMarkup = context.systemDeploymentHistoryMarkup([{ id: 'job1', status: 'queued', stage: 'queued', filename: '<model>.rknn', activate: false }]);
+assert(queueMarkup.includes('data-edge-cancel-model="job1"') && queueMarkup.includes('设备离线时保留等待') && queueMarkup.includes('&lt;model&gt;.rknn'));
+assert(!context.systemDeploymentHistoryMarkup([{ id: 'job1', status: 'running', stage: 'uploading', activate: true }]).includes('data-edge-cancel-model'));
+for (const status of ['running', 'unknown']) {
+  assert(context.systemDeploymentHistoryMarkup([{ id: 7, status, lease_expired: true }]).includes('data-edge-resolve-model="7"'));
+  assert(!context.systemDeploymentHistoryMarkup([{ id: 7, status, lease_expired: false }]).includes('data-edge-resolve-model'));
+}
+assert(!context.systemDeploymentHistoryMarkup([{ id: 7, status: 'succeeded', lease_expired: true }]).includes('data-edge-resolve-model'));
+console.log('PASS system model UI: upload-only versus verified-running outcomes, expired leases, offline queue cancellation, stale status/FPS and NPU occupancy');

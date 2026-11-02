@@ -70,6 +70,8 @@ def _owned_files(conn, project_id: int) -> list[dict]:
         items.append({"kind": "conversion", "name": f"conversion-{row[0]}", "directory": True})
     for row in conn.execute("SELECT id FROM edge_releases WHERE project_id=?", (project_id,)):
         items.append({"kind": "run", "name": f"edge-release-{row[0]}", "directory": True})
+    for row in conn.execute("SELECT id FROM edge_model_releases WHERE project_id=?", (project_id,)):
+        items.append({"kind": "run", "name": f"edge-model-release-{row[0]}", "directory": True})
 
     # Live-image thumbnails are shared by content hash across projects.
     shared = {row[0] for row in conn.execute("SELECT DISTINCT sha256 FROM assets WHERE project_id<>?", (project_id,))}
@@ -112,6 +114,10 @@ def _protect_shared_files(conn, project_id: int, items: list[dict]) -> None:
 
 
 def _ensure_idle(conn, project_id: int) -> None:
+    if conn.execute("SELECT 1 FROM edge_model_releases WHERE project_id=? AND status='building'", (project_id,)).fetchone():
+        raise HTTPException(409, "项目正在发布系统模型，请等待完成")
+    if conn.execute("SELECT 1 FROM edge_model_deployments WHERE project_id=? AND status IN ('queued','running','unknown')", (project_id,)).fetchone():
+        raise HTTPException(409, "项目有待完成或结果未知的系统模型部署，请先确认设备结果")
     if conn.execute("SELECT 1 FROM edge_releases WHERE project_id=? AND status='building'", (project_id,)).fetchone():
         raise HTTPException(409, "项目正在生成设备安装包，请等待完成")
     if conn.execute("SELECT 1 FROM edge_deployments WHERE project_id=? AND status IN ('queued','running')", (project_id,)).fetchone():

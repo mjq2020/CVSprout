@@ -30,7 +30,7 @@
     "limits": {
       "memory_mb": 256,
       "cpu_percent": 300,
-      "storage_mb": 1152,
+      "storage_mb": 1536,
       "shutdown_grace_sec": 15
     }
   },
@@ -53,7 +53,8 @@
     "network": {
       "listen": [],
       "outbound": [
-        "configured.server_url"
+        "configured.server_url",
+        "device.control"
       ]
     }
   },
@@ -81,10 +82,10 @@
     "endpoint_mode": "allocated"
   },
   "id": "cvsprout-capture",
-  "name": "CVSprout Capture",
-  "version": "1.0.2",
+  "name": "CVSprout Connector",
+  "version": "1.1.0",
   "release": {
-    "sequence": 3,
+    "sequence": 4,
     "channel": "stable"
   },
   "type": "self-hosted",
@@ -94,7 +95,7 @@
     "path": "icon.png",
     "media_type": "image/png"
   },
-  "description": "将设备原始图片可靠采集到 CVSprout 项目，支持离线队列、确认重试和远程暂停。",
+  "description": "连接 CVSprout：原始图片可靠上传，并通过设备官方系统模型接口接收、注册和启用模型。",
   "artifacts": [],
   "models": [],
   "capabilities": [

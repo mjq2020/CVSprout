@@ -10,7 +10,9 @@
 
 左侧导航集中显示当前项目、工作流程、标注服务状态和账号入口。底部“主题”可切换浅色、深色或跟随系统，浏览器会记住选择；手机点击顶部菜单打开导航。切换页面时保留内容并显示加载提示，数据搜索和加载更多保持操作位置；支持系统“减少动态效果”。详见[界面与主题](docs/user-guide.md#界面与主题)。
 
-支持 [reCamera Pro 设备联动](docs/recamera-pro.md)：管理员在“边缘设备”连接相机，采集应用自动上传原图；完成标注和训练后，将兼容的 RV1126B RKNN 打包为推理应用，可下载到 App Center 安装，也可通过服务器的 SSH 连接直接部署。采集与推理是两个独立应用，设备图片进入原有项目与任务块工作流。
+支持 [reCamera Pro 设备联动](docs/recamera-pro.md)：管理员在“边缘设备”创建接入，下载并安装 **CVSprout Connector**（应用 ID 沿用 `cvsprout-capture`），填写平台地址和设备令牌，即可自动上传原图到项目，沿用任务块协作流程。一个联动应用同时负责采集与模型传输。
+
+完成 YOLOv8 / YOLO11 目标检测训练后，在“训练与转换”选择 **RKNN → reCamera Pro 系统模型**，再从“边缘设备 → 模型部署”发布并下发模型。可仅加入设备模型库，或明确确认后替换当前系统推理模型；页面分别显示入库与运行验证结果。系统模型由设备内置推理运行，设备主动领取任务，无需配置服务器到设备的 SSH 连接。需要兼容的设备固件及本机模型接口授权；原有独立推理应用包与 SSH 部署记录保留在旧版入口。
 
 原创代码采用 [Apache-2.0](LICENSE)，允许免费商用。Ultralytics 等依赖和模型有各自的许可要求，涉及闭源商用时请先阅读 [第三方许可说明](THIRD_PARTY_NOTICES.md)。
 
@@ -165,7 +167,7 @@ git pull
 - [安装、GPU 检查与故障排查](docs/installation.md)
 - [远程服务器使用方式](docs/remote-server.md)
 - [模型推理部署](docs/deployment.md)
-- [reCamera Pro 采集与模型部署](docs/recamera-pro.md)：两个设备应用、自动导入、模型兼容条件与远程部署配置
+- [reCamera Pro 采集与模型部署](docs/recamera-pro.md)：Connector 安装、自动导入、系统模型发布与启用、能力检查及旧版部署兼容
 - [详细业务使用手册](docs/user-guide.md)
 - [架构与开发](docs/architecture.md)
 - [参与开发](CONTRIBUTING.md)

@@ -60,6 +60,7 @@ from .setup import router as setup_router, required as setup_required
 from .model_downloads import router as model_downloads_router
 from .deployment import router as deployment_router
 from .edge import router as edge_router
+from .edge_models import router as edge_models_router
 from .edge_deployment import EdgeDeploymentWorker, router as edge_deployment_router
 
 
@@ -109,7 +110,7 @@ async def lifespan(application: FastAPI):
                     await pipeline_task
 
 
-app = FastAPI(title="CVSprout 标注平台", version="0.26.2", lifespan=lifespan)
+app = FastAPI(title="CVSprout 标注平台", version="0.27.0", lifespan=lifespan)
 app.middleware("http")(browser_security)
 app.add_middleware(RequestBodyLimit, policy=request_budget)
 app.include_router(accounts_router)
@@ -124,6 +125,7 @@ app.include_router(setup_router)
 app.include_router(model_downloads_router)
 app.include_router(deployment_router)
 app.include_router(edge_router)
+app.include_router(edge_models_router)
 app.include_router(edge_deployment_router)
 
 

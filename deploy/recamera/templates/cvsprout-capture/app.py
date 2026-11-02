@@ -11,6 +11,7 @@ from kit.app import App, run_app
 from kit.config import appdata_root
 
 from transport import DeliveryError, EdgeClient, Spool, Uploader
+from system_models import DeploymentClient, ModelDeploymentWorker
 
 
 def encode_original(frame, quality):
@@ -34,7 +35,7 @@ def encode_original(frame, quality):
 
 class CVSproutCaptureApp(App):
     id = "cvsprout-capture"
-    name = "CVSprout Capture"
+    name = "CVSprout Connector"
     owns_loop = True
     needs_model = False
     model_frame = "cpu"
@@ -43,6 +44,8 @@ class CVSproutCaptureApp(App):
         super().__init__()
         self.uploader = None
         self.upload_thread = None
+        self.model_worker = None
+        self.model_thread = None
         self._upload_shutdown_deadline = None
         self.capture_count = 0
 
@@ -65,14 +68,20 @@ class CVSproutCaptureApp(App):
                       max_bytes=min(512, max(16, int(config.get("spool_size_mb", 128)))) * 1024 * 1024,
                       max_images=min(10000, max(10, int(config.get("spool_max_images", 1000)))))
         self.uploader = Uploader(client, spool)
+        self.model_worker = ModelDeploymentWorker(
+            DeploymentClient(config.get("server_url", ""), config.get("device_token", "")),
+            data_dir / "system-models", configuration=self.uploader.deployment_configuration)
 
     def run(self):
         self.upload_thread = threading.Thread(target=self.uploader.run,
                                               name="cvsprout-upload", daemon=True)
-        self.upload_thread.start()
+        self.model_thread = threading.Thread(target=self.model_worker.run,
+                                             name="cvsprout-models", daemon=True)
         next_capture = 0.0
         next_status = 0.0
         try:
+            self.upload_thread.start()
+            self.model_thread.start()
             for frame in self.frames():
                 if not self.upload_thread.is_alive():
                     raise RuntimeError("capture uploader stopped unexpectedly")
@@ -128,7 +137,10 @@ class CVSproutCaptureApp(App):
     def _stop_uploader(self):
         if self.uploader:
             self.uploader.stop.set()
-        if self.upload_thread:
+        if self.model_worker:
+            self.model_worker.stop.set()
+        failure = None
+        if self.upload_thread and self.upload_thread.ident is not None:
             # One total budget across run() and Kit's repeated finish() calls.
             # HTTP/DNS can outlive a socket timeout; only the daemon worker may
             # attempt the terminal heartbeat, never this cleanup thread.
@@ -137,8 +149,19 @@ class CVSproutCaptureApp(App):
             remaining = max(0.0, self._upload_shutdown_deadline - time.monotonic())
             self.upload_thread.join(timeout=remaining)
             if self.upload_thread.is_alive():
-                raise RuntimeError("capture uploader did not stop within its deadline")
-            self.upload_thread = None
+                failure = RuntimeError("capture uploader did not stop within its deadline")
+            else:
+                self.upload_thread = None
+        if self.model_thread and self.model_thread.ident is not None:
+            if self._upload_shutdown_deadline is None:
+                self._upload_shutdown_deadline = time.monotonic() + 10
+            self.model_thread.join(timeout=max(0.0, self._upload_shutdown_deadline - time.monotonic()))
+            if self.model_thread.is_alive():
+                failure = failure or RuntimeError("model worker did not stop within its deadline")
+            else:
+                self.model_thread = None
+        if failure:
+            raise failure
 
     def finish(self):
         try:

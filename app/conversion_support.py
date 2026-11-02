@@ -94,10 +94,10 @@ def calibration_assets(version_id: int) -> list[dict[str, Any]]:
 
 
 def preprocessing_contract(task: str, image_size: int, config: dict[str, Any]) -> dict[str, Any]:
-    return {"input_color": "rgb", "image_size": [image_size, image_size], "resize": "shortest_edge_then_center_crop" if task == "classify" else "letterbox", "preserve_aspect_ratio": True, "interpolation": "pillow_bilinear" if task == "classify" else "opencv_inter_linear", "padding_value": None if task == "classify" else 114, "mean_values": config.get("mean_values", [0, 0, 0]), "std_values": config.get("std_values", [255, 255, 255]), "normalization": "(pixel - mean) / std", "normalization_location": "rknn_model"}
+    return {"input_color": "rgb", "image_size": [image_size, image_size], "resize": "shortest_edge_then_center_crop" if task == "classify" else "letterbox", "padding_position": "bottom_right" if config.get("deployment_profile") == "recamera_system" else "center", "resize_rounding": "floor_even" if config.get("deployment_profile") == "recamera_system" else "round", "preserve_aspect_ratio": True, "interpolation": "pillow_bilinear" if task == "classify" else "opencv_inter_linear", "padding_value": None if task == "classify" else 114, "mean_values": config.get("mean_values", [0, 0, 0]), "std_values": config.get("std_values", [255, 255, 255]), "normalization": "(pixel - mean) / std", "normalization_location": "rknn_model"}
 
 
-def prepare_calibration(version_id: int, task: str, image_size: int, count: int, attempt_dir: Path, check: Callable[[], None]) -> tuple[Path, dict[str, Any]]:
+def prepare_calibration(version_id: int, task: str, image_size: int, count: int, attempt_dir: Path, check: Callable[[], None], *, deployment_profile: str = "generic") -> tuple[Path, dict[str, Any]]:
     assets = calibration_assets(version_id)
     if len(assets) < count:
         raise RuntimeError(f"冻结版本的训练集只有 {len(assets)} 张图片，少于请求的 {count} 张校准图片。")
@@ -128,9 +128,17 @@ def prepare_calibration(version_id: int, task: str, image_size: int, count: int,
                 import cv2
                 import numpy as np
                 ratio = min(image_size / width, image_size / height)
-                resized = Image.fromarray(cv2.resize(np.asarray(image), (max(1, round(width * ratio)), max(1, round(height * ratio))), interpolation=cv2.INTER_LINEAR))
+                if deployment_profile == "recamera_system":
+                    # Match the built-in camera YUV -> RGB RGA geometry: float32,
+                    # truncate, align down to even pixels, then bottom/right pad.
+                    ratio = np.minimum(np.float32(image_size) / np.float32(width), np.float32(image_size) / np.float32(height))
+                    dimensions = tuple(min(image_size, max(2, int(np.float32(value) * ratio) // 2 * 2)) for value in (width, height))
+                else:
+                    dimensions = (max(1, round(width * ratio)), max(1, round(height * ratio)))
+                resized = Image.fromarray(cv2.resize(np.asarray(image), dimensions, interpolation=cv2.INTER_LINEAR))
                 image = Image.new("RGB", (image_size, image_size), (114, 114, 114))
-                image.paste(resized, (round((image_size - resized.width) / 2 - 0.1), round((image_size - resized.height) / 2 - 0.1)))
+                position = (0, 0) if deployment_profile == "recamera_system" else (round((image_size - resized.width) / 2 - 0.1), round((image_size - resized.height) / 2 - 0.1))
+                image.paste(resized, position)
             path = destination / f"sample-{index:04d}.png"
             image.save(path, format="PNG")
             paths.append(str(path.resolve())); hashes.append(digest)

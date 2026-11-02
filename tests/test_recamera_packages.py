@@ -169,8 +169,15 @@ class OfficialPackageTest(unittest.TestCase):
             packages.ROOT / "templates/cvsprout-capture", self.root / "capture-dist")
         inspected = packages.inspect_archive(archive)
         self.assertEqual(inspected["manifest"]["id"], "cvsprout-capture")
+        self.assertEqual(inspected["manifest"]["name"], "CVSprout Connector")
+        self.assertEqual(inspected["manifest"]["version"], "1.1.0")
+        self.assertEqual(inspected["manifest"]["release"]["sequence"], 4)
+        self.assertEqual(inspected["manifest"]["models"], [])
+        self.assertEqual(inspected["manifest"]["artifacts"], [])
+        self.assertFalse(any("npu" in claim["name"].lower() for claim in inspected["manifest"]["resources"]["claims"]))
         payload = self.root / "capture-payload"
         with tarfile.open(archive, "r:gz") as bundle:
+            self.assertIn("system_models.py", bundle.getnames())
             bundle.extractall(payload, filter="data")
         probe = r'''
 import importlib
@@ -188,6 +195,10 @@ for name in ("sqlite3", "_sqlite3"):
         raise AssertionError("sqlite module blocker not active")
 sys.path.insert(0, sys.argv[1])
 from transport import Spool
+import system_models
+assert system_models.APP_VERSION == "1.1.0"
+assert system_models.ModelDeploymentWorker
+assert sys.modules["sqlite3"] is None and sys.modules["_sqlite3"] is None
 path = Path(sys.argv[2])
 queue = Spool(path, max_bytes=1024, max_images=2)
 capture_id = queue.enqueue(b"capture-payload", "original-device", "2026-11-02T00:00:00Z")
@@ -205,6 +216,31 @@ assert queue.stats() == {"pending_images": 0, "pending_bytes": 0}
             [sys.executable, "-I", "-c", probe, str(payload), str(self.root / "capture-spool")],
             capture_output=True, text=True, timeout=20, check=False)
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_public_capture_download_route_builds_current_connector(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from app.auth import Actor, get_actor
+        from app.edge_deployment import router
+
+        # Exercise the actual public route and official builder, with an isolated
+        # authenticated app so no production database or worker is started.
+        app = FastAPI()
+        app.include_router(router)
+        app.dependency_overrides[get_actor] = lambda: Actor("package-test", "admin")
+        with TestClient(app) as client:
+            response = client.get("/api/edge/apps/capture/download")
+        self.assertEqual(response.status_code, 200, response.text if response.status_code != 200 else "")
+        self.assertEqual(response.headers["content-type"], "application/gzip")
+        self.assertIn("1.1.0", response.headers["content-disposition"])
+        archive = self.root / "downloaded-connector.tar.gz"
+        archive.write_bytes(response.content)
+        inspected = packages.inspect_archive(archive)
+        self.assertEqual(inspected["manifest"]["id"], "cvsprout-capture")
+        self.assertEqual(inspected["manifest"]["version"], "1.1.0")
+        self.assertEqual(inspected["manifest"]["release"]["sequence"], 4)
+        with tarfile.open(archive, "r:gz") as bundle:
+            self.assertTrue({"system_models.py", "transport.py", "app.py", "release.lock.json", "files.sha256"}.issubset(bundle.getnames()))
 
     def test_hash_mismatch_duplicate_traversal_and_symlink_rejected_without_extracting(self):
         archive = self.build()

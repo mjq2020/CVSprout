@@ -16,7 +16,7 @@ import urllib.request
 import uuid
 
 
-APP_VERSION = "1.0.2"
+APP_VERSION = "1.1.0"
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MAX_SPOOL_BYTES = 512 * 1024 * 1024
 MAX_SPOOL_IMAGES = 10000
@@ -45,6 +45,8 @@ def normalize_server(value):
 
 
 class EdgeClient:
+    max_response_bytes = 65536
+
     def __init__(self, server_url, token, timeout=3):
         self.server_url = normalize_server(server_url)
         self._token = str(token).strip()
@@ -70,8 +72,8 @@ class EdgeClient:
                                      data=payload, headers=headers)
         try:
             with self._opener.open(req, timeout=self.timeout) as response:
-                data = response.read(65537)
-                if len(data) > 65536:
+                data = response.read(self.max_response_bytes + 1)
+                if len(data) > self.max_response_bytes:
                     raise DeliveryError("server_response_too_large")
                 result = json.loads(data)
                 if not isinstance(result, dict):
@@ -370,6 +372,7 @@ class Uploader:
         self._logs = {}
         self._configuration_signature = None
         self._heartbeat_confirmed = False
+        self._config_snapshot = {}
         self.log("starting", "waiting_for_server_configuration")
 
     @classmethod
@@ -452,6 +455,10 @@ class Uploader:
                     "interval": self.interval, "max_image_bytes": self.max_image_bytes,
                     "state": status, "last_frame_age_seconds": age}
 
+    def deployment_configuration(self):
+        with self.lock:
+            return dict(self._config_snapshot) if self.clock() < self.valid_until else {}
+
     def _configuration(self, now):
         config = self.client.configuration()
         device, project = config.get("device_id"), config.get("project_id")
@@ -481,6 +488,7 @@ class Uploader:
             self.schema_version = version if type(version) is int else 1
             # A restart must handshake; offline captures expire after 5 minutes.
             self.valid_until = now + 300
+            self._config_snapshot = dict(config)
             signature = (owner, self.enabled, self.interval, self.max_image_bytes)
             changed = signature != self._configuration_signature
             self._configuration_signature = signature

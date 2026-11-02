@@ -645,13 +645,14 @@ def _migrate_dataset_variants(conn: sqlite3.Connection) -> None:
 
 def init_db() -> None:
     from .edge_schema import SCHEMA as EDGE_SCHEMA
+    from .edge_models_schema import SCHEMA as EDGE_MODELS_SCHEMA
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.media_dir.mkdir(parents=True, exist_ok=True)
     settings.thumbnail_dir.mkdir(parents=True, exist_ok=True)
     settings.versions_dir.mkdir(parents=True, exist_ok=True)
     settings.training_dir.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(settings.db_path, timeout=30) as conn:
-        conn.executescript(SCHEMA + EDGE_SCHEMA)
+        conn.executescript(SCHEMA + EDGE_SCHEMA + EDGE_MODELS_SCHEMA)
         conn.execute("PRAGMA foreign_keys=OFF")
         # Serialize column discovery and ALTERs when API replicas start together.
         conn.execute("BEGIN IMMEDIATE")
@@ -739,6 +740,7 @@ def init_db() -> None:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_assets_project_sha256 ON assets(project_id,sha256)")
         conn.execute("INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (13,?)", (now_iso(),))
         conn.execute("INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (14,?)", (now_iso(),))
+        conn.execute("INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (15,?)", (now_iso(),))
 
 
 @contextmanager

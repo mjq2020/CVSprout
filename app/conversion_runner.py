@@ -31,6 +31,7 @@ EXPORT_KEYS = {
 RKNN_KEYS = {
     "target_platform", "quantized", "quantized_algorithm", "optimization_level",
     "mean_values", "std_values", "input_color", "calibration_count", "calibration_source",
+    "deployment_profile",
 }
 
 
@@ -57,7 +58,7 @@ def _path(value: Any, root: Path, *, inside: bool = False) -> Path:
 def _validate_request(request: Any, root: Path, request_path: Path) -> dict[str, Any]:
     if not isinstance(request, dict):
         raise ValueError("转换请求必须是 JSON 对象")
-    if request.get("operation") not in {"ultralytics", "rknn"}:
+    if request.get("operation") not in {"ultralytics", "rknn", "recamera_system_onnx"}:
         raise ValueError("不支持的转换操作")
     if request.get("task") not in TASKS:
         raise ValueError("不支持的模型任务类型")
@@ -109,7 +110,7 @@ def _rknn_config(value: Any) -> dict[str, Any]:
     config = {
         "target_platform": "rk3588", "quantized": False,
         "quantized_algorithm": "normal", "optimization_level": 3,
-        "mean_values": [0, 0, 0], "std_values": [255, 255, 255], "input_color": "rgb",
+        "mean_values": [0, 0, 0], "std_values": [255, 255, 255], "input_color": "rgb", "deployment_profile": "generic",
         **value,
     }
     if config["target_platform"] not in RKNN_TARGETS:
@@ -137,6 +138,13 @@ def _rknn_config(value: Any) -> dict[str, Any]:
         if name == "std_values" and any(number <= 0 for number in numbers):
             raise ValueError("标准差必须大于零")
         config[name] = list(numbers)
+    if config["deployment_profile"] not in {"generic", "recamera_system"}:
+        raise ValueError("不支持的 RKNN 部署用途")
+    if config["deployment_profile"] == "recamera_system" and (
+        config["target_platform"] != "rv1126b" or not config["quantized"]
+        or config["mean_values"] != [0, 0, 0] or config["std_values"] != [255, 255, 255]
+    ):
+        raise ValueError("reCamera 系统模型需要 RV1126B INT8 和 mean=0/std=255")
     return config
 
 
@@ -434,6 +442,26 @@ def export_rknn(request: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("RKNN 中间模型不可包含 NMS，请在部署端进行后处理")
     if source_metadata["opsets"].get("ai.onnx", 0) > 19:
         raise ValueError("RKNN 中间模型的 ONNX opset 不能超过 19")
+    system = None
+    if config.get("deployment_profile") == "recamera_system":
+        if __package__:
+            from .recamera_export import system_contract
+        else:
+            from recamera_export import system_contract
+        system = json.loads(source_metadata["model_metadata"].get("cvsprout_system_model", "{}"))
+        expected = system_contract(system.get("algorithm"), inputs[0]["shape"][2], system.get("classes", []))
+        preprocessing = request.get("preprocessing", {})
+        if (request["task"] != "detect" or inputs[0]["shape"][2] != inputs[0]["shape"][3]
+                or system != expected or len(source_metadata["outputs"]) != 6
+                or any(preprocessing.get(key) != value for key, value in {
+                    "input_color": "rgb", "resize": "letterbox", "padding_position": "bottom_right",
+                    "resize_rounding": "floor_even", "padding_value": 114,
+                    "preserve_aspect_ratio": True,
+                    "image_size": inputs[0]["shape"][2:],
+                }.items())
+                or any(output["shape"] != required["shape"] or output["dtype"] != "FLOAT"
+                       for output, required in zip(source_metadata["outputs"], system["outputs"]))):
+            raise ValueError("ONNX 模型与 reCamera 系统 DFL 输入输出/预处理契约不一致")
     output = request["output"]
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.with_name(f".{output.stem}.{uuid.uuid4().hex}.tmp.rknn")
@@ -477,7 +505,7 @@ def export_rknn(request: dict[str, Any]) -> dict[str, Any]:
     warnings = []
     if not preprocessing["normalization_matches_training"]:
         warnings.append("自定义均值或标准差偏离当前 YOLO 训练的 0–1 归一化；部署前请使用真实样本验证精度。")
-    return {
+    metadata = {
         "format": "rknn", "task": request["task"], "target_platform": config["target_platform"],
         "precision": "int8" if config["quantized"] else "float16",
         "rknn_config": config, "calibration_count": request["calibration_count"],
@@ -493,6 +521,15 @@ def export_rknn(request: dict[str, Any]) -> dict[str, Any]:
         },
         "warnings": warnings,
     }
+    if system:
+        metadata.update(deployment_profile="recamera_system", system_model=system)
+        metadata["postprocessing"] = {"family": "recamera_system_dfl", "end2end": False,
+            "nms_in_graph": False, "external_nms_required": True, "task": "detect",
+            "box_format": "dfl_logits", "class_activation": "sigmoid", "reg_max": 16,
+            "strides": [8, 16, 32], "executor": "device_builtin", "board_validated": False}
+    else:
+        metadata["deployment_profile"] = "generic"
+    return metadata
 
 
 def _write_result(path: Path, value: dict[str, Any]) -> None:
@@ -519,7 +556,14 @@ def main() -> int:
         result_path = request["result_path"]
         # SDK caches, generated models and logs stay within this private attempt.
         os.chdir(root)
-        metadata = export_rknn(request) if request["operation"] == "rknn" else export_ultralytics(request)
+        if request["operation"] == "recamera_system_onnx":
+            if __package__:
+                from .recamera_export import export_system_onnx
+            else:
+                from recamera_export import export_system_onnx
+            metadata = export_system_onnx(request)
+        else:
+            metadata = export_rknn(request) if request["operation"] == "rknn" else export_ultralytics(request)
         _write_result(result_path, {"artifact": str(request["output"]), "metadata": metadata})
         print("Conversion completed", flush=True)
         return 0
