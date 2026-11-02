@@ -10,7 +10,7 @@ import numpy as np
 from kit.app import App, run_app
 from kit.config import appdata_root
 
-from transport import EdgeClient, Spool, Uploader
+from transport import DeliveryError, EdgeClient, Spool, Uploader
 
 
 def encode_original(frame, quality):
@@ -52,7 +52,15 @@ class CVSproutCaptureApp(App):
         self.max_session_images = max(0, int(config.get("max_session_images", 0)))
         self.batch_id = str(uuid.uuid4())
         self.capture_count = 0
-        spool = Spool(Path(appdata_root()) / self.id / "captures.sqlite3",
+        data_dir = Path(appdata_root()) / self.id
+        # Do not silently orphan a v1.0.0 SQLite queue. Its existence is checked
+        # without importing optional native Python modules on the device.
+        if any((data_dir / name).exists() or (data_dir / name).is_symlink()
+               for name in ("captures.sqlite3", "captures.sqlite3-journal",
+                            "captures.sqlite3-wal", "captures.sqlite3-shm")):
+            raise DeliveryError("legacy_spool_migration_required: preserve captures.sqlite3; "
+                                "see app README before upgrading")
+        spool = Spool(data_dir / "capture-spool",
                       max_bytes=min(512, max(16, int(config.get("spool_size_mb", 128)))) * 1024 * 1024,
                       max_images=min(10000, max(10, int(config.get("spool_max_images", 1000)))))
         self.uploader = Uploader(client, spool)

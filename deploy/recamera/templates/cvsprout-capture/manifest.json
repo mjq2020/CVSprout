@@ -82,9 +82,9 @@
   },
   "id": "cvsprout-capture",
   "name": "CVSprout Capture",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "release": {
-    "sequence": 1,
+    "sequence": 2,
     "channel": "stable"
   },
   "type": "self-hosted",

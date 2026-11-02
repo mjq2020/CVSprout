@@ -5,6 +5,8 @@ import copy
 import hashlib
 import io
 import json
+import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -158,6 +160,51 @@ class OfficialPackageTest(unittest.TestCase):
         self.assertTrue(inspected["release_id"])
         with tarfile.open(archive) as bundle:
             self.assertTrue({"manifest.json", "release.lock.json", "files.sha256", "app.py"}.issubset(bundle.getnames()))
+
+    def test_capture_download_template_runs_without_device_sqlite_modules(self):
+        # Exercise the actual template shipped by the server, not an SDK checkout
+        # or the host's complete standard library. App Center firmware may omit
+        # sqlite3 and its native extension even though both exist on a developer PC.
+        archive = packages.build_package(
+            packages.ROOT / "templates/cvsprout-capture", self.root / "capture-dist")
+        inspected = packages.inspect_archive(archive)
+        self.assertEqual(inspected["manifest"]["id"], "cvsprout-capture")
+        payload = self.root / "capture-payload"
+        with tarfile.open(archive, "r:gz") as bundle:
+            bundle.extractall(payload, filter="data")
+        probe = r'''
+import importlib
+import sys
+from pathlib import Path
+
+sys.modules["sqlite3"] = None
+sys.modules["_sqlite3"] = None
+for name in ("sqlite3", "_sqlite3"):
+    try:
+        importlib.import_module(name)
+    except ModuleNotFoundError:
+        pass
+    else:
+        raise AssertionError("sqlite module blocker not active")
+sys.path.insert(0, sys.argv[1])
+from transport import Spool
+path = Path(sys.argv[2])
+queue = Spool(path, max_bytes=1024, max_images=2)
+capture_id = queue.enqueue(b"capture-payload", "original-device", "2026-11-02T00:00:00Z")
+assert capture_id
+del queue
+queue = Spool(path, max_bytes=1024, max_images=2)
+assert queue.oldest("different-device") is None
+capture = queue.oldest("original-device")
+assert capture["capture_id"] == capture_id
+assert capture["jpeg"] == b"capture-payload"
+queue.acknowledge(capture, {"received": True, "capture_id": capture_id, "asset_id": 1})
+assert queue.stats() == {"pending_images": 0, "pending_bytes": 0}
+'''
+        result = subprocess.run(
+            [sys.executable, "-I", "-c", probe, str(payload), str(self.root / "capture-spool")],
+            capture_output=True, text=True, timeout=20, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_hash_mismatch_duplicate_traversal_and_symlink_rejected_without_extracting(self):
         archive = self.build()

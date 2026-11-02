@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import hashlib
-from contextlib import contextmanager
+import errno
 import json
 import math
 import os
 from pathlib import Path
-import sqlite3
+import stat
 import threading
 import time
 import urllib.error
@@ -16,11 +16,11 @@ import urllib.request
 import uuid
 
 
+APP_VERSION = "1.0.1"
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
-# JPEG quotas exclude SQLite pages/indexes. Bound the physical main database
-# independently; the manifest reserves 1152 MiB for this file plus a worst-case
-# DELETE rollback journal (one original copy of each modified page + headers).
-MAX_DATABASE_BYTES = 560 * 1024 * 1024
+MAX_SPOOL_BYTES = 512 * 1024 * 1024
+MAX_SPOOL_IMAGES = 10000
+MAX_HEADER_BYTES = 2048
 
 
 class DeliveryError(RuntimeError):
@@ -58,7 +58,7 @@ class EdgeClient:
 
     def request(self, path, payload=None, content_type="application/json"):
         headers = {"Authorization": "Bearer " + self._token,
-                   "Accept": "application/json", "User-Agent": "CVSprout-Capture/1.0.0"}
+                   "Accept": "application/json", "User-Agent": "CVSprout-Capture/" + APP_VERSION}
         if payload is not None:
             headers["Content-Type"] = content_type
         req = urllib.request.Request(self.server_url + "/api/edge/v1/" + path,
@@ -100,97 +100,213 @@ class EdgeClient:
 
 
 class Spool:
-    """One transactional database stores each image and its immutable receipt ID.
+    """A bounded, single-writer file queue, with one atomic record per capture.
 
-    FULL synchronous commits survive process/device restart. Capacity pressure
-    rejects new captures; it never drops images that lack a server receipt.
+    AppMgr permits one app instance; a lock serializes its sampling and upload
+    threads. An index rebuilt on startup avoids scanning thousands of files on
+    every frame. Each immutable record contains metadata and JPEG bytes together,
+    so a crash cannot leave a published image without its delivery identity.
     """
     def __init__(self, path, max_bytes=128 * 1024 * 1024, max_images=1000):
         self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        self.max_bytes = int(max_bytes)
-        self.max_images = int(max_images)
+        self.max_bytes = min(int(max_bytes), MAX_SPOOL_BYTES)
+        self.max_images = min(int(max_images), MAX_SPOOL_IMAGES)
         if self.max_bytes < 1 or self.max_images < 1:
             raise ValueError("spool limits must be positive")
-        with self._connect() as conn:
-            journal = conn.execute("PRAGMA journal_mode=DELETE").fetchone()[0]
-            if journal.lower() != "delete":
-                raise RuntimeError("capture queue requires DELETE journaling")
-            conn.executescript("""
-                CREATE TABLE IF NOT EXISTS captures (
-                    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
-                    capture_id TEXT NOT NULL UNIQUE,
-                    owner TEXT NOT NULL,
-                    captured_at TEXT NOT NULL,
-                    batch_id TEXT,
-                    model_release TEXT,
-                    jpeg BLOB NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS captures_owner ON captures(owner, sequence);
-            """)
-        os.chmod(self.path, 0o600)
+        self.lock = threading.RLock()
+        self._records = {}
+        self._bytes = 0
+        self._sequence = 0
+        if self.path.is_symlink():
+            raise DeliveryError("capture_spool_invalid_directory")
+        missing_directories = []
+        ancestor = self.path
+        while not ancestor.exists():
+            missing_directories.append(ancestor)
+            ancestor = ancestor.parent
+        self.path.mkdir(parents=True, exist_ok=True, mode=0o700)
+        for directory in missing_directories:
+            os.chmod(directory, 0o700)
+        os.chmod(self.path, 0o700)
+        temporary = []
+        for entry in self.path.iterdir():
+            if (entry.name.startswith(".pending-") and entry.name.endswith(".tmp")
+                    and len(entry.name) == 45
+                    and all(c in "0123456789abcdef" for c in entry.name[9:-4])):
+                if not stat.S_ISREG(entry.lstat().st_mode):
+                    raise DeliveryError("capture_spool_corrupt")
+                temporary.append(entry)
+                continue
+            record = self._read_record(entry, payload=False)
+            capture_id = record["capture_id"]
+            if capture_id in self._records:
+                raise DeliveryError("capture_spool_corrupt")
+            self._records[capture_id] = (entry, record)
+            self._bytes += record["size"]
+            self._sequence = max(self._sequence, record["sequence"])
+            os.chmod(entry, 0o600)
+        if self._bytes > MAX_SPOOL_BYTES or len(self._records) > MAX_SPOOL_IMAGES:
+            raise DeliveryError("capture_spool_exceeds_storage_limit")
+        # Only unpublished temporary records are discarded. Any corrupt
+        # published record above stops startup and leaves every file intact.
+        for entry in temporary:
+            entry.unlink()
+        self._sync_directory()
+        # On first launch both appdata/<id> and capture-spool can be new.
+        # Persist each new directory's entry in its parent, up to the existing
+        # ancestor; syncing only capture-spool's immediate parent is insufficient.
+        for directory in missing_directories:
+            parent_fd = os.open(directory.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(parent_fd)
+            finally:
+                os.close(parent_fd)
 
-    @contextmanager
-    def _connect(self):
-        conn = sqlite3.connect(self.path, timeout=5)
-        conn.row_factory = sqlite3.Row
+    def _sync_directory(self):
+        fd = os.open(self.path, os.O_RDONLY | os.O_DIRECTORY)
         try:
-            conn.execute("PRAGMA synchronous=FULL")
-            page_size = conn.execute("PRAGMA page_size").fetchone()[0]
-            page_limit = MAX_DATABASE_BYTES // page_size
-            actual_limit = conn.execute("PRAGMA max_page_count=%d" % page_limit).fetchone()[0]
-            if actual_limit > page_limit:
-                raise RuntimeError("existing capture queue exceeds its physical storage limit")
-            with conn:
-                yield conn
+            os.fsync(fd)
         finally:
-            conn.close()
+            os.close(fd)
+
+    @staticmethod
+    def _text(value, maximum, optional=False):
+        return ((optional and value is None) or
+                (isinstance(value, str) and 0 < len(value) <= maximum
+                 and all(ord(char) >= 32 and ord(char) != 127 for char in value)))
+
+    @staticmethod
+    def _filename(record):
+        return "%020d-%s.capture" % (record["sequence"], record["capture_id"])
+
+    def _read_record(self, path, payload):
+        try:
+            if not stat.S_ISREG(path.lstat().st_mode):
+                raise ValueError("record is not a regular file")
+            with path.open("rb") as stream:
+                header = stream.readline(MAX_HEADER_BYTES + 1)
+                if len(header) > MAX_HEADER_BYTES or not header.endswith(b"\n"):
+                    raise ValueError("invalid record header")
+                record = json.loads(header)
+                if (not isinstance(record, dict)
+                        or set(record) != {"version", "sequence", "capture_id", "owner", "captured_at",
+                                          "batch_id", "model_release", "size", "sha256"}
+                        or type(record["version"]) is not int or record["version"] != 1
+                        or type(record["sequence"]) is not int or not 0 < record["sequence"] < 10 ** 20
+                        or not isinstance(record["capture_id"], str)
+                        or str(uuid.UUID(record["capture_id"])) != record["capture_id"]
+                        or not self._text(record["owner"], 128)
+                        or not self._text(record["captured_at"], 64)
+                        or not self._text(record["batch_id"], 128, optional=True)
+                        or not self._text(record["model_release"], 128, optional=True)
+                        or type(record["size"]) is not int or not 0 < record["size"] <= MAX_IMAGE_BYTES
+                        or not isinstance(record["sha256"], str) or len(record["sha256"]) != 64
+                        or any(c not in "0123456789abcdef" for c in record["sha256"])
+                        or self._filename(record) != path.name
+                        or os.fstat(stream.fileno()).st_size != len(header) + record["size"]):
+                    raise ValueError("invalid record metadata")
+                if payload:
+                    jpeg = stream.read(record["size"] + 1)
+                    if len(jpeg) != record["size"] or hashlib.sha256(jpeg).hexdigest() != record["sha256"]:
+                        raise ValueError("invalid record payload")
+                    return record, jpeg
+                return record
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, OverflowError):
+            raise DeliveryError("capture_spool_corrupt") from None
 
     def stats(self):
-        with self._connect() as conn:
-            row = conn.execute("SELECT COUNT(*),COALESCE(SUM(LENGTH(jpeg)),0) FROM captures").fetchone()
-            return {"pending_images": row[0], "pending_bytes": row[1]}
+        with self.lock:
+            return {"pending_images": len(self._records), "pending_bytes": self._bytes}
 
     def enqueue(self, jpeg, owner, captured_at, batch_id=None, model_release=None):
         if not isinstance(jpeg, bytes) or not jpeg or len(jpeg) > MAX_IMAGE_BYTES:
             raise ValueError("invalid JPEG payload size")
-        capture_id = str(uuid.uuid4())
-        try:
-            with self._connect() as conn:
-                conn.execute("BEGIN IMMEDIATE")
-                count, size = conn.execute("SELECT COUNT(*),COALESCE(SUM(LENGTH(jpeg)),0) FROM captures").fetchone()
-                if count >= self.max_images or size + len(jpeg) > self.max_bytes:
-                    return None
-                conn.execute("INSERT INTO captures(capture_id,owner,captured_at,batch_id,model_release,jpeg) "
-                             "VALUES(?,?,?,?,?,?)", (capture_id, owner, captured_at, batch_id, model_release, jpeg))
-        except sqlite3.OperationalError as exc:
-            if getattr(exc, "sqlite_errorcode", None) == sqlite3.SQLITE_FULL:
-                # The failed transaction rolls back. Preserve existing entries
-                # and let the app pause sampling while the uploader drains them.
+        if (not self._text(owner, 128) or not self._text(captured_at, 64)
+                or not self._text(batch_id, 128, optional=True)
+                or not self._text(model_release, 128, optional=True)):
+            raise ValueError("invalid capture metadata")
+        with self.lock:
+            if (len(self._records) >= min(self.max_images, MAX_SPOOL_IMAGES)
+                    or self._bytes + len(jpeg) > min(self.max_bytes, MAX_SPOOL_BYTES)):
                 return None
-            raise
-        return capture_id
+            capture_id = str(uuid.uuid4())
+            self._sequence += 1
+            record = {"version": 1, "sequence": self._sequence, "capture_id": capture_id,
+                      "owner": owner, "captured_at": captured_at, "batch_id": batch_id,
+                      "model_release": model_release, "size": len(jpeg),
+                      "sha256": hashlib.sha256(jpeg).hexdigest()}
+            header = json.dumps(record, ensure_ascii=True, separators=(",", ":")).encode() + b"\n"
+            if len(header) > MAX_HEADER_BYTES:
+                raise ValueError("capture metadata is too large")
+            temporary = self.path / (".pending-" + uuid.uuid4().hex + ".tmp")
+            destination = self.path / self._filename(record)
+            published = False
+            try:
+                fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                with os.fdopen(fd, "wb") as stream:
+                    stream.write(header)
+                    stream.write(jpeg)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temporary, destination)
+                published = True
+                # Track the record before syncing the directory: if fsync fails,
+                # it still occupies quota and must never become an orphan.
+                self._records[capture_id] = (destination, record)
+                self._bytes += len(jpeg)
+                self._sync_directory()
+            except OSError as exc:
+                if not published:
+                    try:
+                        temporary.unlink(missing_ok=True)
+                    except OSError:
+                        # Restart cleans a bounded unpublished temp record.
+                        raise DeliveryError("spool_storage_error") from None
+                if not published and exc.errno in (errno.ENOSPC, errno.EDQUOT):
+                    return None
+                # A published record remains tracked, but durability is not
+                # confirmed if directory sync failed. Stop this sampling run
+                # instead of reporting a rejected frame and bypassing the
+                # finite session capture quota. Restart recovers this same ID.
+                raise DeliveryError("spool_storage_error") from None
+            return capture_id
 
     def oldest(self, owner):
-        with self._connect() as conn:
-            row = conn.execute("SELECT * FROM captures WHERE owner=? ORDER BY sequence LIMIT 1", (owner,)).fetchone()
-            return dict(row) if row else None
+        with self.lock:
+            candidates = [item for item in self._records.values() if item[1]["owner"] == owner]
+            if not candidates:
+                return None
+            path, indexed = min(candidates, key=lambda item: item[1]["sequence"])
+            record, jpeg = self._read_record(path, payload=True)
+            if record != indexed:
+                raise DeliveryError("capture_spool_corrupt")
+            return {**record, "jpeg": jpeg}
 
     def acknowledge(self, capture, receipt):
         if (not isinstance(receipt, dict) or receipt.get("received") is not True
                 or receipt.get("capture_id") != capture["capture_id"]
                 or type(receipt.get("asset_id")) is not int or receipt["asset_id"] <= 0):
             raise DeliveryError("capture_acknowledgement_mismatch")
-        try:
-            with self._connect() as conn:
-                conn.execute("DELETE FROM captures WHERE capture_id=? AND owner=?",
-                             (capture["capture_id"], capture["owner"]))
-        except sqlite3.OperationalError as exc:
-            if getattr(exc, "sqlite_errorcode", None) == sqlite3.SQLITE_FULL:
-                # Even an acknowledged entry needs journal space to remove.
-                # Retain it and replay the same ID after storage recovers.
-                raise DeliveryError("spool_storage_full") from None
-            raise
+        with self.lock:
+            item = self._records.get(capture["capture_id"])
+            if item is None:
+                return  # a repeated ACK is harmless
+            path, indexed = item
+            if capture["owner"] != indexed["owner"]:
+                raise DeliveryError("capture_acknowledgement_mismatch")
+            if self._read_record(path, payload=False) != indexed:
+                raise DeliveryError("capture_spool_corrupt")
+            try:
+                path.unlink()
+                self._records.pop(capture["capture_id"])
+                self._bytes -= indexed["size"]
+                self._sync_directory()
+            except OSError as exc:
+                # A failed unlink preserves the entry. A failed directory sync
+                # after unlink may replay the same server-acknowledged ID after
+                # power loss, which the server accepts idempotently.
+                raise DeliveryError("spool_storage_full" if exc.errno in (errno.ENOSPC, errno.EDQUOT)
+                                    else "spool_storage_error") from None
 
 
 class Uploader:
@@ -261,7 +377,7 @@ class Uploader:
         state = self.capture_state()
         if state["owner"] and now >= self.next_heartbeat:
             try:
-                self.client.heartbeat({"app_version": "1.0.0", "state": "capturing" if state["enabled"] else "paused",
+                self.client.heartbeat({"app_version": APP_VERSION, "state": "capturing" if state["enabled"] else "paused",
                                        **self.spool.stats(), "uploaded_images": self.uploaded,
                                        "last_error": self.last_error[:120]})
             except DeliveryError as exc:
