@@ -21,7 +21,7 @@ ssh -N -L 18080:127.0.0.1:8080 user@server
 
 多人内网访问时可在服务器 `.env` 设置 `MDP_BIND_ADDRESS=0.0.0.0`、`MDP_PORT=8080`，运行 `./start.sh --strict-port`，并限制网络访问范围。其他电脑通过 `http://服务器IP:8080` 访问，防火墙或云安全组需允许对应端口。跨网络协作通过 HTTPS 反向代理，设置 `MDP_COOKIE_SECURE=true` 和 `MDP_PUBLIC_ORIGIN=https://你的域名`。
 
-在服务器执行 `./start.sh --stop` 停止服务并保留数据；再次执行启动命令可恢复服务。完整参数与 PowerShell 对照见 [README](../README.md#启动参数)。
+在服务器执行 `./start.sh --stop` 停止服务并保留数据；再次执行启动命令可恢复服务。完整参数与 PowerShell 对照见 [中文 README](../README.zh-CN.md#启动参数)。
 
 内部 worker 端口不映射到宿主机，只允许同一 Compose 网络中的 Web 通过共享随机凭证调用。不要把 worker 的 8001 端口公开。
 

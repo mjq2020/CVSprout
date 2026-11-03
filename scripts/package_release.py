@@ -24,7 +24,7 @@ def main():
     with tempfile.TemporaryDirectory() as temporary:
         staging = Path(temporary) / name
         staging.mkdir()
-        for filename in ("start.sh", "start.ps1", "compose.yaml", "compose.gpu.yaml", "README.md", "CONTRIBUTING.md", "LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"):
+        for filename in ("start.sh", "start.ps1", "compose.yaml", "compose.gpu.yaml", "README.md", "README.zh-CN.md", "CONTRIBUTING.md", "LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"):
             shutil.copy2(ROOT / filename, staging / filename)
         shutil.copytree(ROOT / "docs", staging / "docs")
         edge_deploy = staging / "deploy" / "recamera"

@@ -1,191 +1,195 @@
 # CVSprout
 
+**English** | [简体中文](README.zh-CN.md)
+
 **Annotate, train, and deploy computer vision models on your own GPU.**
 
-用自己的 GPU 完成视觉模型工作流：导入图片 → AI 标注与人工审核 → 数据版本 → 训练 → 模型转换与推理部署。
+Run your computer vision workflow on your own hardware: import images → AI annotation and human review → dataset versioning → training → model conversion and inference deployment.
 
-支持目标检测、实例分割、图片分类和关键点。适合个人电脑、单台 GPU 服务器和小团队协作。
+CVSprout supports object detection, instance segmentation, image classification, and keypoints. It is designed for personal computers, single-GPU servers, and small teams.
 
-多人协作可启用[任务块领取](docs/user-guide.md#任务块协作)：管理员将图片按数量分块，成员独占领取，完成标注后交给审核员审核；全部通过的块保留完成记录，避免重复分配。
+Teams can use [work blocks](docs/user-guide.md#任务块协作): administrators split images into blocks, members claim blocks exclusively, and reviewers check the completed annotations. Fully approved blocks retain their completion records to prevent duplicate assignment.
 
-左侧导航集中显示当前项目、工作流程、标注服务状态和账号入口。底部“主题”可切换浅色、深色或跟随系统，浏览器会记住选择；手机点击顶部菜单打开导航。切换页面时保留内容并显示加载提示，数据搜索和加载更多保持操作位置；支持系统“减少动态效果”。详见[界面与主题](docs/user-guide.md#界面与主题)。
+The left sidebar brings together the current project, workflow, annotation service status, and account controls. The **Theme** control at the bottom switches between light, dark, and system settings, and the browser remembers your choice. On mobile, open navigation from the top menu. Page transitions keep existing content visible while loading, and data searches and loading more results preserve your position. The interface also respects the system's reduced-motion setting. See [Interface and themes](docs/user-guide.md#界面与主题).
 
-支持 [reCamera Pro 设备联动](docs/recamera-pro.md)：管理员在“边缘设备”创建接入，下载并安装 **CVSprout Connector**（应用 ID 沿用 `cvsprout-capture`），填写平台地址和设备令牌，即可自动上传原图到项目，沿用任务块协作流程。一个联动应用同时负责采集与模型传输。
+[reCamera Pro integration](docs/recamera-pro.md) is supported: administrators create a connection under **Edge devices**, download and install **CVSprout Connector** (which retains the application ID `cvsprout-capture`), and enter the platform URL and device token. The device then automatically uploads original images to the project for the same work-block collaboration workflow. A single connector handles both image capture and model transfer.
 
-完成 YOLOv8 / YOLO11 目标检测训练后，在“训练与转换”选择 **RKNN → reCamera Pro 系统模型**，再从“边缘设备 → 模型部署”发布并下发模型。可仅加入设备模型库，或明确确认后替换当前系统推理模型；页面分别显示入库与运行验证结果。系统模型由设备内置推理运行，设备主动领取任务，无需配置服务器到设备的 SSH 连接。需要兼容的设备固件及本机模型接口授权；原有独立推理应用包与 SSH 部署记录保留在旧版入口。
+After training a YOLOv8 / YOLO11 object detection model, select **RKNN → reCamera Pro system model** under **Training and conversion**, then publish and send the model from **Edge devices → Model deployment**. You can add it to the device's model library only, or explicitly confirm replacement of the active system inference model. The page reports model import and runtime verification separately. System models run through the device's built-in inference service, and the device polls for tasks, so no SSH connection from the server to the device is required. Compatible device firmware and authorization for the device's local model API are required. Existing standalone inference application packages and SSH deployment records remain available through the legacy interface.
 
-原创代码采用 [Apache-2.0](LICENSE)，允许免费商用。Ultralytics 等依赖和模型有各自的许可要求，涉及闭源商用时请先阅读 [第三方许可说明](THIRD_PARTY_NOTICES.md)。
+Original code is licensed under [Apache-2.0](LICENSE), allowing free commercial use. Dependencies and models, including Ultralytics, have their own licensing requirements. Read the [Third-party notices](THIRD_PARTY_NOTICES.md) before using them in a closed-source commercial product.
 
-## 快速启动
+## Quick start
 
-准备 Docker。NVIDIA GPU 用户还需可用的驱动和容器 GPU 支持：
+Install Docker. NVIDIA GPU users also need working drivers and container GPU support:
 
-| 环境 | 安装要求 |
+| Environment | Requirements |
 |---|---|
-| Linux x86-64 | Docker Engine、Compose；GPU 模式另需 NVIDIA Container Toolkit |
-| Windows x86-64 | Docker Desktop，启用 WSL2；GPU 模式使用支持 WSL2 的 NVIDIA 驱动 |
-| CPU | 可人工标注和小规模训练；大型模型建议使用 GPU |
-| macOS / AMD GPU | 本版本未验证本机加速；可用浏览器访问 GPU 服务器 |
+| Linux x86-64 | Docker Engine and Compose; GPU mode also requires NVIDIA Container Toolkit |
+| Windows x86-64 | Docker Desktop with WSL2 enabled; GPU mode requires an NVIDIA driver with WSL2 support |
+| CPU | Supports manual annotation and small training jobs; a GPU is recommended for large models |
+| macOS / AMD GPU | Native acceleration has not been verified in this release; use a browser to access a GPU server |
 
-当前可以克隆源码启动；正式发行版发布后，也可以下载安装包：
+You can currently start from a source checkout. Installer packages will also be available once official releases are published:
 
 ```bash
 git clone https://github.com/mjq2020/CVSprout.git
 cd CVSprout
 ```
 
-在项目目录执行：
+Run from the project directory:
 
 ```bash
-# Linux / WSL：首次自动检测 NVIDIA；之后沿用上次成功启动的模式
+# Linux / WSL: detect NVIDIA on first launch, then reuse the last successful mode
 ./start.sh
 ```
 
-Windows PowerShell：
+Windows PowerShell:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\start.ps1
 ```
 
-首次默认使用 http://127.0.0.1:8000；端口被占用时自动分配可用端口。打开启动输出中的实际地址，复制初始化口令，在网页创建管理员。启动成功后，实际端口会保存到 `.env` 的 `MDP_PORT`，下次沿用；`./start.sh --status` 也会显示当前访问地址。
+The initial default address is http://127.0.0.1:8000. If the port is occupied, the launcher automatically selects an available one. Open the actual URL printed by the launcher, copy the setup token, and create an administrator account in the browser. After a successful start, the actual port is saved as `MDP_PORT` in `.env` for future launches. `./start.sh --status` also shows the current URL.
 
-正式发行包拉取预构建镜像。源码目录的 `MDP_VERSION=local` 会自动构建镜像，第一次启动需要下载依赖；**本地构建完成不代表镜像已经发布到 GHCR**。
+Official release packages pull prebuilt images. A source checkout uses `MDP_VERSION=local` and builds images automatically, so the first launch needs to download dependencies. **Completing a local build does not mean the images have been published to GHCR.**
 
-## 启动参数
+## Startup options
 
-下列命令在服务器或本机的项目目录执行。Linux / WSL 使用 `./start.sh`；PowerShell 使用 `.\start.ps1`。若 Windows 执行策略阻止脚本，将示例中的 `.\start.ps1` 替换为 `powershell -ExecutionPolicy Bypass -File .\start.ps1`，其后参数保持不变。
+Run these commands from the project directory on your server or local machine. Use `./start.sh` on Linux / WSL and `.\start.ps1` in PowerShell. If Windows execution policy blocks the script, replace `.\start.ps1` in the examples with `powershell -ExecutionPolicy Bypass -File .\start.ps1` and keep the remaining arguments unchanged.
 
-| Linux / WSL 参数 | PowerShell 参数 | 作用 |
+| Linux / WSL option | PowerShell option | Behavior |
 |---|---|---|
-| 不带参数 | 不带参数 | 启动 Web 和 worker。首次自动检测 NVIDIA，没有可用的 NVIDIA 检测结果时选择 CPU；后续沿用上次成功启动的模式 |
-| `--cpu` | `-Cpu` | 显式使用 CPU；成功启动后记住此模式 |
-| `--gpu` | `-Gpu` | 显式使用 NVIDIA GPU；成功启动后记住此模式。GPU 环境检查失败会报错 |
-| `--port 8080` | `-Port 8080` | 指定宿主机端口，范围为 0–65535；0 表示让 Docker 分配可用端口 |
-| `--strict-port` | `-StrictPort` | 端口被占用时直接报错，禁止自动换端口。需要固定端口时与非零端口一起使用 |
-| `--check` | `-Check` | 仅检查运行环境，不启动 Web 和常驻 worker；可能构建或拉取镜像，并运行临时诊断容器 |
-| `--status` | `-Status` | 查看容器状态；服务运行时显示访问地址和尚未完成初始化时的口令 |
-| `--stop` | `-Stop` | 停止 Web 和 worker，保留容器、账号、项目、模型和数据卷 |
-| `--build` | `-Build` | 强制从源码构建镜像后继续启动或检查，需要完整源码；不代表清除构建缓存 |
-| `--help` | 无对应参数；使用 `Get-Help .\start.ps1` | 显示脚本用法；PowerShell 使用内置帮助命令 |
+| No arguments | No arguments | Start the web service and worker. Detect NVIDIA on first launch and choose CPU if no usable NVIDIA device is detected; subsequent launches reuse the last successful mode |
+| `--cpu` | `-Cpu` | Explicitly use CPU and remember this mode after a successful start |
+| `--gpu` | `-Gpu` | Explicitly use NVIDIA GPU and remember this mode after a successful start; fail if GPU environment checks fail |
+| `--port 8080` | `-Port 8080` | Set the host port from 0–65535; 0 lets Docker allocate an available port |
+| `--strict-port` | `-StrictPort` | Fail if the port is occupied instead of switching automatically; combine with a nonzero port when a fixed port is required |
+| `--check` | `-Check` | Check the environment without starting the web service or a persistent worker; may build or pull images and run temporary diagnostic containers |
+| `--status` | `-Status` | Show container status, the URL of running services, and the setup token if initialization is incomplete |
+| `--stop` | `-Stop` | Stop the web service and worker while retaining containers, accounts, projects, models, and data volumes |
+| `--build` | `-Build` | Force an image build from source before starting or checking; requires a full source checkout and does not clear the build cache |
+| `--help` | No equivalent option; use `Get-Help .\start.ps1` | Show script usage; PowerShell uses its built-in help command |
 
-`--cpu` / `--gpu` 选择一种；`--check` / `--status` / `--stop` 每次选择一种操作。不指定操作时就是启动。端口、模式和严格模式可以组合；Bash 也支持 `--port=8080`。
+Choose only one of `--cpu` / `--gpu`, and only one operation from `--check` / `--status` / `--stop`. With no operation specified, the script starts the services. Port, device mode, and strict-port settings can be combined. Bash also accepts `--port=8080`.
 
-常用组合，按需要选择一条执行：
+Common combinations:
 
-| 场景 | Linux / WSL | PowerShell |
+| Scenario | Linux / WSL | PowerShell |
 |---|---|---|
-| 使用 GPU，在 8080 端口启动，占用时自动切换 | `./start.sh --gpu --port 8080` | `.\start.ps1 -Gpu -Port 8080` |
-| 使用 CPU，在固定 8080 端口启动 | `./start.sh --cpu --port 8080 --strict-port` | `.\start.ps1 -Cpu -Port 8080 -StrictPort` |
-| 自动分配端口 | `./start.sh --port 0` | `.\start.ps1 -Port 0` |
-| 检查 GPU 是否可用 | `./start.sh --gpu --check` | `.\start.ps1 -Gpu -Check` |
-| 修改源码后重新构建并启动 | `./start.sh --build` | `.\start.ps1 -Build` |
+| Start with GPU on port 8080, switching ports if occupied | `./start.sh --gpu --port 8080` | `.\start.ps1 -Gpu -Port 8080` |
+| Start with CPU on a fixed port 8080 | `./start.sh --cpu --port 8080 --strict-port` | `.\start.ps1 -Cpu -Port 8080 -StrictPort` |
+| Allocate a port automatically | `./start.sh --port 0` | `.\start.ps1 -Port 0` |
+| Check GPU availability | `./start.sh --gpu --check` | `.\start.ps1 -Gpu -Check` |
+| Rebuild and start after source changes | `./start.sh --build` | `.\start.ps1 -Build` |
 
-端口优先级：命令行参数 > 当前终端的 `MDP_PORT` 环境变量 > `.env` 中的 `MDP_PORT` > 默认 8000。启动成功后实际端口写回 `.env`；若终端仍设置了 `MDP_PORT`，下次启动仍优先使用终端的值。自动切换只处理端口占用，其他错误需要按输出排查。
+Port precedence is: command-line argument > `MDP_PORT` in the current shell environment > `MDP_PORT` in `.env` > default `8000`. After a successful start, the actual port is written back to `.env`. If the shell still sets `MDP_PORT`, that value takes precedence on the next launch. Automatic port switching only handles occupied ports; use the command output to diagnose other errors.
 
-## 停止与重新启动
+## Stopping and restarting
 
-启动完成后服务在后台运行，关闭终端不会停止服务。需要停止时执行：
+Services run in the background after startup, so closing the terminal does not stop them. To stop:
 
 ```bash
 ./start.sh --stop
 ```
 
-Windows PowerShell 对应命令：
+Windows PowerShell equivalent:
 
 ```powershell
 .\start.ps1 -Stop
 ```
 
-停止会中断正在执行的训练或推理，建议在任务完成后操作。停止后数据仍保留，重新执行 `./start.sh` / `.\start.ps1` 即可启动；需要重启时，先执行停止命令，成功后再执行启动命令。再次启动会进行正常的镜像和环境检查，不代表自动续训被中断的任务。
+Stopping interrupts active training or inference, so wait for tasks to finish when possible. Data is retained. Run `./start.sh` / `.\start.ps1` again to start the services. To restart, stop them first and run the start command after the stop succeeds. Starting again performs the normal image and environment checks; it does not automatically resume interrupted training.
 
-查看正在运行的服务及访问地址：`./start.sh --status` / `.\start.ps1 -Status`。停止和状态查询不需要再次指定端口，脚本会读取项目配置。
+Check running services and their URL with `./start.sh --status` / `.\start.ps1 -Status`. Stop and status commands read the project configuration, so you do not need to specify the port again.
 
-## 远程访问与常用配置
+## Remote access and common settings
 
-首次执行启动脚本会从 `.env.example` 创建 `.env`。以后直接修改 `.env` 中对应的配置项，保留自己的其他设置；修改后再次执行启动命令生效。
+On first run, the launcher creates `.env` from `.env.example`. Edit the relevant settings in `.env`, keeping your other configuration, and run the start command again to apply changes.
 
-| 配置项 | 默认值 | 用途 |
+| Setting | Default | Purpose |
 |---|---|---|
-| `MDP_BIND_ADDRESS` | `127.0.0.1` | 默认仅本机访问；局域网 / VPN 访问可改成 `0.0.0.0` |
-| `MDP_PORT` | `8000` | 宿主机端口；启动成功后保存实际使用的端口 |
-| `MDP_GPU_DEVICES` | `0` | GPU 模式下可见的物理 GPU；可填写逗号分隔的索引或 UUID |
+| `MDP_BIND_ADDRESS` | `127.0.0.1` | Local access only by default; use `0.0.0.0` for LAN / VPN access |
+| `MDP_PORT` | `8000` | Host port; the actual port is saved after a successful start |
+| `MDP_GPU_DEVICES` | `0` | Physical GPUs visible in GPU mode; accepts comma-separated indices or UUIDs |
 
-如果要从局域网或 VPN 中的其他电脑访问，在服务器的 `.env` 中设置：
+To access the service from another computer on your LAN or VPN, set the following in the server's `.env`:
 
 ```dotenv
 MDP_BIND_ADDRESS=0.0.0.0
 MDP_PORT=8080
 ```
 
-然后执行 `./start.sh --strict-port`（PowerShell：`.\start.ps1 -StrictPort`），在自己的电脑打开 `http://服务器IP:8080`。例如 `http://192.168.1.100:8080`；远程电脑应使用服务器的真实 IP，即使启动输出显示的是 `127.0.0.1`。服务器防火墙或云安全组需允许访问所选端口。端口被占用时可修改端口，或去掉严格模式并使用实际分配的新端口，同时更新相应网络规则。
+Then run `./start.sh --strict-port` (PowerShell: `.\start.ps1 -StrictPort`) and open `http://SERVER_IP:8080` on your computer, for example `http://192.168.1.100:8080`. Remote clients must use the server's actual IP address even if the launcher prints `127.0.0.1`. The server firewall or cloud security group must allow access to the selected port. If that port is occupied, change it or remove strict mode and use the newly allocated port, updating the network rules accordingly.
 
-公网服务器的个人访问可以通过 SSH 转发，保持服务仅监听 `127.0.0.1`；多人跨网络访问使用 HTTPS 反向代理。具体启动、转发和域名配置见 [远程服务器使用方式](docs/remote-server.md)。训练使用部署服务器的 GPU，浏览器所在电脑不需要 GPU。
+For personal access to a public server, use SSH forwarding while keeping the service bound to `127.0.0.1`. For multiple users across networks, use an HTTPS reverse proxy. See [Remote server access](docs/remote-server.md) for startup, forwarding, and domain configuration. Training uses the deployment server's GPU; the computer running the browser does not need one.
 
-## 第一次使用
+## First use
 
-1. 登录后创建项目，选择任务类型。需要 AI 初标时，在“模型服务”准备对应模型；人工标注和创建训练不要求先下载训练权重。
-2. 在项目中定义类别、上传图片。可使用 AI 预标注，再人工修正；也可直接手工标注。多人协作时，由管理员创建任务块，成员领取自己的块后开始标注；负责人也可对本块尚未提交审核的图片运行 AI，保留人工绘制和人工校正的标注。
-3. 审核数据：单图按 `Y` 通过、`X` 打开退回窗口，退回原因可留空；成功后自动进入下一张待审核图片。块内审核保持块范围，处理完后返回任务块列表；项目审核处理完后返回数据页的待审核列表。然后创建数据版本并划分训练集、验证集。
-4. 创建训练，按名称或模型系列筛选，选择起始模型和计算设备。内置 85 个选项：检测 38 个、实例分割 17 个、分类和关键点各 15 个，详见[模型清单与选择](docs/user-guide.md#选择模型与初始化方式)。默认勾选“使用预训练权重”，缺少的官方权重在任务准备时自动下载；取消勾选则从模型结构随机初始化。管理员可在训练弹窗内“上传自己的 .pt 权重”。第一次建议少量图片、1–3 轮，先验证流程。按钮不可点击时查看旁边的原因，详见 [训练故障排查](docs/installation.md#开始新训练按钮不可点击)。
-5. 训练完成后下载模型，或点击“下载推理部署包”，在目标机器启动预测接口。
+1. Sign in, create a project, and select its task type. For AI pre-annotation, prepare the appropriate model under **Model services**. Manual annotation and creating a training job do not require downloading training weights first.
+2. Define classes and upload images. Use AI pre-annotation followed by manual corrections, or annotate manually from the start. For team collaboration, an administrator creates work blocks and members claim their own blocks before annotating. Block owners can also run AI on images in their block that have not yet been submitted for review, preserving manually drawn and manually corrected annotations.
+3. Review the data: press `Y` to approve an image or `X` to open the rejection dialog; the rejection reason is optional. After a successful action, the next pending image opens automatically. Block reviews stay within the block and return to the work-block list when finished; project reviews return to the pending-review list on the data page. Then create a dataset version and split it into training and validation sets.
+4. Create a training job, filter by name or model family, and select a starting model and compute device. There are 85 built-in options: 38 for detection, 17 for instance segmentation, and 15 each for classification and keypoints. See [Model selection and initialization](docs/user-guide.md#选择模型与初始化方式). **Use pretrained weights** is enabled by default; missing official weights download automatically during task preparation. Disable it to initialize randomly from the model architecture. Administrators can **Upload custom .pt weights** in the training dialog. For your first run, use a small image set and 1–3 epochs to verify the workflow. If the start button is disabled, check the reason displayed beside it; see [Training troubleshooting](docs/installation.md#开始新训练按钮不可点击).
+5. After training, download the model or choose **Download inference deployment package** and start the prediction API on your target machine.
 
-官方训练模型从固定来源按需下载，校验大小和 SHA-256，支持中断后续传。下载进度在训练记录中显示，准备阶段可取消，失败后可重试；下载完成前不占用 GPU。离线使用可提前在“模型服务”下载，或由管理员导入自己的兼容 Ultralytics `.pt` 权重；不会覆盖同名模型。模型列表按检测、分割、分类和关键点任务筛选。
+Official training models download on demand from fixed sources, with file-size and SHA-256 verification and support for resuming interrupted downloads. Training records show download progress. Preparation can be canceled, and failed downloads can be retried; the GPU is not occupied until downloads finish. For offline use, download models in advance under **Model services**, or have an administrator import compatible Ultralytics `.pt` weights. Existing models with the same name are not overwritten. The model list can be filtered by detection, segmentation, classification, and keypoint tasks.
 
-AI 标注支持 Qwen3.5 本地推理：明确选中模型后后台下载，也可在“模型服务”提前下载；0.8B 权重约 1.77 GB，35B-A3B 约 71.93 GB，需根据内存及显存选择。SAM2 / SAM3 由用户自行下载并放入页面指定目录，点击“重新检查”即可识别；项目不会自动下载 SAM 权重。SAM3 同时支持目标检测与实例分割，按项目类型输出矩形框或多边形。默认路径、文件名及 Docker 复制命令见[标注模型操作](docs/user-guide.md#内置本地标注模型)。
+AI annotation supports local Qwen3.5 inference. Downloads start in the background after you explicitly select a model, or you can download it in advance under **Model services**. The 0.8B weights are approximately 1.77 GB, and 35B-A3B approximately 71.93 GB; choose according to your available RAM and VRAM. Download SAM2 / SAM3 weights yourself, place them in the directory shown in the interface, and select **Recheck** to detect them. The project does not automatically download SAM weights. SAM3 supports both object detection and instance segmentation, producing bounding boxes or polygons according to the project type. See [Built-in local annotation models](docs/user-guide.md#内置本地标注模型) for default paths, filenames, and Docker copy commands.
 
-管理员可在项目卡片点击“删除”，完整输入项目名称后永久删除项目及其数据版本、训练产物；有任务排队、执行或图片正在编辑时会阻止删除。需要保留项目时可使用“归档”。详见 [删除项目](docs/user-guide.md#删除项目)。
+Administrators can select **Delete** on a project card and enter the full project name to permanently delete the project, its dataset versions, and training artifacts. Deletion is blocked while tasks are queued or running, or images are being edited. Use **Archive** to retain a project. See [Deleting projects](docs/user-guide.md#删除项目).
 
-单卡默认串行使用 GPU，标注等待正在执行的训练；预览在 GPU 忙碌时给出提示。GPU 标注完成后释放缓存模型，避免空闲模型占用训练显存。多卡通过 `.env` 的 `MDP_GPU_DEVICES` 指定可见设备。
+A single GPU is used serially by default: annotation waits for active training, and previews show a notice when the GPU is busy. Cached models are released after GPU annotation to keep idle models from occupying training VRAM. For multiple GPUs, set visible devices through `MDP_GPU_DEVICES` in `.env`.
 
-## 数据与日常管理
+## Data and routine administration
 
-数据和模型分别保存在 Compose 持久卷 `visionforge-data`、`visionforge-models` 中，普通重启和镜像升级会保留。**`docker compose down -v` 会删除数据卷。**
+Data and models are stored in the persistent Compose volumes `visionforge-data` and `visionforge-models`, respectively. Normal restarts and image upgrades preserve them. **`docker compose down -v` deletes these volumes.**
 
-升级前备份数据卷和模型卷。首次使用新版的已有安装请先阅读 [迁移与备份](docs/operations.md)，特别是旧版机器专属的模型路径。
+Back up both volumes before upgrading. Existing installations moving to a new release should first read [Migration and backups](docs/operations.md), especially the notes on machine-specific model paths used by older versions.
 
-## 升级后页面提示接口不可用
+## API unavailable after an upgrade
 
-仅执行 `git pull` 会更新源码文件，已经运行的 Python 进程仍可能使用旧接口。新版页面请求任务块接口时，旧后端会返回 404；这类版本不一致不代表项目数据被删除。新版页面会明确提示更新服务；确认是未启用任务块的旧项目时，仍可继续原来的标注与审核流程。
+Running `git pull` only updates source files; an already running Python process may still serve the old API. When the updated interface requests work-block endpoints, an older backend returns 404. This version mismatch does not mean project data was deleted. The updated interface explicitly asks you to update the service. For confirmed legacy projects without work blocks enabled, the original annotation and review workflow remains available.
 
-源码通过 Docker 部署时，先等待正在运行的任务结束，停止服务并按上文备份，再更新并重新构建、启动 Web 和 worker：
+For a Docker deployment from source, wait for active tasks to finish, stop the services, back up as described above, then update, rebuild, and start the web service and worker:
 
 ```bash
 ./start.sh --stop
-# 完成备份后继续
+# Continue after completing the backup
 git pull
 ./start.sh --build
 ```
 
-脚本沿用已保存的 CPU / GPU 模式和 `.env` 配置；原先需要命令行指定端口或严格模式时，仍带上相同参数，例如 `./start.sh --gpu --port 8080 --strict-port --build`。PowerShell 对应 `.\start.ps1 -Stop`、`git pull`、`.\start.ps1 -Build`，同样保留原来的 `-Cpu` / `-Gpu`、`-Port` 和 `-StrictPort` 设置。成功后刷新浏览器，必要时按 `Ctrl+Shift+R` 强制刷新。
+The launcher reuses the saved CPU / GPU mode and `.env` configuration. If you previously needed command-line port or strict-port settings, keep passing them, for example `./start.sh --gpu --port 8080 --strict-port --build`. The PowerShell equivalents are `.\start.ps1 -Stop`, `git pull`, and `.\start.ps1 -Build`, preserving the same `-Cpu` / `-Gpu`, `-Port`, and `-StrictPort` settings. Refresh the browser after startup succeeds; use `Ctrl+Shift+R` for a hard refresh if needed.
 
-直接使用 Python 启动时，在原启动终端按 `Ctrl+C` 停止服务，备份后执行 `git pull`，同步当前 CPU / GPU 模式所用的依赖文件，再使用原有环境变量、地址和端口重新启动。例如本机开发模式使用 `.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000`；另行启动的 worker 也需按原命令重启。由服务管理器托管时，重启对应的 Web 和 worker 服务。最后刷新浏览器，确保前后端来自同一次更新。
+If running directly with Python, press `Ctrl+C` in the original terminal to stop the service, back up, run `git pull`, install the updated dependencies for your current CPU / GPU mode, and restart with the original environment variables, address, and port. For example, local development uses `.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000`. Restart any separately launched worker with its original command as well. If a service manager controls the processes, restart the corresponding web and worker services. Finally, refresh the browser so the frontend and backend come from the same update.
 
-## 文档
+## Documentation
 
-- [模块与功能说明](docs/modules-and-features.md)：业务功能、角色权限、数据流和源码索引
-- [生产部署与上线审查](docs/production.md)
-- [安装、GPU 检查与故障排查](docs/installation.md)
-- [远程服务器使用方式](docs/remote-server.md)
-- [模型推理部署](docs/deployment.md)
-- [reCamera Pro 采集与模型部署](docs/recamera-pro.md)：Connector 安装、自动导入、系统模型发布与启用、能力检查及旧版部署兼容
-- [详细业务使用手册](docs/user-guide.md)
-- [架构与开发](docs/architecture.md)
-- [参与开发](CONTRIBUTING.md)
-- [迁移、备份和升级](docs/operations.md)
-- [发布发行包](docs/releases.md)
-- [第三方组件与模型许可](THIRD_PARTY_NOTICES.md)
+The detailed guides below are currently in Chinese. A [Chinese README](README.zh-CN.md) is also available.
 
-## 开发与测试
+- [Modules and features](docs/modules-and-features.md): functionality, role permissions, data flow, and source code index
+- [Production deployment and launch review](docs/production.md)
+- [Installation, GPU checks, and troubleshooting](docs/installation.md)
+- [Remote server access](docs/remote-server.md)
+- [Model inference deployment](docs/deployment.md)
+- [reCamera Pro capture and model deployment](docs/recamera-pro.md): Connector installation, automatic imports, system model publishing and activation, capability checks, and legacy deployment compatibility
+- [Detailed user guide](docs/user-guide.md)
+- [Architecture and development](docs/architecture.md)
+- [Contributing](CONTRIBUTING.md)
+- [Migration, backups, and upgrades](docs/operations.md)
+- [Packaging releases](docs/releases.md)
+- [Third-party component and model licenses](THIRD_PARTY_NOTICES.md)
 
-以下命令在源码目录执行；发行安装包仅包含启动配置和文档。
+## Development and testing
+
+Run these commands from a source checkout. Release installers include only startup configuration and documentation.
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements/worker-cpu.txt
-# NVIDIA 开发环境改用 requirements/worker-gpu.txt
+# Use requirements/worker-gpu.txt for NVIDIA development environments
 cp .env.example .env
 .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
-# 另一个终端查看首次设置口令
+# In another terminal, retrieve the initial setup token
 .venv/bin/python -m app.setup
 ```
 
@@ -194,8 +198,8 @@ cp .env.example .env
 .venv/bin/python scripts/smoke_pipeline.py
 .venv/bin/python scripts/smoke_training_initialization.py
 .venv/bin/python scripts/smoke_open_source.py --device cpu
-# 单卡 GPU 实测，可先设置 CUDA_VISIBLE_DEVICES
+# Single-GPU validation; set CUDA_VISIBLE_DEVICES first if needed
 .venv/bin/python scripts/smoke_open_source.py --device cuda:0
 ```
 
-真实冒烟使用临时目录、合成图片和随机初始权重，验证执行链路，不能代表模型精度。初始化冒烟加 `--download-official` 可验证真实官方权重下载与训练；默认不下载权重。详细验证范围见 [测试记录](docs/verification.md)。
+Smoke tests run the pipeline in temporary directories with synthetic images and randomly initialized weights. They verify execution, not model accuracy. Add `--download-official` to the training-initialization smoke test to verify actual official weight downloads and training; it does not download weights by default. See [Verification records](docs/verification.md) for detailed coverage.
