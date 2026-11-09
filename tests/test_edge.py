@@ -288,6 +288,33 @@ class EdgeIngestionTest(unittest.TestCase):
         self.assertEqual(self.client.get("/api/edge/v1/config").status_code, 401)
         self.assertEqual(self.client.patch(f"/api/edge/devices/{self.device['id']}", json={"project_id": 99}).status_code, 422)
 
+    def test_device_list_project_filter_keeps_connection_details_and_unfiltered_behavior(self):
+        disconnected = self.create(name="Not connected yet")
+        project = self.client.post("/api/projects", json={"name": "Other device project", "task_type": "detect", "labels": ["other"]}).json()
+        other = self.create(project_id=project["id"])
+        self.assertEqual(self.config().status_code, 200)
+
+        response = self.client.get("/api/edge/devices", params={"project_id": self.project_id})
+        self.assertEqual(response.status_code, 200, response.text)
+        devices = {device["id"]: device for device in response.json()["devices"]}
+        self.assertEqual(set(devices), {self.device["id"], disconnected["id"]})
+        self.assertTrue(all(device["project_id"] == self.project_id for device in devices.values()))
+        self.assertTrue(devices[self.device["id"]]["connection"]["online"])
+        self.assertEqual(devices[disconnected["id"]]["connection"]["state"], "never_connected")
+        self.assertNotIn("token_hash", response.text)
+        self.assertNotIn(self.token, response.text)
+        all_devices = self.client.get("/api/edge/devices").json()["devices"]
+        self.assertEqual({device["id"] for device in all_devices}, {self.device["id"], disconnected["id"], other["id"]})
+        self.assertEqual(self.client.get("/api/edge/devices", params={"project_id": 2**63 - 1}).json(), {"devices": []})
+        for invalid in (0, -1, 2**63, "not-a-project"):
+            self.assertEqual(self.client.get("/api/edge/devices", params={"project_id": invalid}).status_code, 422)
+
+    def test_project_filter_does_not_grant_project_owners_device_administration(self):
+        self.app.dependency_overrides[get_actor] = lambda: Actor(
+            "project-owner", "annotator", project_id=self.project_id, project_role="owner")
+        response = self.client.get("/api/edge/devices", params={"project_id": self.project_id})
+        self.assertEqual(response.status_code, 403, response.text)
+
     def test_same_capture_retry_and_same_content_different_events(self):
         first = self.capture(batch_id="day1", model_release="release-2")
         self.assertEqual(first.status_code, 201, first.text)
@@ -465,6 +492,7 @@ class EdgeIngestionTest(unittest.TestCase):
             headers = {"x-test-role": role}
             for method, url, payload in [
                 ("GET", "/api/edge/devices", None),
+                ("GET", f"/api/edge/devices?project_id={self.project_id}", None),
                 ("POST", "/api/edge/devices", {"name": "bad", "project_id": self.project_id}),
                 ("PATCH", f"/api/edge/devices/{self.device['id']}", {"capture_enabled": False}),
                 ("POST", f"/api/edge/devices/{self.device['id']}/rotate-token", None),
@@ -478,7 +506,7 @@ class EdgeIngestionTest(unittest.TestCase):
         self.app.dependency_overrides.pop(get_actor)
         for mode in ("disabled", "accounts"):
             object.__setattr__(settings, "auth_mode", mode)
-            for path in ("/api/edge/devices", "/api/projects"):
+            for path in ("/api/edge/devices", f"/api/edge/devices?project_id={self.project_id}", "/api/projects"):
                 for prefix in ("Bearer ", "Bearer   "):
                     response = self.client.get(path, headers={"Authorization": prefix + self.token})
                     self.assertEqual(response.status_code, 403, response.text)

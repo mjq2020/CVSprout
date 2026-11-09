@@ -1,10 +1,11 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 // Run with: node scripts/check_annotation_task_state.mjs
 // Exercise the real task controls with deferred requests; no server or database is used.
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import assert from "node:assert/strict";
 
-const source = readFileSync(new URL("../static/task-ui.js", import.meta.url), "utf8")
+const source = stripI18nImports(readFileSync(new URL("../static/task-ui.js", import.meta.url), "utf8"))
   .replace(/^import[^\n]*\n/, "")
   .replace(/^export \{[^\n]*\};?$/m, "");
 
@@ -31,7 +32,7 @@ function setup(task = "classify") {
     saveAnnotation: () => response, defaultAttributes: () => ({}), drawDraft: () => events.push(["draw"]),
     setSaveFeedback: (...args) => { state.saveFeedback = args; events.push(["feedback", ...args]); },
   };
-  vm.createContext(context); vm.runInContext(source, context);
+  vm.createContext(withI18n(context)); vm.runInContext(source, context);
   return { state, context, events, resolve, reject };
 }
 

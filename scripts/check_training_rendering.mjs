@@ -1,10 +1,11 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const source = fs.readFileSync(new URL('../static/app.js', import.meta.url), 'utf8');
+const source = stripI18nImports(fs.readFileSync(new URL('../static/app.js', import.meta.url), 'utf8'));
 const extract = (start, end) => source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
-const nav = fs.readFileSync(new URL('../static/workspace-navigation.js', import.meta.url), 'utf8');
+const nav = stripI18nImports(fs.readFileSync(new URL('../static/workspace-navigation.js', import.meta.url), 'utf8'));
 const tabCode = nav.slice(nav.indexOf('export function sectionTabsMarkup('), nav.indexOf('export function bindSectionTabs(')).replaceAll('export function', 'function');
 const renderCode = extract('const trainingBackgroundConversions = new Map();', '\nfunction captureTrainingViewState(');
 const conversionCode = extract('async function loadRunConversions(', '\nfunction renderTrainingLogConsole(');
@@ -20,7 +21,7 @@ function fixture() {
   Object.defineProperty(app, 'innerHTML', { set(value) {
     writes++; const slot = { innerHTML: '' }; page = { html: value, querySelector: selector => selector === '[data-training-sync-slot]' ? slot : null, querySelectorAll: () => ['overview', 'details', 'conversions'].map(id => ({ dataset: { sectionTab: `train:${id}` }, textContent: id })) };
   }});
-  const context = vm.createContext({ state, app, console,
+  const context = vm.createContext(withI18n({ state, app, console,
     document: { querySelector: selector => selector === '.project-page' ? page : composing ? {} : null },
     deferRenderForNavigation: () => false, captureTrainingViewState: () => null,
     getSectionTab: () => tab, monitoredTrainingRun: () => state.selectedTrainingRun, trainingReadiness: () => ({ ready: true, runtimeHealthy: true, reason: 'ready' }),
@@ -29,7 +30,7 @@ function fixture() {
     trainingListMarkup: () => '', trainingStatusLabel() {}, trainingTaskInfo() {}, formatDateTime() {}, trainingTaskCapabilityCard() {}, trainingCatalogModelCard() {}, trainingLicenseMarkup: () => '',
     bindCommonProjectEvents: () => { bindings++; }, bindTrainingPageEvents() {}, restoreTrainingViewState() {},
     pipelineApi: () => { const d = deferred(); calls.push(d); return d.promise; }, notify: (...args) => notices.push(args),
-  });
+  }));
   vm.runInContext(tabCode + '\n' + renderCode + '\n' + conversionCode + '\n' + syncCode, context);
   return { state, context, calls, notices, render: () => context.renderTrainingPage(), load: options => context.loadRunConversions(7, options),
     get page() { return page; }, get writes() { return writes; }, get bindings() { return bindings; },

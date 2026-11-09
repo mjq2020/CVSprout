@@ -1,3 +1,4 @@
+import { t } from "./i18n.js?v=0.29.3";
 // Navigation feedback is explicit: polling and list updates never animate the page.
 const pendingLoads = new WeakMap();
 const entryTimers = new WeakMap();
@@ -16,7 +17,7 @@ export function cancelWorkspaceLoad(app) {
   pendingLoads.get(app)?.cancel();
 }
 
-export function beginWorkspaceLoad(app, { message = "正在加载页面…", fallback } = {}) {
+export function beginWorkspaceLoad(app, { message = t("正在加载页面…"), fallback } = {}) {
   cancelWorkspaceLoad(app);
   let main = app.querySelector(".app-shell > main");
   const initial = !main;

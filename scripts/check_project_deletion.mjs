@@ -1,9 +1,10 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 // Exercise the real project cards, deletion flow, HTTP wrapper, and modal lifecycle without deleting real data.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const source = readFileSync(new URL("../static/app.js", import.meta.url), "utf8");
+const source = stripI18nImports(readFileSync(new URL("../static/app.js", import.meta.url), "utf8"));
 function extract(start, end) {
   const from = source.indexOf(start), to = source.indexOf(end, from);
   assert(from >= 0 && to > from, `Cannot locate ${start}`);
@@ -56,10 +57,10 @@ function fixture({ name = "园区安全帽", archived = false, admin = true } = 
       ui.opened.push(ui.current);
     },
   };
-  const context = vm.createContext({
+  const context = vm.createContext(withI18n({
     state, location, document, modalRoot, modalCleanup: null, modalReturnFocus: null, annotationMenu: null, dashboardRequest: 3,
     Headers, actorId: "admin", editorToken: "test", TASK_LABELS: { detect: "目标检测" },
-    isAdmin: () => role.admin, icon: () => "", scopeWorkBlockRequest: path => path, setTimeout: () => 0,
+    canEditProject: () => true, canExportProject: () => true, isAdmin: () => role.admin, canManageProject: () => role.admin, icon: () => "", scopeWorkBlockRequest: path => path, setTimeout: () => 0,
     notify: (message, type = "success") => ui.notices.push({ message, type }),
     loadDashboard: async () => { ui.refreshes++; }, renderLoginScreen: message => ui.logins.push(message), renderAccountPage() {},
     fetch: async (path, options) => {
@@ -67,7 +68,7 @@ function fixture({ name = "园区安全帽", archived = false, admin = true } = 
       if (server.gate) await server.gate.promise;
       return { ok: server.status < 400, status: server.status, json: async () => structuredClone(server.data) };
     },
-  });
+  }));
   vm.runInContext(code, context);
   const open = (id = 7) => { context.openProjectDeleteModal(id); return ui.current; };
   const type = (value, event = "input") => { ui.current.input.value = value; ui.current.input.dispatch(event); };

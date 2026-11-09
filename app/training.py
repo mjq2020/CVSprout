@@ -32,6 +32,7 @@ from .auth import Actor, get_actor, require_reviewer
 from .config import settings
 from .worker_client import on_worker
 from . import conversion_support as conversion_tools
+from .project_access import recheck_access
 from .database import all_rows, audit, db, now_iso, one
 from .dataset_versions import build_version_export
 from .file_responses import pinned_file_response
@@ -1215,6 +1216,7 @@ def create_training_run(
     now = now_iso()
     with db() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         if not conn.execute("SELECT 1 FROM dataset_versions WHERE id=? AND project_id=?",
                             (payload.version_id, project_id)).fetchone():
             raise HTTPException(404, "项目或数据集版本已被删除，请返回项目列表")
@@ -1366,6 +1368,7 @@ def retry_training_run(
     try:
         with db() as conn:
             conn.execute("BEGIN IMMEDIATE")
+            recheck_access(conn, actor)
             locked_row = conn.execute(
                 "SELECT * FROM training_runs WHERE id = ?", (run_id,)
             ).fetchone()
@@ -1492,6 +1495,8 @@ def cancel_training_run(run_id: int, actor: Actor = Depends(get_actor)) -> dict[
         raise HTTPException(409, "训练任务已经结束")
     now = now_iso()
     with db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         conn.execute(
             """UPDATE training_runs SET cancel_requested = 1,
                status = CASE WHEN status = 'queued' THEN 'cancelled' ELSE status END,
@@ -1567,10 +1572,25 @@ def _validate_conversion_architecture(run: dict[str, Any], format: str, image_si
 def _system_model_options(run: dict[str, Any]) -> dict[str, Any]:
     from .recamera_export import system_algorithm
     metadata = _parse_json(run.get("artifact_metadata_json"))
-    algorithm = system_algorithm(metadata.get("model_arch", ""))
+    artifact_arch = metadata.get("model_arch")
+    artifact_arch = artifact_arch if isinstance(artifact_arch, str) else ""
+    # The run's label is useful for diagnostics, but only artifact metadata
+    # can establish architecture compatibility (a checkpoint can be renamed).
+    source_arch = artifact_arch or run.get("model_arch") or "未记录"
+    algorithm = system_algorithm(artifact_arch)
     available = run["task"] == "detect" and algorithm is not None
+    supported = "目前仅支持 YOLOv8 / YOLO11 目标检测。"
+    if run["task"] != "detect":
+        task_label = {"segment": "实例分割", "classify": "图像分类", "pose": "姿态估计", "obb": "旋转框检测"}.get(run["task"], run["task"])
+        reason = f"当前训练任务为{task_label}，不支持 reCamera Pro 系统模型导出。{supported}"
+    elif not artifact_arch:
+        reason = f"训练产物未记录模型架构，无法确认系统模型兼容性；不能仅凭训练名称或权重文件名判断。{supported}请重新训练兼容模型后转换。"
+    elif not available:
+        reason = f"当前训练模型 {source_arch} 尚未适配 reCamera Pro 系统模型导出。{supported}请使用兼容模型重新训练，或选择通用 RKNN 并自行提供推理程序。"
+    else:
+        reason = ""
     return {"available": available, "profile": "recamera_system", "algorithms": ["yolov8", "yolo11"],
-            "algorithm": algorithm, "reason": "" if available else "系统模型首期支持 YOLOv8 / YOLO11 目标检测；请使用通用导出或选择兼容训练模型。"}
+            "algorithm": algorithm, "source_model_arch": source_arch, "reason": reason}
 
 
 @router.get("/training-runs/{run_id}/artifact")
@@ -1657,6 +1677,7 @@ def create_conversion(
     settings_json = payload.model_dump()
     with db() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         if not conn.execute("SELECT 1 FROM training_runs WHERE id=?", (run_id,)).fetchone():
             raise HTTPException(404, "训练记录或所属项目已被删除，请返回项目列表")
         cursor = conn.execute(
@@ -1735,6 +1756,8 @@ def cancel_conversion(
         raise HTTPException(409, "模型转换任务已经结束")
     now = now_iso()
     with db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         conn.execute(
             """UPDATE model_conversions SET cancel_requested = 1,
                status = CASE WHEN status = 'queued' THEN 'cancelled' ELSE status END,
@@ -1785,6 +1808,7 @@ def retry_conversion(
     try:
         with db() as conn:
             conn.execute("BEGIN IMMEDIATE")
+            recheck_access(conn, actor)
             locked_row = conn.execute(
                 "SELECT * FROM model_conversions WHERE id = ?", (conversion_id,)
             ).fetchone()

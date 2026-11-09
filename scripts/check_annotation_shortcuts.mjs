@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 // Offline shortcut regression: node scripts/check_annotation_shortcuts.mjs
 // Uses injected DOM/application doubles; does not start a server or write any data.
 import assert from 'node:assert/strict';

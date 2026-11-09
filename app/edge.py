@@ -301,10 +301,15 @@ def _audit(conn, actor: Actor, action: str, device: dict, payload: dict | None =
 
 
 @router.get("/devices")
-def list_devices(actor: Actor = Depends(get_actor)) -> dict:
+def list_devices(project_id: int | None = Query(default=None, ge=1, le=2**63 - 1),
+                 actor: Actor = Depends(get_actor)) -> dict:
     require_admin(actor)
+    query, parameters = "SELECT * FROM edge_devices", ()
+    if project_id is not None:
+        query += " WHERE project_id=?"
+        parameters = (project_id,)
     with db() as conn:
-        return {"devices": [_present(conn, dict(row)) for row in conn.execute("SELECT * FROM edge_devices ORDER BY created_at DESC,id")]}
+        return {"devices": [_present(conn, dict(row)) for row in conn.execute(query + " ORDER BY created_at DESC,id", parameters)]}
 
 
 @router.post("/devices", status_code=201)

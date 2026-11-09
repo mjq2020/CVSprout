@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 // Run: node scripts/check_dataset_split.mjs
 // Offline regression of the real control handlers; no server or data writes.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const source = readFileSync(new URL("../static/dataset-ui.js", import.meta.url), "utf8");
-const { adjustSplitPercentages, adjustSplitBoundaryPercentages, estimatedSplitCounts, datasetSplitControlsMarkup, bindDatasetSplitControls } = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
+const source = stripI18nImports(readFileSync(new URL("../static/dataset-ui.js", import.meta.url), "utf8"));
+const { adjustSplitPercentages, adjustSplitBoundaryPercentages, estimatedSplitCounts, datasetSplitControlsMarkup, bindDatasetSplitControls } = await import('../static/dataset-ui.js');
 const splits = ["train", "valid", "test"];
 function valid(value) {
   assert.equal(value.train + value.valid + value.test, 100);

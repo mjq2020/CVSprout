@@ -39,7 +39,7 @@ class UserCreate(BaseModel):
     username: str = Field(pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{1,63}$")
     display_name: str = Field(min_length=1, max_length=80)
     password: str = Field(min_length=12, max_length=256)
-    role: Literal["admin", "annotator", "reviewer"] = "annotator"
+    role: Literal["admin", "user"] = "user"
 
     @field_validator("username")
     @classmethod
@@ -82,7 +82,7 @@ class RegistrationCreate(BaseModel):
 class RegistrationReview(BaseModel):
     model_config = ConfigDict(extra="forbid")
     action: Literal["approve", "reject"]
-    role: Literal["admin", "annotator", "reviewer"] | None = None
+    role: Literal["admin", "user"] | None = None
     reason: str = Field(default="", max_length=1000)
     expected_revision: int = Field(strict=True, ge=1, le=9223372036854775807)
 
@@ -103,7 +103,7 @@ class RegistrationReview(BaseModel):
 class UserUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     display_name: str | None = Field(default=None, min_length=1, max_length=80)
-    role: Literal["admin", "annotator", "reviewer"] | None = None
+    role: Literal["admin", "user"] | None = None
     enabled: bool | None = None
     password: str | None = Field(default=None, min_length=12, max_length=256)
 
@@ -554,7 +554,7 @@ def change_password(payload: PasswordChange, request: Request, response: Respons
 
 @router.get("/users")
 def list_users(request: Request, q: str = Query(default="", max_length=100),
-               role: Literal["admin", "annotator", "reviewer"] | None = None,
+               role: Literal["admin", "user"] | None = None,
                enabled: bool | None = None, page: int = Query(default=1, ge=1),
                page_size: int = Query(default=25, ge=1, le=100), actor: Actor = Depends(get_actor)):
     require_admin(actor)

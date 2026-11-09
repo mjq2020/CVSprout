@@ -92,6 +92,168 @@ class EdgeSystemModelsTest(unittest.TestCase):
     def options(self):
         return self.client.get(f"/api/edge/devices/{self.device['id']}/system-models").json()
 
+    def test_model_name_defaults_are_shared_by_candidates_releases_and_deployments(self):
+        release = self.release()
+        contract = release["contract"]
+        expected = f"yolov8-run{contract['training_run_id']}-conv{contract['conversion_id']}"
+        self.assertEqual(release["default_model_name"], expected)
+        self.assertEqual(self.status().status_code, 200)
+        options = self.options()
+        self.assertEqual(options["conversions"][0]["default_model_name"], expected)
+        self.assertEqual(options["releases"][0]["default_model_name"], expected)
+        for changes in ({}, {"model_name": ""}, {"model_name": "   "}):
+            with self.subTest(changes=changes):
+                response = self.queue(release, **changes)
+                self.assertEqual(response.status_code, 202, response.text)
+                task = response.json()
+                self.assertEqual(task["model_name"], expected)
+                self.assertEqual(task["filename"], f"{expected}-r{release['id']}.rknn")
+                self.assertEqual(self.options()["deployments"][0]["filename"], task["filename"])
+                self.assertEqual(self.client.post(f"/api/edge/devices/{self.device['id']}/model-deployments/{task['id']}/cancel").status_code, 200)
+
+    def test_custom_name_is_preserved_for_claim_download_resume_and_running_verification(self):
+        release = self.release()
+        self.assertEqual(self.status().status_code, 200)
+        queued = self.queue(release, model_name="  Factory_Line-1  ", activate=True)
+        self.assertEqual(queued.status_code, 202, queued.text)
+        name = f"Factory_Line-1-r{release['id']}.rknn"
+        self.assertEqual(queued.json()["model_name"], "Factory_Line-1")
+        self.assertEqual(queued.json()["filename"], name)
+        task = self.claim(lease_token=secrets.token_urlsafe(32)).json()["task"]
+        self.assertEqual(task["filename"], name)
+        self.assertEqual(task["model_info"], release["model_info"])
+        recovered = self.claim(task_id=task["id"], lease_token=task["lease_token"]).json()["task"]
+        self.assertEqual(recovered["filename"], name)
+        headers = {**self.headers(), "X-Agent-Id": self.agent_id, "X-Model-Lease": task["lease_token"]}
+        response = self.client.get(task["artifact_url"], headers=headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(f'filename="{name}"', response.headers["content-disposition"])
+        self.assertEqual(hashlib.sha256(response.content).hexdigest(), release["sha256"])
+        stored = one("SELECT * FROM edge_model_releases WHERE id=?", (release["id"],))
+        self.assertEqual(models._release_path(stored).name, release["filename"])
+        self.assertNotEqual(release["filename"], name)
+        self.assertEqual(self.report(task, status="succeeded", stage="verified", current=self.runtime(release["filename"])).status_code, 409)
+        result = self.report(task, status="succeeded", stage="verified", current=self.runtime(name))
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertEqual(result.json()["task"]["filename"], name)
+        self.assertEqual(self.options()["current"]["sModel"], name)
+
+    def test_same_release_can_use_different_device_names_and_release_suffix_prevents_collisions(self):
+        release = self.release()
+        self.assertEqual(self.status().status_code, 200)
+        first = self.queue(release, model_name="Camera_A").json()
+        other = self.create()
+        status = self.client.post("/api/edge/v1/system/status", headers=self.headers(other["device_token"]),
+                                 json={"agent_id": self.agent_id, "capabilities": {"model_api": True, "algorithms": ["yolov8"]}})
+        self.assertEqual(status.status_code, 200, status.text)
+        second = self.client.post(f"/api/edge/devices/{other['id']}/model-deployments",
+                                  json={"release_id": release["id"], "model_name": "Camera_B"})
+        self.assertEqual(second.status_code, 202, second.text)
+        self.assertEqual(second.json()["filename"], f"Camera_B-r{release['id']}.rknn")
+        self.assertNotEqual(first["filename"], second.json()["filename"])
+        self.assertEqual(one("SELECT COUNT(*) n FROM edge_model_releases")["n"], 1)
+        self.assertEqual(self.client.post(f"/api/edge/devices/{self.device['id']}/model-deployments/{first['id']}/cancel").status_code, 200)
+        newer = self.release()
+        third = self.queue(newer, model_name="Camera_A")
+        self.assertEqual(third.status_code, 202, third.text)
+        self.assertEqual(third.json()["filename"], f"Camera_A-r{newer['id']}.rknn")
+        self.assertNotEqual(first["filename"], third.json()["filename"])
+
+    def test_model_names_reject_unsafe_paths_types_and_lengths_before_enqueue(self):
+        release = self.release()
+        self.assertEqual(self.status().status_code, 200)
+        for invalid in ("../model", "a/b", "a\\b", "a.b", "model.rknn", "-name", "_name", "模型", "a b",
+                        "a\x00b", "a\nb", "a" * 65, None, 123, True):
+            with self.subTest(model_name=invalid):
+                response = self.queue(release, model_name=invalid)
+                self.assertEqual(response.status_code, 422, response.text)
+        self.assertEqual(one("SELECT COUNT(*) n FROM edge_model_deployments")["n"], 0)
+        maximum = self.queue(release, model_name="A" * 64)
+        self.assertEqual(maximum.status_code, 202, maximum.text)
+        self.assertEqual(maximum.json()["model_name"], "A" * 64)
+
+    def test_name_migration_preserves_claimed_legacy_filename_and_is_idempotent(self):
+        release, task = self.setup_task()
+        with db() as conn:
+            # Reproduce the pre-name schema with a live persisted deployment lease.
+            conn.execute("ALTER TABLE edge_model_deployments DROP COLUMN model_name")
+            conn.execute("DELETE FROM schema_migrations WHERE version=17")
+        before = one("SELECT * FROM edge_model_deployments WHERE id=?", (task["id"],))
+        init_db()
+        init_db()
+        after = one("SELECT * FROM edge_model_deployments WHERE id=?", (task["id"],))
+        self.assertEqual(after.pop("model_name"), "")
+        self.assertEqual(after, before)
+        self.assertEqual(one("SELECT COUNT(*) n FROM schema_migrations WHERE version=17")["n"], 1)
+        observed = self.claim(task_id=task["id"], lease_token=task["lease_token"], observe_only=True).json()["task"]
+        self.assertEqual(observed["filename"], release["filename"])
+        self.assertEqual(observed["model_name"], "")
+        self.assertEqual(self.options()["deployments"][0]["filename"], release["filename"])
+        headers = {**self.headers(), "X-Agent-Id": self.agent_id, "X-Model-Lease": task["lease_token"]}
+        download = self.client.get(task["artifact_url"], headers=headers)
+        self.assertEqual(download.status_code, 200)
+        self.assertIn(f'filename="{release["filename"]}"', download.headers["content-disposition"])
+        self.assertEqual(self.report(task, status="succeeded", stage="verified", current=self.runtime(task["filename"])).status_code, 409)
+        legacy_result = self.report(task, status="succeeded", stage="verified", current=self.runtime(release["filename"]))
+        self.assertEqual(legacy_result.status_code, 200, legacy_result.text)
+        named = self.queue(release, model_name="After_Migration").json()
+        init_db()
+        self.assertEqual(self.options()["deployments"][0]["filename"], named["filename"])
+        self.assertEqual(one("SELECT model_name FROM edge_model_deployments WHERE id=?", (named["id"],))["model_name"], "After_Migration")
+
+    def test_selected_conversion_beyond_recent_limit_keeps_device_deployment_occupancy(self):
+        old_conversion = self.conversion()
+        old_release = self.release(old_conversion)
+        with db() as conn:
+            for _ in range(100):
+                newer_conversion = conn.execute("""INSERT INTO model_conversions
+                    (training_run_id,format,status,artifact_metadata_json,created_by,created_at)
+                    SELECT training_run_id,format,status,artifact_metadata_json,created_by,created_at
+                    FROM model_conversions WHERE id=?""", (old_conversion,)).lastrowid
+                conn.execute("""INSERT INTO edge_model_releases(project_id,conversion_id,status,created_at)
+                    VALUES (?,?,'failed',?)""", (self.project_id, newer_conversion, now_iso()))
+        active_release = self.release()
+        self.assertEqual(self.status().status_code, 200)
+        queued = self.queue(active_release)
+        self.assertEqual(queued.status_code, 202, queued.text)
+        unfiltered = self.options()
+        self.assertEqual(len(unfiltered["conversions"]), 100)
+        self.assertEqual(len(unfiltered["releases"]), 100)
+        self.assertNotIn(old_conversion, [item["id"] for item in unfiltered["conversions"]])
+        self.assertNotIn(old_release["id"], [item["id"] for item in unfiltered["releases"]])
+
+        response = self.client.get(f"/api/edge/devices/{self.device['id']}/system-models",
+                                   params={"conversion_id": old_conversion})
+        self.assertEqual(response.status_code, 200, response.text)
+        selected = response.json()
+        self.assertEqual([item["id"] for item in selected["conversions"]], [old_conversion])
+        self.assertTrue(selected["conversions"][0]["compatible"])
+        self.assertEqual([item["id"] for item in selected["releases"]], [old_release["id"]])
+        self.assertEqual([item["id"] for item in selected["deployments"]], [queued.json()["id"]])
+        self.assertFalse(selected["can_deploy"])
+        self.assertIn("已有部署任务", selected["blocked_reason"])
+
+    def test_conversion_filter_cannot_cross_projects_and_rejects_invalid_ids(self):
+        local_release = self.release()
+        project = self.client.post("/api/projects", json={"name": "Other", "task_type": "detect", "labels": ["other"]}).json()
+        foreign_conversion = self.conversion(project["id"])
+        self.release(foreign_conversion)
+        url = f"/api/edge/devices/{self.device['id']}/system-models"
+        for conversion_id in (foreign_conversion, 2**63 - 1):
+            response = self.client.get(url, params={"conversion_id": conversion_id})
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()["project_id"], self.project_id)
+            self.assertEqual(response.json()["conversions"], [])
+            self.assertEqual(response.json()["releases"], [])
+        selected = self.client.get(url, params={"conversion_id": local_release["conversion_id"]}).json()
+        self.assertEqual([item["id"] for item in selected["releases"]], [local_release["id"]])
+        for invalid in ("0", "-1", "abc", "1.5", str(2**63)):
+            with self.subTest(conversion_id=invalid):
+                self.assertEqual(self.client.get(url, params={"conversion_id": invalid}).status_code, 422)
+        for role in ("annotator", "reviewer"):
+            self.assertEqual(self.client.get(url, params={"conversion_id": local_release["conversion_id"]},
+                                             headers={"x-test-role": role}).status_code, 403)
+
     def test_release_is_immutable_and_checks_both_hashes(self):
         conversion = self.conversion()
         release = self.release(conversion)
@@ -380,15 +542,21 @@ class EdgeSystemModelsTest(unittest.TestCase):
         self.assertEqual(self.client.post(url).status_code, 409)
         project = self.client.post("/api/projects", json={"name": "Other", "task_type": "detect", "labels": ["other"]}).json()
         other = self.create(project_id=project["id"])
+        options = self.client.get(f"/api/edge/devices/{other['id']}/system-models")
+        self.assertEqual(options.status_code, 200, options.text)
+        self.assertEqual(options.json()["project_id"], project["id"])
+        self.assertEqual(options.json()["conversions"], [])
+        self.assertEqual(options.json()["releases"], [])
         response = self.client.post(f"/api/edge/devices/{other['id']}/model-deployments", json={"release_id": release["id"]})
         self.assertEqual(response.status_code, 404)
 
     def test_admin_only_and_legacy_deployments_are_mutually_exclusive(self):
         release, task = self.setup_task()
-        for path, method, body in ((f"/api/edge/devices/{self.device['id']}/system-models", "GET", None),
-                                  ("/api/edge/model-releases", "POST", {"conversion_id": release["conversion_id"]}),
-                                  (f"/api/edge/devices/{self.device['id']}/model-deployments", "POST", {"release_id": release["id"]})):
-            self.assertEqual(self.client.request(method, path, headers={"x-test-role": "annotator"}, json=body).status_code, 403)
+        for role in ("annotator", "reviewer"):
+            for path, method, body in ((f"/api/edge/devices/{self.device['id']}/system-models", "GET", None),
+                                      ("/api/edge/model-releases", "POST", {"conversion_id": release["conversion_id"]}),
+                                      (f"/api/edge/devices/{self.device['id']}/model-deployments", "POST", {"release_id": release["id"]})):
+                self.assertEqual(self.client.request(method, path, headers={"x-test-role": role}, json=body).status_code, 403)
         conversion = legacy_tests.EdgeDeploymentTest.conversion(self)
         response = self.client.post("/api/edge/releases", json={"conversion_id": conversion})
         self.assertEqual(response.status_code, 201, response.text)

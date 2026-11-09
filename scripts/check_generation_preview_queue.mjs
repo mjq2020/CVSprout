@@ -1,3 +1,4 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 import assert from 'node:assert/strict';
 import { createGenerationPreviewQueue } from '../static/dataset-generation.js';
 

@@ -1,0 +1,7 @@
+.project-access-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; color:var(--muted); font-size:13px; }
+.project-access-bar:has(span:empty):not(:has(button)) { display:none; }
+.project-member-row { display:grid; grid-template-columns:minmax(120px,1fr) 120px minmax(150px,1fr) auto auto; align-items:center; gap:12px; padding:16px 0; border-bottom:1px solid var(--line); }
+.project-member-row small { display:block; margin-top:4px; color:var(--muted); }
+.project-member-row select { width:100%; margin-top:4px; min-height:38px; padding:7px; border:1px solid var(--line); border-radius:8px; color:var(--text); background:var(--panel); font:inherit; }
+.library-views .check-line { margin:0 0 0 12px; align-self:center; white-space:nowrap; }
+@media (max-width:700px) { .project-member-row { grid-template-columns:1fr 1fr; } .project-member-row .check-line { grid-column:1 / -1; } .library-views { flex-wrap:wrap; } }

@@ -72,6 +72,9 @@ class WorkBlocksTest(unittest.TestCase):
         created = self.request("POST", "/api/projects", json={"name": "Work blocks", "task_type": task, "labels": ["object"]})
         self.assertEqual(created.status_code, 201, created.text)
         project = self.client.get(f"/api/projects/{created.json()['id']}").json()
+        with db() as conn:
+            conn.execute("""INSERT INTO project_members(project_id,user_id,role,created_at)
+                SELECT ?,id,'editor',? FROM users WHERE id<>?""", (project["id"], now_iso(), self.users["admin"]["id"]))
         assets = [self.upload(project, index) for index in range(count)]
         if annotated:
             for asset_id in assets:

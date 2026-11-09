@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from PIL import Image, ImageOps
 
 from .config import BASE_DIR, settings
-from .auth import Actor, create_session_identity, get_actor, require_reviewer, require_admin, password_change_required
+from .auth import Actor, create_session_identity, get_actor, require_reviewer, require_admin, require_project_manager, require_project_editor, password_change_required
 from .analytics import router as analytics_router
 from .accounts import router as accounts_router
 from .review import router as review_router
@@ -28,9 +28,11 @@ from .asset_management import router as asset_management_router
 from .project_deletion import router as project_deletion_router
 from .security import browser_security, request_budget
 from .http_limits import RequestBodyLimit
+from .i18n import LocaleMiddleware, negotiate_language, validation_message
 from .collaboration import active_job_for_assets, guard_asset, guard_job_targets, foreign_edit_lock
 from .work_blocks import router as work_blocks_router, guard_block_asset, eligible_ai_asset_ids, refresh_block, owner_key
 from .task_types import validate_task_annotation
+from .project_access import recheck_access, router as project_members_router, permissions as project_permissions
 from .database import all_rows, audit, db, init_db, now_iso, one
 from .dataset_versions import router as dataset_versions_router, build_project_export
 from .jobs import JobWorker
@@ -113,6 +115,8 @@ async def lifespan(application: FastAPI):
 app = FastAPI(title="CVSprout 标注平台", version="0.27.0", lifespan=lifespan)
 app.middleware("http")(browser_security)
 app.add_middleware(RequestBodyLimit, policy=request_budget)
+app.add_middleware(LocaleMiddleware)
+app.include_router(project_members_router)
 app.include_router(accounts_router)
 app.include_router(review_router)
 app.include_router(work_blocks_router)
@@ -133,8 +137,9 @@ app.include_router(edge_deployment_router)
 async def validation_error_without_inputs(request: Request, exc: RequestValidationError):
     # Pydantic's default error payload includes the rejected input, including
     # passwords. Clients need the field and explanation, never the original value.
+    locale = negotiate_language(request.headers.get("accept-language", ""))
     return JSONResponse(status_code=422, content={"detail": [
-        {"loc": list(error["loc"]), "msg": error["msg"], "type": error["type"]}
+        {"loc": list(error["loc"]), "msg": validation_message(error, locale), "type": error["type"]}
         for error in exc.errors()
     ]})
 
@@ -415,7 +420,7 @@ def annotation_model_preparation(model_id: str, _: Actor = Depends(get_actor)) -
 def prepare_annotation_model(model_id: str, actor: Actor = Depends(get_actor)) -> dict:
     if actor.must_change_password:
         raise password_change_required()
-    if actor.role not in {"admin", "annotator", "reviewer"}:
+    if actor.role not in {"admin", "user", "annotator", "reviewer"}:
         raise HTTPException(403, "需要标注员或审核员权限")
     model = get_model(model_id)
     if not model:
@@ -434,45 +439,52 @@ def prepare_annotation_model(model_id: str, actor: Actor = Depends(get_actor)) -
 
 
 @app.get("/api/projects")
-def projects(archived: bool = False, actor: Actor = Depends(get_actor)) -> list[dict]:
-    if archived:
+def projects(archived: bool = False, scope: str = "accessible", actor: Actor = Depends(get_actor)) -> list[dict]:
+    if scope not in {"accessible", "mine", "shared", "all"}:
+        raise HTTPException(422, "项目范围无效")
+    if scope == "all":
         require_admin(actor)
-    rows = all_rows(
-        """SELECT p.*,
-                  COUNT(DISTINCT a.id) AS asset_count,
-                  COUNT(DISTINCT CASE WHEN a.status = 'labeled' THEN a.id END) AS labeled_count,
-                  COUNT(DISTINCT CASE WHEN a.review_status = 'submitted' THEN a.id END) AS submitted_count,
-                  COUNT(DISTINCT CASE WHEN a.review_status = 'approved' THEN a.id END) AS approved_count,
-                  COUNT(DISTINCT l.id) AS label_count
-           FROM projects p
-           LEFT JOIN assets a ON a.project_id = p.id
-           LEFT JOIN labels l ON l.project_id = p.id
-           WHERE (p.archived_at IS NOT NULL) = ?
-           GROUP BY p.id ORDER BY p.updated_at DESC, p.id DESC""",
-        (archived,),
-    )
-    # A bounded filmstrip per project; fetch all previews in one query.
-    previews = all_rows(
-        """SELECT id, project_id FROM (
-             SELECT a.id, a.project_id,
-                    ROW_NUMBER() OVER (PARTITION BY a.project_id ORDER BY a.id DESC) AS position
-             FROM assets a JOIN projects p ON p.id = a.project_id
-             WHERE (p.archived_at IS NOT NULL) = ?
-           ) WHERE position <= 3 ORDER BY project_id, position""", (archived,)
-    )
-    by_project: dict[int, list[int]] = {}
-    for preview in previews:
-        by_project.setdefault(preview["project_id"], []).append(preview["id"])
-    for row in rows:
-        row["preview_asset_ids"] = by_project.get(row["id"], [])
+    clause = "(p.archived_at IS NOT NULL) = ?"
+    params = [archived]
+    if scope == "mine":
+        clause += " AND p.owner_user_id = ?"
+        params.append(actor.user_id)
+    elif scope == "shared":
+        clause += " AND p.id IN (SELECT project_id FROM project_members WHERE user_id=?) AND (p.owner_user_id IS NULL OR p.owner_user_id<>?)"
+        params.extend([actor.user_id, actor.user_id])
+    elif actor.role != "admin":
+        clause += " AND (p.owner_user_id=? OR p.id IN (SELECT project_id FROM project_members WHERE user_id=?))"
+        params.extend([actor.user_id, actor.user_id])
+    with db() as conn:
+        rows = [dict(row) for row in conn.execute(f"""SELECT p.*,u.display_name AS owner_name,u.username AS owner_username,
+            COUNT(DISTINCT a.id) AS asset_count,
+            COUNT(DISTINCT CASE WHEN a.status='labeled' THEN a.id END) AS labeled_count,
+            COUNT(DISTINCT CASE WHEN a.review_status='submitted' THEN a.id END) AS submitted_count,
+            COUNT(DISTINCT CASE WHEN a.review_status='approved' THEN a.id END) AS approved_count,
+            COUNT(DISTINCT l.id) AS label_count FROM projects p
+            LEFT JOIN users u ON u.id=p.owner_user_id LEFT JOIN assets a ON a.project_id=p.id
+            LEFT JOIN labels l ON l.project_id=p.id WHERE {clause}
+            GROUP BY p.id ORDER BY p.updated_at DESC,p.id DESC""", params)]
+        previews = conn.execute(f"""SELECT id,project_id FROM (
+            SELECT a.id,a.project_id,ROW_NUMBER() OVER (PARTITION BY a.project_id ORDER BY a.id DESC) AS position
+            FROM assets a JOIN projects p ON p.id=a.project_id WHERE {clause}
+            ) WHERE position<=3 ORDER BY project_id,position""", params)
+        by_project = {}
+        for item in previews:
+            by_project.setdefault(item["project_id"], []).append(item["id"])
+        for row in rows:
+            row["preview_asset_ids"] = by_project.get(row["id"], [])
+            row.update(project_permissions(conn, row, actor))
     return rows
 
 
 @app.patch("/api/projects/{project_id}/archive")
 def archive_project(project_id: int, payload: ProjectArchiveUpdate, actor: Actor = Depends(get_actor)) -> dict:
-    require_admin(actor)
+    require_project_manager(actor)
     # Archiving organizes the project list; it never deletes data or stops work.
     with db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor, manage=True)
         changed = conn.execute(
             "UPDATE projects SET archived_at = ? WHERE id = ?",
             (now_iso() if payload.archived else None, project_id),
@@ -485,15 +497,20 @@ def archive_project(project_id: int, payload: ProjectArchiveUpdate, actor: Actor
 
 @app.post("/api/projects", status_code=201)
 def create_project(payload: ProjectCreate, actor: Actor = Depends(get_actor)) -> dict:
-    require_admin(actor)
+    if actor.must_change_password:
+        raise password_change_required()
+    if actor.role != "admin" and actor.user_id is None:
+        raise HTTPException(403, "请使用独立账号创建项目")
     now = now_iso()
     label_names = payload.labels or ["object"]
     palette = ["#22c55e", "#38bdf8", "#f97316", "#a78bfa", "#f43f5e", "#facc15"]
     with db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         cursor = conn.execute(
-            "INSERT INTO projects (name, description, task_type, keypoint_schema_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO projects (name, description, task_type, keypoint_schema_json, created_at, updated_at, owner_user_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (payload.name, payload.description, payload.task_type,
-             json.dumps(payload.keypoint_schema.model_dump() if payload.keypoint_schema else {}), now, now),
+             json.dumps(payload.keypoint_schema.model_dump() if payload.keypoint_schema else {}), now, now, actor.user_id),
         )
         project_id = cursor.lastrowid
         for index, label_name in enumerate(label_names):
@@ -511,8 +528,10 @@ def create_project(payload: ProjectCreate, actor: Actor = Depends(get_actor)) ->
 
 
 @app.get("/api/projects/{project_id}")
-def project_detail(project_id: int, _: Actor = Depends(get_actor)) -> dict:
+def project_detail(project_id: int, actor: Actor = Depends(get_actor)) -> dict:
     project = require_project(project_id)
+    with db() as conn:
+        project.update(project_permissions(conn, project, actor))
     project["labels"] = all_rows(
         "SELECT * FROM labels WHERE project_id = ? ORDER BY id", (project_id,)
     )
@@ -532,10 +551,12 @@ def project_detail(project_id: int, _: Actor = Depends(get_actor)) -> dict:
 
 @app.post("/api/projects/{project_id}/labels", status_code=201)
 def create_label(project_id: int, payload: LabelCreate, actor: Actor = Depends(get_actor)) -> dict:
-    require_admin(actor)
+    require_project_editor(actor)
     require_project(project_id)
     try:
         with db() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            recheck_access(conn, actor)
             cursor = conn.execute(
                 """INSERT INTO labels
                    (project_id, name, color, shortcut, attributes_schema_json, created_at)
@@ -558,7 +579,7 @@ def create_label(project_id: int, payload: LabelCreate, actor: Actor = Depends(g
 
 @app.delete("/api/labels/{label_id}")
 def delete_label(label_id: int, actor: Actor = Depends(get_actor)) -> dict:
-    require_admin(actor)
+    require_project_editor(actor)
     label = one("SELECT * FROM labels WHERE id = ?", (label_id,))
     if not label:
         raise HTTPException(404, "标签不存在")
@@ -569,6 +590,8 @@ def delete_label(label_id: int, actor: Actor = Depends(get_actor)) -> dict:
     if usage and usage["count"]:
         raise HTTPException(409, "标签已有标注历史，不能删除；请保留它以保证审计和导出可追溯")
     with db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         conn.execute("DELETE FROM labels WHERE id = ?", (label_id,))
     audit(actor.id, "delete", "label", label_id, label["project_id"])
     return {"deleted": True}
@@ -592,6 +615,7 @@ async def upload_assets(
                 )
         with db() as conn:
             conn.execute("BEGIN IMMEDIATE")
+            recheck_access(conn, actor)
             if not conn.execute("SELECT 1 FROM projects WHERE id=?", (project_id,)).fetchone():
                 raise HTTPException(404, "项目已被删除，请返回项目列表")
             for image in stored:
@@ -726,6 +750,7 @@ def acquire_asset_lock(asset_id: int, actor: Actor = Depends(get_actor)) -> dict
     now = now_iso()
     with db() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         active_job = active_job_for_assets(conn, asset["project_id"], [asset_id])
         if active_job:
             raise HTTPException(409, f"图片正在由 AI 任务 #{active_job} 处理，暂时只读")
@@ -734,9 +759,9 @@ def acquire_asset_lock(asset_id: int, actor: Actor = Depends(get_actor)) -> dict
             raise HTTPException(404, "图片已被删除，请刷新图片列表")
         asset = dict(row)
         guard_block_asset(conn, asset, actor, action=(
-            "review" if asset["review_status"] in {"submitted", "approved"} and actor.role in {"admin", "reviewer"}
+            "review" if asset["review_status"] in {"submitted", "approved"} and (actor.role in {"admin", "reviewer"} or actor.project_role in {"owner", "editor"})
             else "edit"))
-        if asset["review_status"] in {"submitted", "approved"} and actor.role == "annotator":
+        if asset["review_status"] in {"submitted", "approved"} and actor.role == "annotator" and actor.project_role not in {"owner", "editor"}:
             raise HTTPException(409, "图片已提交审核，标注员当前只读；需撤回或由审核员重新打开")
         cursor = conn.execute(
             """UPDATE assets SET lock_owner = ?, lock_expires_at = ?, lock_token = ?
@@ -759,6 +784,8 @@ def acquire_asset_lock(asset_id: int, actor: Actor = Depends(get_actor)) -> dict
 def release_asset_lock(asset_id: int, actor: Actor = Depends(get_actor)) -> dict:
     require_asset(asset_id)
     with db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         cursor = conn.execute(
             """UPDATE assets SET lock_owner = NULL, lock_expires_at = NULL, lock_token = NULL
                WHERE id = ? AND lock_owner = ? AND lock_token IS ?""",
@@ -777,6 +804,7 @@ def update_asset_workflow(
     if payload.action == "confirm_empty":
         with db() as conn:
             conn.execute("BEGIN IMMEDIATE")
+            recheck_access(conn, actor)
             current = guard_asset(conn, asset_id, actor)
             if current["revision"] != payload.expected_revision:
                 raise HTTPException(409, "图片已变化，请刷新后重新检查")
@@ -811,6 +839,7 @@ def update_asset_workflow(
     now = now_iso()
     with db() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         current = guard_asset(conn, asset_id, actor, editable=False, action=(
             "review" if payload.action in {"approve", "reject"} else "reopen" if payload.action == "reopen" else "edit"))
         if payload.action in {"submit", "approve"}:
@@ -881,6 +910,7 @@ def create_annotation(
     now = now_iso()
     with db() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         guard_asset(conn, asset_id, actor)
         if payload.shape_type == "classification" and conn.execute(
             "SELECT 1 FROM annotations WHERE asset_id=? AND deleted_at IS NULL", (asset_id,)
@@ -958,6 +988,7 @@ def update_annotation(
     now = now_iso()
     with db() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         current_asset = guard_asset(conn, item["asset_id"], actor)
         if current_asset["revision"] != item["asset_revision"]:
             raise HTTPException(409, "图片已被其他协作者修改或审核，请刷新")
@@ -1009,6 +1040,7 @@ def delete_annotation(
         raise HTTPException(409, "对象已被其他用户修改，请刷新后重试")
     with db() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         current_asset = guard_asset(conn, item["asset_id"], actor)
         if current_asset["revision"] != item["asset_revision"]:
             raise HTTPException(409, "图片已被其他协作者修改或审核，请刷新")
@@ -1038,7 +1070,7 @@ def _prepare_annotation_request(project_id: int, payload: JobCreate, actor: Acto
     """Validate preview and queue requests using the same model and class contract."""
     if actor.must_change_password:
         raise password_change_required()
-    if actor.role not in {"admin", "annotator", "reviewer"}:
+    if actor.role not in {"admin", "user", "annotator", "reviewer"}:
         raise HTTPException(403, "需要标注员或审核员权限")
     project = require_project(project_id)
     if payload.include_reviewed:
@@ -1114,7 +1146,7 @@ def _prepare_annotation_request(project_id: int, payload: JobCreate, actor: Acto
     known = {label["name"].casefold(): label for label in project_labels}
     pending_labels = [name for name in target_label_names if name.casefold() not in known]
     if pending_labels:
-        require_admin(actor)
+        require_project_editor(actor)
     target_label_names = [known[name.casefold()]["name"] if name.casefold() in known else name
                           for name in target_label_names]
     config = {
@@ -1157,6 +1189,7 @@ def create_job(project_id: int, payload: JobCreate, actor: Actor = Depends(get_a
     settings_json = json.dumps(config, ensure_ascii=False)
     with db() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         if not conn.execute("SELECT 1 FROM projects WHERE id=?", (project_id,)).fetchone():
             raise HTTPException(404, "项目已被删除，请返回项目列表")
         selected = set(payload.asset_ids) if payload.asset_ids is not None else None
@@ -1191,7 +1224,7 @@ def create_job(project_id: int, payload: JobCreate, actor: Actor = Depends(get_a
             for target in target_label_names:
                 canonical = existing.get(target.casefold())
                 if canonical is None:
-                    require_admin(actor)
+                    require_project_editor(actor)
                     conn.execute(
                         """INSERT INTO labels
                            (project_id, name, color, shortcut, attributes_schema_json, created_at)
@@ -1262,6 +1295,7 @@ def cancel_job(job_id: int, actor: Actor = Depends(get_actor)) -> dict:
         raise HTTPException(409, "任务已经结束")
     with db() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         now = now_iso()
         cursor = conn.execute(
             """UPDATE jobs SET cancel_requested = 1,
@@ -1285,6 +1319,7 @@ def retry_job(job_id: int, actor: Actor = Depends(get_actor)) -> dict:
         raise HTTPException(409, "只有失败或取消的任务可以重试")
     with db() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         row = dict(conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone())
         if row["status"] not in {"failed", "cancelled"}:
             raise HTTPException(409, "任务已被重试或仍在运行")

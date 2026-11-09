@@ -1,10 +1,11 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 // Exercise the actual data-page rendering and delegated module bindings with a small DOM boundary.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { reviewQueueMarkup, batchReviewSelectionMarkup } from "../static/review-ui.js";
 
-const appSource = readFileSync(new URL("../static/app.js", import.meta.url), "utf8");
+const appSource = stripI18nImports(readFileSync(new URL("../static/app.js", import.meta.url), "utf8"));
 const code = appSource.slice(appSource.indexOf("function filteredDataAssets("), appSource.indexOf("\nfunction renderAiPage("));
 assert(code.includes("function renderDataPage("));
 const listeners = new Map(), actions = { review: [], deletion: [], ai: [], uploads: 0, exports: 0, appWrites: 0, bindings: 0 };
@@ -87,9 +88,9 @@ function dispatch(type, target, extra = {}) {
   for (const listener of listeners.get(type) || []) listener(event);
 }
 function delegatedBinding(file, start, end, mocks) {
-  const source = readFileSync(new URL(`../static/${file}`, import.meta.url), "utf8");
+  const source = stripI18nImports(readFileSync(new URL(`../static/${file}`, import.meta.url), "utf8"));
   const from = source.indexOf(start), to = source.indexOf(end, from); assert(from >= 0 && to > from);
-  const scope = vm.createContext({ document, ...mocks });
+  const scope = vm.createContext(withI18n({ document, ...mocks }));
   vm.runInContext(`let context; let bound = false;\n${source.slice(from, to).replace("export function", "function")}`, scope);
   return scope[start.match(/function (\w+)/)[1]];
 }
@@ -104,13 +105,13 @@ const assets = Array.from({ length: 450 }, (_, index) => ({ id: index + 1, filen
 const state = { currentSection: "data", project: { id: 9 }, selectionEpoch: 4, session: { role: "admin" },
   assets, dataSearch: "", dataStatus: "all", assetRenderLimit: 200, selectedAssetIds: new Set(), workBlocks: { enabled: false, unassigned_count: 0 } };
 const location = { hash: "#/projects/9/data" };
-const context = vm.createContext({ state, document, app, location, history: { replaceState: (_a, _b, path) => { location.hash = path; } },
-  escapeHtml, icon: () => "", projectTask: () => "detect", isAdmin: () => state.session.role === "admin", canReview: () => state.session.role !== "annotator",
+const context = vm.createContext(withI18n({ state, document, app, location, history: { replaceState: (_a, _b, path) => { location.hash = path; } },
+  escapeHtml, icon: () => "", projectTask: () => "detect", canEditProject: () => true, canExportProject: () => true, isAdmin: () => state.session.role === "admin", canReview: () => state.session.role !== "annotator",
   formatBytes: size => `${size} B`, reviewStatusName: status => status, reviewQueueMarkup, batchReviewSelectionMarkup,
   projectPageShell: (_section, body) => `<div class="app-shell"><aside id="test-navigation"></aside><main class="project-page">${body}</main></div>`,
   openUploadModal: () => { actions.uploads++; }, openExportModal: () => { actions.exports++; }, openAiModal: ids => actions.ai.push([...ids]),
   bindCommonProjectEvents: () => { actions.bindings++; const deps = { state, renderDataPage: context.renderDataPage }; bindReviewPage(deps); bindAssetManagement(deps); },
-});
+}));
 vm.runInContext(code, context);
 const node = selector => document.querySelector(selector);
 const card = id => node(`[data-open-asset="${id}"]`)?.closest(".data-asset-card");

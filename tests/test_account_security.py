@@ -58,7 +58,7 @@ class AccountSecurityTest(unittest.TestCase):
         self.clients.append(client)
         return client
 
-    def create(self, username, role="annotator"):
+    def create(self, username, role="user"):
         return create_user(UserCreate(username=username, display_name=username, password=INITIAL, role=role),
                            Actor("setup-cli", "admin"))
 
@@ -74,6 +74,9 @@ class AccountSecurityTest(unittest.TestCase):
         project = self.admin.post("/api/projects", json={"name": "session-lock-fixture"})
         self.assertEqual(project.status_code, 201, project.text)
         with db() as conn:
+            # Account lifecycle tests use an explicitly shared collaboration fixture.
+            conn.execute("""INSERT INTO project_members(project_id,user_id,role,created_at)
+                SELECT ?,id,'editor',? FROM users WHERE role='user'""", (project.json()["id"], now_iso()))
             cursor = conn.execute("""INSERT INTO assets
                 (project_id,filename,storage_name,mime_type,width,height,size_bytes,created_at,updated_at)
                 VALUES (?,?,?,?,?,?,?,?,?)""", (project.json()["id"], "fixture.png", secrets.token_hex(16),
@@ -212,7 +215,7 @@ class AccountSecurityTest(unittest.TestCase):
         self.assertEqual(one("SELECT COUNT(*) AS n FROM user_sessions WHERE user_id=?", (user["id"],))["n"], 0)
 
     def test_display_name_search_pagination_and_noop_keep_sessions(self):
-        alice = self.create("alice"); self.create("bob", "reviewer"); self.create("carol")
+        alice = self.create("alice"); self.create("bob", "user"); self.create("carol")
         client = self.client(); self.sign_in(client, "alice", finish=True)
         token = client.cookies.get("mdp_session")
         response = client.patch("/api/account", json={"display_name": "  张三  "})
@@ -225,7 +228,7 @@ class AccountSecurityTest(unittest.TestCase):
         page = self.admin.get("/api/users?page=1&page_size=2").json()
         self.assertEqual(page["total"], 4); self.assertEqual(len(page["items"]), 2)
         self.assertEqual(page["enabled_admin_count"], 1)
-        found = self.admin.get("/api/users", params={"q": "小张", "role": "annotator"}).json()
+        found = self.admin.get("/api/users", params={"q": "小张", "role": "user"}).json()
         self.assertEqual([item["id"] for item in found["items"]], [alice["id"]])
         self.assertEqual(self.admin.get("/api/users?q=%").json()["total"], 0)
         self.assertEqual(client.patch("/api/account", json={"display_name": " "}).status_code, 422)
@@ -266,7 +269,7 @@ class AccountSecurityTest(unittest.TestCase):
         second_user = self.create("secondadmin", "admin")
         second = self.client("192.0.2.2"); self.sign_in(second, "secondadmin", finish=True)
         with ThreadPoolExecutor(max_workers=2) as pool:
-            futures = [pool.submit(client.patch, f"/api/users/{user_id}", json={"role": "annotator"})
+            futures = [pool.submit(client.patch, f"/api/users/{user_id}", json={"role": "user"})
                        for client, user_id in ((self.admin, self.admin_user["id"]), (second, second_user["id"]))]
             codes = sorted(f.result().status_code for f in futures)
         self.assertEqual(codes, [200, 409])
@@ -335,7 +338,7 @@ class AccountSecurityTest(unittest.TestCase):
             user = one("SELECT * FROM users WHERE id=1")
             self.assertFalse(user["must_change_password"])
             self.assertEqual(user["password_hash"], legacy_hash)
-            self.assertEqual(len(one("SELECT session_id FROM user_sessions")["session_id"]), 32)
+            self.assertIsNone(one("SELECT session_id FROM user_sessions"))  # workspace migration revokes legacy sessions
             client = self.client(); result = self.sign_in(client, "legacy")
             self.assertFalse(result.json()["must_change_password"])
             upgraded = one("SELECT password_hash FROM users WHERE id=1")["password_hash"]

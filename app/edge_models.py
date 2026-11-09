@@ -17,7 +17,7 @@ import shutil
 import sqlite3
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .auth import Actor, get_actor, require_admin
@@ -33,6 +33,7 @@ BUILD_TIMEOUT_SECONDS = 15 * 60
 MAX_MODEL_BYTES = 500 * 1024 * 1024
 MAX_TASK_METADATA_BYTES = 1024 * 1024
 PROFILE = "rv1126b-yolo-dfl-int8-v1"
+MODEL_NAME_PATTERN = r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}"
 ACTIVE = ("queued", "running", "unknown")
 TERMINAL = ("succeeded", "failed", "cancelled")
 STAGES = {"queued": 0, "downloading": 1, "uploading": 2, "uploaded": 3,
@@ -148,6 +149,17 @@ class CreateDeployment(StrictModel):
     release_id: int = Field(gt=0, le=2**63 - 1, strict=True)
     activate: bool = Field(default=False, strict=True)
     fps: int = Field(default=10, ge=1, le=60, strict=True)
+    model_name: str = Field(default="", max_length=64, strict=True)
+
+    @field_validator("model_name", mode="before")
+    @classmethod
+    def safe_model_name(cls, value):
+        if not isinstance(value, str):
+            return value
+        value = value.strip()
+        if value and not re.fullmatch(MODEL_NAME_PATTERN, value):
+            raise ValueError("模型名称须以英文字母或数字开头，只能包含英文字母、数字、下划线和连字符，最多 64 个字符")
+        return value
 
 
 class ResolveDeployment(StrictModel):
@@ -243,10 +255,25 @@ def _model_info(contract, md5, size):
             "metrics": {"confidence": 0.25, "iou": 0.45, "max_obj": 128}, "md5sum": md5, "size": size}
 
 
+def _default_model_name(contract):
+    return f"{contract['algorithm']}-run{contract['training_run_id']}-conv{contract['conversion_id']}"
+
+
+def _task_filename(row, release_filename):
+    name = dict(row).get("model_name", "")
+    if not name:
+        # Existing tasks must keep the filename persisted by older Connectors.
+        return release_filename
+    if not re.fullmatch(MODEL_NAME_PATTERN, name):
+        raise HTTPException(409, "部署任务的模型名称无效")
+    return f"{name}-r{row['release_id']}.rknn"
+
+
 def _release_json(row) -> dict:
     value = dict(row)
     value["contract"] = json.loads(value.pop("contract_json"))
     value["model_info"] = json.loads(value.pop("model_info_json"))
+    value["default_model_name"] = _default_model_name(value["contract"]) if value["status"] == "ready" else ""
     return value
 
 
@@ -275,6 +302,7 @@ def _task_json(row, now: str | None = None) -> dict:
     if "filename" not in value:
         release = one("SELECT filename FROM edge_model_releases WHERE id=?", (row["release_id"],))
         value["filename"] = release["filename"] if release else ""
+    value["filename"] = _task_filename(row, value["filename"])
     return value
 
 
@@ -381,28 +409,34 @@ def create_release(payload: CreateRelease, actor: Actor = Depends(get_actor)):
 
 
 @router.get("/devices/{device_id}/system-models")
-def system_models(device_id: str, actor: Actor = Depends(get_actor)):
+def system_models(device_id: str, conversion_id: int | None = Query(None, gt=0, le=2**63 - 1),
+                  actor: Actor = Depends(get_actor)):
     require_admin(actor)
     now = now_iso()
     with db() as conn:
         device, project = _admin_device(conn, device_id)
         status, capabilities = _capabilities(conn, device)
+        # Deployment occupancy belongs to the device, regardless of the selected model.
         jobs = conn.execute("""SELECT d.*,r.filename FROM edge_model_deployments d JOIN edge_model_releases r ON r.id=d.release_id
             WHERE d.device_id=? ORDER BY d.id DESC LIMIT 50""", (device_id,)).fetchall()
         legacy = conn.execute("SELECT 1 FROM edge_deployments WHERE device_id=? AND status IN ('queued','running','unknown')", (device_id,)).fetchone()
-        releases = conn.execute("SELECT * FROM edge_model_releases WHERE project_id=? ORDER BY id DESC LIMIT 100", (device["project_id"],)).fetchall()
+        model_params = (device["project_id"],) + ((conversion_id,) if conversion_id is not None else ())
+        release_filter = " AND conversion_id=?" if conversion_id is not None else ""
+        releases = conn.execute("SELECT * FROM edge_model_releases WHERE project_id=?" + release_filter
+                                + " ORDER BY id DESC LIMIT 100", model_params).fetchall()
     candidates = []
+    conversion_filter = " AND c.id=?" if conversion_id is not None else ""
     for conversion in all_rows("""SELECT c.* FROM model_conversions c JOIN training_runs r ON r.id=c.training_run_id
-        WHERE r.project_id=? AND c.status='completed' ORDER BY c.id DESC LIMIT 100""", (device["project_id"],)):
+        WHERE r.project_id=? AND c.status='completed'""" + conversion_filter + " ORDER BY c.id DESC LIMIT 100", model_params):
         run = one("SELECT * FROM training_runs WHERE id=?", (conversion["training_run_id"],))
         if not run:
             continue
         candidate = {"id": conversion["id"], "training_run_id": run["id"], "model_arch": run["model_arch"],
-                     "compatible": False, "reason": ""}
+                     "compatible": False, "reason": "", "default_model_name": ""}
         try:
             contract = model_contract(conversion, run)
             candidate.update(compatible=True, algorithm=contract["algorithm"], input_size=contract["input_size"],
-                             labels=contract["classes"], precision="int8")
+                             labels=contract["classes"], precision="int8", default_model_name=_default_model_name(contract))
             if capabilities and contract["algorithm"] not in capabilities["algorithms"]:
                 candidate.update(compatible=False, reason="当前设备系统没有该模型的后处理算法")
         except ValueError as exc:
@@ -444,9 +478,10 @@ def create_deployment(device_id: str, payload: CreateDeployment, actor: Actor = 
         if not capabilities or not capabilities["model_api"] or contract["algorithm"] not in capabilities["algorithms"]:
             raise HTTPException(409, "设备尚未报告兼容的系统模型接口，请先启动新版连接应用")
         now = now_iso()
+        model_name = payload.model_name or _default_model_name(contract)
         try:
-            task_id = conn.execute("""INSERT INTO edge_model_deployments(device_id,project_id,release_id,activate,fps,status,created_at,updated_at)
-                VALUES (?,?,?,?,?,'queued',?,?)""", (device_id, device["project_id"], release["id"], int(payload.activate), payload.fps, now, now)).lastrowid
+            task_id = conn.execute("""INSERT INTO edge_model_deployments(device_id,project_id,release_id,activate,fps,model_name,status,created_at,updated_at)
+                VALUES (?,?,?,?,?,?,'queued',?,?)""", (device_id, device["project_id"], release["id"], int(payload.activate), payload.fps, model_name, now, now)).lastrowid
         except sqlite3.IntegrityError as exc:
             raise HTTPException(409, "设备已有进行中或结果未知的部署，请等待原任务恢复确认") from exc
     audit(actor.id, "deploy", "edge_system_model_release", payload.release_id, device["project_id"])
@@ -548,7 +583,7 @@ def _lease_until(now):
 def _claim_response(conn, row, token, now):
     release = conn.execute("SELECT * FROM edge_model_releases WHERE id=?", (row["release_id"],)).fetchone()
     task = _task_json(row, now)
-    task.update({key: release[key] for key in ("filename", "sha256", "md5", "size_bytes")})
+    task.update({key: release[key] for key in ("sha256", "md5", "size_bytes")})
     task.update(contract=json.loads(release["contract_json"]), model_info=json.loads(release["model_info_json"]),
                 artifact_url=f"/api/edge/v1/model-tasks/{row['id']}/artifact", lease_token=token)
     return {"task": task, "server_time": now, "lease_seconds": LEASE_SECONDS}
@@ -624,7 +659,7 @@ def report_task(task_id: int, payload: Report, device: dict = Depends(get_device
             release = conn.execute("SELECT filename FROM edge_model_releases WHERE id=?", (row["release_id"],)).fetchone()
             if row["activate"]:
                 current = payload.current
-                if (payload.stage != "verified" or not current or current.sModel != release["filename"]
+                if (payload.stage != "verified" or not current or current.sModel != _task_filename(row, release["filename"])
                         or current.sStatus != "running" or current.iEnable != 1 or current.bExternalHold
                         or current.iActualFPS <= 0 or current.iFPS != row["fps"]):
                     raise HTTPException(409, "需要匹配目标模型且有实际推理帧率的运行验证")
@@ -659,4 +694,4 @@ def task_artifact(task_id: int, x_model_lease: str = Header(default="", max_leng
         release = conn.execute("SELECT * FROM edge_model_releases WHERE id=?", (row["release_id"],)).fetchone()
         path = _release_path(release)
         # Pin under the same auth/lease transaction, before rotation/deletion.
-        return pinned_file_response(path, filename=release["filename"])
+        return pinned_file_response(path, filename=_task_filename(row, release["filename"]))

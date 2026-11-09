@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 // Exercise the public chart renderer: axis labels, plotted geometry, accessible
 // hover text, missing epochs and the displayed values must agree.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-const source = readFileSync(new URL('../static/training-charts.js', import.meta.url), 'utf8');
+const source = stripI18nImports(readFileSync(new URL('../static/training-charts.js', import.meta.url), 'utf8'));
 const { trainingChartMarkup, trainingSeries, evaluationMetric, recordedLosses, metricNumber } =
-  await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+  await import('../static/training-charts.js');
 
 const keys = { detect: 'metrics/mAP50-95(B)', segment: 'metrics/mAP50-95(M)', pose: 'metrics/mAP50-95(P)', classify: 'metrics/accuracy_top1' };
 const run = task => ({ id: 1, task, status: 'running', current_epoch: 6, total_epochs: 20 });

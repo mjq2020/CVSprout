@@ -1,17 +1,19 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 // Exercise actual navigation markup and event handlers with controlled browser boundaries.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const navigationSource = readFileSync(new URL("../static/workspace-navigation.js", import.meta.url), "utf8").replace(/^import .*;\n/gm, "").replaceAll("export function ", "function ");
-const appSource = readFileSync(new URL("../static/app.js", import.meta.url), "utf8");
+const appearanceSource = stripI18nImports(readFileSync(new URL("../static/appearance-ui.js", import.meta.url), "utf8")).replaceAll("export ", "");
+const navigationSource = stripI18nImports(readFileSync(new URL("../static/workspace-navigation.js", import.meta.url), "utf8")).replace(/^import .*;\n/gm, "").replaceAll("export function ", "function ");
+const appSource = stripI18nImports(readFileSync(new URL("../static/app.js", import.meta.url), "utf8"));
 const topbar = appSource.slice(appSource.indexOf("function topbar("), appSource.indexOf("\nasync function route("));
 assert(topbar.length > 0);
 
 function fixture({ mobile = false, hash = "#/projects/7/train" } = {}) {
   const enterWorkspaceContent = () => {};
   const viewport = { mobile }, location = { hash }, tasks = [], storage = new Map(), events = new Map(), windowEvents = new Map();
-  const theme = { preference: "system", calls: [] }, ui = { nodes: [], current: null, html: "", mediaListener: null };
+  const theme = { preference: "system", style: "forest", calls: [] }, ui = { nodes: [], current: null, html: "", mediaListener: null };
   const state = { session: { user_id: 1, display_name: "测试管理员", role: "admin" }, authMode: "accounts", currentSection: "train",
     project: { id: 7, name: "园区视觉 <标注>", asset_count: 42, task_type: "detect" }, health: { annotation_workers: { status: "online" } } };
   const document = { activeElement: null, body: { isConnected: true, matches: () => false }, documentElement: { dataset: { themePreference: "system" }, textContent: "APPLICATION CONTENT" }, addEventListener: (type, handler) => { const list = events.get(type) || []; list.push(handler); events.set(type, list); } };
@@ -27,6 +29,8 @@ function fixture({ mobile = false, hash = "#/projects/7/train" } = {}) {
       if (selector.startsWith(".")) return this.classes.has(selector.slice(1));
       if (selector.startsWith("#")) return this.id === selector.slice(1);
       if (selector === "[data-navigation-menu]") return !!this.dataset.navigationMenu;
+      if (selector === "[data-language-select]") return this.dataset.languageSelect != null;
+      if (selector === "[data-style-select]") return this.dataset.styleSelect != null;
       if (selector === "[data-theme-select]") return this.dataset.themeSelect != null;
       if (selector === "[inert]") return this.inert;
       if (selector === "details:not([open])") return this.tag === "details" && !this.open;
@@ -77,13 +81,13 @@ function fixture({ mobile = false, hash = "#/projects/7/train" } = {}) {
   const media = { get matches() { return viewport.mobile; }, addEventListener: (_type, fn) => { ui.mediaListener = fn; } };
   const window = { matchMedia: () => media, addEventListener: (type, handler) => windowEvents.set(type, handler),
     dispatchEvent: event => windowEvents.get(event.type)?.(event), history: { replaceState() {} },
-    CVSproutTheme: { getPreference: () => theme.preference, getTheme: () => theme.preference === "dark" ? "dark" : "light",
+    CVSproutTheme: { getStyle: () => theme.style, setStyle: value => { theme.style = value; }, getPreference: () => theme.preference, getTheme: () => theme.preference === "dark" ? "dark" : "light",
       setPreference: value => { theme.calls.push(value); theme.preference = value; } } };
   const esc = value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
-  const context = vm.createContext({ enterWorkspaceContent, window, document, location, state, Event, URLSearchParams, queueMicrotask: fn => tasks.push(fn),
+  const context = vm.createContext(withI18n({ enterWorkspaceContent, window, document, location, state, Event, URLSearchParams, queueMicrotask: fn => tasks.push(fn),
     getComputedStyle: node => ({ visibility: viewport.mobile && node.closest(".workspace-navigation") && !ui.current.nav.classList.contains("is-open") ? "hidden" : "visible" }), sessionStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
-    icon: name => `<svg data-icon="${name}"></svg>`, escapeHtml: esc, isAdmin: () => state.session.role === "admin", projectTask: () => "detect", TASK_LABELS: { detect: "目标检测" } });
-  vm.runInContext(navigationSource + "\n" + topbar, context);
+    icon: name => `<svg data-icon="${name}"></svg>`, escapeHtml: esc, isAdmin: () => state.session.role === "admin", projectTask: () => "detect", TASK_LABELS: { detect: "目标检测" } }));
+  vm.runInContext(appearanceSource + "\n" + navigationSource + "\n" + topbar, context);
   const flush = () => { while (tasks.length) tasks.shift()(); };
   function mount(html) {
     for (const node of ui.nodes) node.isConnected = false;
@@ -94,16 +98,18 @@ function fixture({ mobile = false, hash = "#/projects/7/train" } = {}) {
     const brand = new Element("a", nav, { attrs: { href: "#/" } });
     const close = new Element("button", nav, { classes: ["navigation-close"], dataset: { closeNavigation: "" } });
     const active = new Element("a", nav, { attrs: { href: location.hash, ...(location.hash !== "#/account" ? { "aria-current": "page" } : {}) } });
+    const languageSelect = new Element("select", nav, { dataset: { languageSelect: "" } });
     const themeMenu = new Element("details", nav, { dataset: { navigationMenu: "theme" } }); themeMenu.open = /data-navigation-menu="theme" open/.test(html);
     const themeSummary = new Element("summary", themeMenu); themeMenu.summary = themeSummary;
     const select = new Element("select", themeMenu, { dataset: { themeSelect: "" } }); select.value = theme.preference;
+    const styleSelect = new Element("select", themeMenu, { dataset: { styleSelect: "" } }); styleSelect.value = theme.style;
     const themeLabel = new Element("small", themeSummary);
     const accountMenu = new Element("details", nav, { dataset: { navigationMenu: "account" } }); accountMenu.open = /data-navigation-menu="account" open/.test(html);
     const accountSummary = new Element("summary", accountMenu); accountMenu.summary = accountSummary;
     const accountLink = new Element("a", accountMenu, { attrs: { href: "#/account", ...(location.hash === "#/account" ? { "aria-current": "page" } : {}) } });
     const logout = new Element("button", accountMenu, { id: "session-button" });
     const collapse = new Element("button", nav, { classes: ["navigation-collapse"], dataset: { toggleNavigation: "" } });
-    ui.current = { nav, main, header, backdrop, toggle, brand, close, active, themeMenu, themeSummary, select, themeLabel, accountMenu, accountSummary, accountLink, logout, collapse };
+    ui.current = { nav, main, header, backdrop, toggle, brand, close, active, languageSelect, themeMenu, themeSummary, select, styleSelect, themeLabel, accountMenu, accountSummary, accountLink, logout, collapse };
     flush(); return ui.current;
   }
   const render = () => mount(context.topbar());
@@ -119,7 +125,7 @@ function fixture({ mobile = false, hash = "#/projects/7/train" } = {}) {
 {
   const h = fixture(); h.render();
   const header = h.ui.html.match(/<header[\s\S]*?<\/header>/)[0];
-  assert(header.includes("训练与转换")); assert(!/session-button|标注服务正常|测试管理员|园区视觉/.test(header), "Mobile header contains only the current page name and navigation access");
+  assert(header.includes("训练与部署")); assert(!/session-button|标注服务正常|测试管理员|园区视觉/.test(header), "Mobile header contains only the current page name and navigation access");
   assert(h.ui.html.includes("园区视觉 &lt;标注>")); assert(h.ui.html.includes("目标检测")); assert(h.ui.html.includes("42 张图片"));
   assert.equal((h.ui.html.match(/id="session-button"/g) || []).length, 1);
   assert.equal((h.ui.html.match(/href="#\/account"/g) || []).length, 1);
@@ -143,16 +149,21 @@ function fixture({ mobile = false, hash = "#/projects/7/train" } = {}) {
 }
 
 // Theme preference updates immediately; polling rerenders retain the open menu and exact focused control.
-for (const target of ["select", "logout", "accountLink", "themeSummary"]) {
+for (const target of ["languageSelect", "select", "styleSelect", "logout", "accountLink", "themeSummary"]) {
   const h = fixture(), initial = h.render();
-  initial[target === "select" || target === "themeSummary" ? "themeMenu" : "accountMenu"].open = true;
+  if (target !== "languageSelect") initial[target === "select" || target === "styleSelect" || target === "themeSummary" ? "themeMenu" : "accountMenu"].open = true;
   initial[target].focus();
   if (target === "select") {
     initial.select.value = "dark"; h.dispatch("change", initial.select);
     assert.deepEqual(h.theme.calls, ["dark"]); assert.equal(initial.themeLabel.textContent, "深色");
   }
+  if (target === "styleSelect") {
+    initial.styleSelect.value = "ocean"; h.dispatch("change", initial.styleSelect);
+    assert.equal(h.theme.style, "ocean");
+    assert.equal(h.theme.preference, "system");
+  }
   const updated = h.render();
-  assert(updated[target === "select" || target === "themeSummary" ? "themeMenu" : "accountMenu"].open);
+  if (target !== "languageSelect") assert(updated[target === "select" || target === "styleSelect" || target === "themeSummary" ? "themeMenu" : "accountMenu"].open);
   assert.equal(h.document.activeElement, updated[target], `Polling retains focused ${target}`);
 }
 {

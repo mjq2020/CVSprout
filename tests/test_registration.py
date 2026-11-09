@@ -51,7 +51,7 @@ class RegistrationTest(unittest.TestCase):
         self.clients.append(client)
         return client
 
-    def create(self, username, role="annotator"):
+    def create(self, username, role="user"):
         row = self.accounts.create_user(self.accounts.UserCreate(username=username, display_name=username,
                                       password=PASSWORD, role=role), self.Actor("fixture", "admin"))
         with self.db() as conn:
@@ -65,7 +65,7 @@ class RegistrationTest(unittest.TestCase):
         return (client or self.applicant).post("/api/register", json={"username": username, "display_name": "Alice",
                         "password": PASSWORD, "note": "加入标注团队", **extra})
 
-    def review(self, row, *, action="approve", role="annotator", reason="", client=None, revision=None):
+    def review(self, row, *, action="approve", role="user", reason="", client=None, revision=None):
         body = {"action": action, "expected_revision": row["revision"] if revision is None else revision, "reason": reason}
         if role is not None:
             body["role"] = role
@@ -104,19 +104,19 @@ class RegistrationTest(unittest.TestCase):
     def test_approval_assigns_role_and_allows_chosen_password_without_initial_change(self):
         application = self.application()
         stored_hash = self.one("SELECT password_hash FROM registration_requests")["password_hash"]
-        result = self.review(application, role="reviewer")
+        result = self.review(application, role="user")
         self.assertEqual(result.status_code, 200, result.text)
         body = result.json()
         self.assertEqual(body["registration"]["status"], "approved")
         self.assertEqual(body["registration"]["revision"], 2)
-        self.assertEqual(body["user"]["role"], "reviewer")
+        self.assertEqual(body["user"]["role"], "user")
         self.assertFalse(body["user"]["must_change_password"])
         user = self.one("SELECT * FROM users WHERE username='alice'")
         self.assertEqual(user["password_hash"], stored_hash)
         self.assertEqual(self.one("SELECT password_hash FROM registration_requests")["password_hash"], "")
         login = self.login(self.applicant, "alice")
         self.assertEqual(login.status_code, 200, login.text)
-        self.assertEqual(login.json()["role"], "reviewer")
+        self.assertEqual(login.json()["role"], "user")
         self.assertFalse(login.json()["must_change_password"])
         self.assertIn("HttpOnly", login.headers["set-cookie"])
         self.assertEqual(self.applicant.get("/api/projects").status_code, 200)
@@ -191,7 +191,7 @@ class RegistrationTest(unittest.TestCase):
     def test_only_admin_can_list_and_review_and_stale_admin_session_is_rechecked(self):
         application = self.application()
         self.assertEqual(self.applicant.get("/api/registration-requests").status_code, 401)
-        for role in ("annotator", "reviewer"):
+        for role in ("user",):
             self.create(role, role)
             client = self.client()
             self.assertEqual(self.login(client, role).status_code, 200)
@@ -200,7 +200,7 @@ class RegistrationTest(unittest.TestCase):
         session = self.admin.get("/api/session").json()
         actor = self.Actor(session["actor"], "admin", user_id=self.admin_user["id"], username="admin", session_id=self.admin.get("/api/account/sessions").json()["current_session_id"])
         with self.db() as conn:
-            conn.execute("UPDATE users SET role='annotator' WHERE id=?", (self.admin_user["id"],))
+            conn.execute("UPDATE users SET role='user' WHERE id=?", (self.admin_user["id"],))
         self.main.app.dependency_overrides[self.accounts.get_actor] = lambda: actor
         try:
             self.assertEqual(self.admin.get("/api/registration-requests").status_code, 403)
@@ -282,7 +282,7 @@ class RegistrationTest(unittest.TestCase):
     def test_double_review_is_atomic_and_creates_only_one_user(self):
         application = self.application()
         with ThreadPoolExecutor(max_workers=2) as pool:
-            futures = [pool.submit(self.review, application, role=role) for role in ("annotator", "reviewer")]
+            futures = [pool.submit(self.review, application, role=role) for role in ("user", "admin")]
             results = [future.result() for future in futures]
         self.assertEqual(sorted(result.status_code for result in results), [200, 409])
         self.assertEqual(self.one("SELECT COUNT(*) AS n FROM users WHERE username='alice'")["n"], 1)
@@ -290,7 +290,7 @@ class RegistrationTest(unittest.TestCase):
         self.assertEqual(self.login(self.applicant, "alice").status_code, 200)
 
     def test_register_create_user_and_approval_cannot_claim_same_name_twice(self):
-        payload = {"username": "alice", "display_name": "Manual Alice", "password": OTHER_PASSWORD, "role": "reviewer"}
+        payload = {"username": "alice", "display_name": "Manual Alice", "password": OTHER_PASSWORD, "role": "user"}
         with ThreadPoolExecutor(max_workers=2) as pool:
             first = pool.submit(self.register)
             second = pool.submit(self.admin.post, "/api/users", json=payload)

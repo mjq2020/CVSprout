@@ -1,28 +1,34 @@
-import { TASK_LABELS, projectTask, isAdmin, canReview, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.27.0";
-import { renderUsersPage } from "./accounts-ui.js?v=0.27.0";
-import { renderDevicesPage } from "./edge-devices-ui.js?v=0.27.0";
-import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.27.0";
-import { annotationModelSelectable, modelDownloadSize, modelPreparationStatus, mountModelPreparation } from "./model-preparation-ui.js?v=0.27.0";
-import { mountAuthScreen } from "./auth-ui.js?v=0.27.0";
-import { renderAccountPage } from "./security-ui.js?v=0.27.0";
-import { bindAssetManagement } from "./asset-management-ui.js?v=0.27.0";
-import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.27.0";
-import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.27.0";
-import { loadProjectWorkBlocks } from "./project-api.js?v=0.27.0";
-import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.27.0";
-import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.27.0";
-import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.27.0";
-import { mountOverviewTraining } from "./overview-training.js?v=0.27.0";
-import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.27.0";
-import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.27.0";
-import { mountCanvasGuides } from "./canvas-guides.js?v=0.27.0";
-import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.27.0";
-import { beginWorkspaceLoad, cancelWorkspaceLoad } from "./workspace-feedback.js?v=0.27.0";
-import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.27.0";
+import { localizePayload } from "./api-i18n.js?v=0.29.3";
+import { t, accountDisplayName, ta, getLocale, fileInputMarkup, installLanguageControls } from "./i18n.js?v=0.29.3";
+import { TASK_LABELS, projectTask, isAdmin, canReview, canManageProject, canEditProject, canExportProject, taskAllowsTool, modelFitsProject, taskFieldsMarkup, bindTaskFields, readTaskFields, annotationToolsMarkup, taskInspectorMarkup, keypointInspectorMarkup, keypointShapesMarkup, chooseTaskLabel, poseCanvasClick, finishKeypoints, undoKeypointDraft, hasTaskSaveDraft, retryTaskSave, discardTaskSaveDraft, bindTaskInspector, exportFormatMarkup } from "./task-ui.js?v=0.29.3";
+import { openProjectMembers } from "./project-members-ui.js?v=0.29.3";
+import { renderUsersPage } from "./accounts-ui.js?v=0.29.3";
+import { renderDevicesPage, openProjectDeployment } from "./edge-devices-ui.js?v=0.29.3";
+import { mountSetup, mountModelDownloads } from "./setup-ui.js?v=0.29.3";
+import { annotationModelSelectable, modelDownloadSize, modelPreparationStatus, mountModelPreparation } from "./model-preparation-ui.js?v=0.29.3";
+import { mountAuthScreen } from "./auth-ui.js?v=0.29.3";
+import { installStudioInteractions } from "./studio-ui.js?v=0.29.3";
+import { renderAccountPage } from "./security-ui.js?v=0.29.3";
+import { bindAssetManagement } from "./asset-management-ui.js?v=0.29.3";
+import { batchReviewSelectionMarkup, reviewQueueMarkup, bindReviewPage, reviewContinuationMarkup, shouldContinueReview, openWorkBlockSubmit } from "./review-ui.js?v=0.29.3";
+import { BLOCK_STATUS, annotationBlockURL, scopeWorkBlockRequest, workBlocksMarkup, bindWorkBlocks } from "./work-blocks-ui.js?v=0.29.3";
+import { loadProjectWorkBlocks } from "./project-api.js?v=0.29.3";
+import { versionSamplesMarkup, openVersionImages } from "./dataset-ui.js?v=0.29.3";
+import { openDatasetGeneration, versionAugmentationMarkup } from "./dataset-generation.js?v=0.29.3";
+import { createHistoryNavigation, resetHistoryNavigation } from "./history-navigation.js?v=0.29.3";
+import { mountOverviewTraining } from "./overview-training.js?v=0.29.3";
+import { aiPreviewMarkup, mountAiPreview } from "./ai-preview-ui.js?v=0.29.3";
+import { installAnnotationShortcuts, annotationShortcutsHelp, annotationShortcutHint } from "./annotation-shortcuts.js?v=0.29.3";
+import { mountCanvasGuides } from "./canvas-guides.js?v=0.29.3";
+import { createAnnotationContextMenu, findAnnotationsAtPoint } from "./annotation-context-menu.js?v=0.29.3";
+import { beginWorkspaceLoad, cancelWorkspaceLoad } from "./workspace-feedback.js?v=0.29.3";
+import { currentProjectRoute, workspaceNavigationMarkup, navigationToggleMarkup, installWorkspaceNavigation, closeWorkspaceNavigation, navigationIsOpen, getSectionTab, setSectionTab, sectionTabsMarkup, sectionPanelAttributes, bindSectionTabs } from "./workspace-navigation.js?v=0.29.3";
 
 const app = document.querySelector("#app");
 const modalRoot = document.querySelector("#modal-root");
 const toastRoot = document.querySelector("#toast-root");
+installStudioInteractions();
+installLanguageControls();
 let modalReturnFocus = null;
 let authCleanup = null;
 let modalCleanup = null;
@@ -41,6 +47,7 @@ const state = {
   projectQuery: "",
   projectTaskFilter: "all",
   projectsArchived: false,
+  projectsScope: "mine",
   projectSort: "updated",
   queueCollapsed: window.innerWidth < 1200,
   annotationFocus: false,
@@ -99,7 +106,7 @@ const state = {
   currentSection: "projects",
   analytics: null,
   versions: [],
-  training: { availability: { available: false, reason: "正在检测训练环境" }, runs: [] },
+  training: { availability: { available: false, reason: t("正在检测训练环境") }, runs: [] },
   trainingCatalog: { models: [], tasks: {}, features: {} },
   trainingResources: { default_device: "auto", devices: [] },
   trainingFilters: { status: "all", task: "all", query: "" },
@@ -214,36 +221,37 @@ async function api(path, options = {}) {
   const requestSession = state.session;
   const assertSessionCurrent = () => {
     if (state.session === requestSession) return;
-    const error = new Error("登录状态已更新，请继续使用当前账号。");
+    const error = new Error(t("登录状态已更新，请继续使用当前账号。"));
     error.staleSession = true; error.status = 409; throw error;
   };
   const headers = new Headers(options.headers || {});
   headers.set("X-Actor-ID", actorId);
   headers.set("X-Edit-Token", editorToken);
   headers.set("X-MDP-Client", "browser");
+  headers.set("Accept-Language", getLocale());
   let response;
   try { response = await fetch(path, { ...options, headers, credentials: "same-origin" }); }
   catch (cause) {
     assertSessionCurrent();
-    const error = new Error("连接中断，操作结果暂时无法确认。请检查网络，刷新确认后再重试。");
+    const error = new Error(t("连接中断，操作结果暂时无法确认。请检查网络，刷新确认后再重试。"));
     error.technicalMessage = cause.message; throw error;
   }
   assertSessionCurrent();
   if (!response.ok) {
-    let message = `请求失败 (${response.status})`;
+    let message = t("请求失败 ({0})", [response.status]);
     let responseBody = null;
     try {
-      responseBody = await response.json();
+      responseBody = localizePayload(await response.json(), path, response.status);
       message = typeof responseBody.detail === "string"
         ? responseBody.detail
         : Array.isArray(responseBody.detail)
-          ? responseBody.detail.map(item => item.msg).filter(Boolean).join("；") || message
+          ? responseBody.detail.map(item => item.msg).filter(Boolean).join(t("；")) || message
           : responseBody.detail?.message || message;
     } catch (_) { /* keep fallback */ }
     assertSessionCurrent();
     if (response.status === 401 && state.session === requestSession) {
       state.authReady = false;
-      closeModal(); renderLoginScreen("登录已过期，请重新登录后继续。");
+      closeModal(); renderLoginScreen(t("登录已过期，请重新登录后继续。"));
     }
     if (responseBody?.detail?.code === "password_change_required" && state.session === requestSession) {
       if (state.session) state.session.must_change_password = true;
@@ -252,9 +260,9 @@ async function api(path, options = {}) {
       else if (state.currentSection !== "account") void renderAccountPage();
     }
     const technicalMessage = message;
-    if (Array.isArray(responseBody?.detail)) message = "填写的信息不符合要求，请检查必填项、数值范围和格式。";
-    else if (response.status === 423) message = "这张图片正由其他成员或页面编辑，请先处理下一张，稍后再回来。";
-    else if (!/[\u4e00-\u9fff]/.test(message)) message = ({403:"当前账号没有这项操作的权限，请联系管理员。",404:"未找到这项数据，可能已被移除。请返回列表刷新。",413:"上传的文件太大，请减少文件数量或拆分后重试。",429:"操作过于频繁，请稍后重试。"})[response.status] || "操作未完成。请检查填写的信息；如果仍然失败，可展开技术详情并联系管理员。";
+    if (Array.isArray(responseBody?.detail)) message = t("填写的信息不符合要求，请检查必填项、数值范围和格式。");
+    else if (response.status === 423) message = t("这张图片正由其他成员或页面编辑，请先处理下一张，稍后再回来。");
+    else if (getLocale() !== "en" && !/[\u4e00-\u9fff]/.test(message)) message = ({403:t("当前账号没有这项操作的权限，请联系管理员。"),404:t("未找到这项数据，可能已被移除。请返回列表刷新。"),413:t("上传的文件太大，请减少文件数量或拆分后重试。"),429:t("操作过于频繁，请稍后重试。")})[response.status] || t("操作未完成。请检查填写的信息；如果仍然失败，可展开技术详情并联系管理员。");
     const error = new Error(message);
     error.status = response.status;
     error.details = responseBody?.detail;
@@ -262,7 +270,7 @@ async function api(path, options = {}) {
     throw error;
   }
   if (response.status === 204) return null;
-  const data = await response.json();
+  const data = localizePayload(await response.json(), path, response.status);
   assertSessionCurrent();
   return legacyAssetList ? [data] : data;
 }
@@ -275,7 +283,7 @@ function notify(message, type = "success") {
   const node = document.createElement("div");
   node.className = `toast ${type}`;
   node.setAttribute("role", type === "error" ? "alert" : "status");
-  node.innerHTML = `<span class="status-dot"></span><div>${escapeHtml(message)}</div><button class="toast-dismiss" aria-label="关闭提示">${icon("close")}</button>`;
+  node.innerHTML = `<span class="status-dot"></span><div>${escapeHtml(message)}</div><button class="toast-dismiss" aria-label="${ta("关闭提示")}">${icon("close")}</button>`;
   node.querySelector("button").onclick = () => node.remove();
   toastRoot.append(node);
   while (toastRoot.children.length > 4) toastRoot.firstElementChild.remove();
@@ -285,15 +293,15 @@ function notify(message, type = "success") {
 
 function renderLoadError(error) {
   if (error.status === 401 || error.staleSession || error.details?.code === "password_change_required") return;
-  app.innerHTML = `<div class="app-shell">${topbar()}<main class="dashboard"><div class="dashboard-inner"><div class="empty-state"><strong>页面暂时未能加载</strong><p>${escapeHtml(error.message)}</p><button class="btn primary" id="retry-page-load">重新加载</button> <a href="#/" class="btn ghost link-btn">返回项目列表</a></div></div></main></div>`;
+  app.innerHTML = `<div class="app-shell">${topbar()}<main class="dashboard"><div class="dashboard-inner"><div class="empty-state"><strong>${t("页面暂时未能加载")}</strong><p>${escapeHtml(error.message)}</p><button class="btn primary" id="retry-page-load">${t("重新加载")}</button> <a href="#/" class="btn ghost link-btn">${t("返回项目列表")}</a></div></div></main></div>`;
   document.querySelector("#retry-page-load").onclick = route;
 }
 
 function topbar(active = "projects") {
   const workerOnline = state.health?.annotation_workers?.status === "online";
   const route = currentProjectRoute(), project = route && state.project?.id === route.id ? state.project : null;
-  const pageName = route ? ({ overview: "项目概览", data: "导入与数据", ai: "AI 标注", blocks: "标注任务块", annotate: "标注与审核", versions: "数据版本", train: "训练与转换" })[route.section] : ({ models: "标注模型服务", users: "用户管理", devices: "边缘设备", account: "账号与安全" })[state.currentSection] || "项目工作台";
-  return `${workspaceNavigationMarkup({ session: state.session, project, admin: isAdmin(), active: state.currentSection === "account" ? "account" : active, authMode: state.authMode, workerOnline, taskLabel: project ? TASK_LABELS[projectTask()] || "视觉标注" : "", icon, escapeHtml })}<header class="topbar workspace-topbar">${navigationToggleMarkup(icon)}<div class="workspace-context"><strong>${escapeHtml(pageName)}</strong></div></header>`;
+  const pageName = route ? ({ overview: t("项目概览"), data: t("导入与数据"), ai: t("AI 标注"), blocks: t("标注任务块"), annotate: t("标注与审核"), versions: t("数据版本"), train: t("训练与部署") })[route.section] : ({ models: t("标注模型服务"), users: t("用户管理"), devices: t("边缘设备"), account: t("账号与安全") })[state.currentSection] || t("项目工作台");
+  return `${workspaceNavigationMarkup({ session: state.session, project, admin: isAdmin(), active: state.currentSection === "account" ? "account" : active, authMode: state.authMode, workerOnline, taskLabel: project ? TASK_LABELS[projectTask()] || t("视觉标注") : "", icon, escapeHtml })}<header class="topbar workspace-topbar">${navigationToggleMarkup(icon)}<div class="workspace-context"><strong>${escapeHtml(pageName)}</strong></div></header>`;
 }
 
 async function route() {
@@ -301,7 +309,7 @@ async function route() {
       && (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft())) {
     history.replaceState(null, "", annotationBlockURL(state.project.id, state.activeWorkBlockId, state.asset.id));
     closeWorkspaceNavigation();
-    notify(state.savingAnnotation || state.workflowBusy ? "正在保存，请完成后再切换页面。" : "还有未保存的标注，请先完成或按 Esc 取消草稿，再切换页面。", "warning");
+    notify(state.savingAnnotation || state.workflowBusy ? t("正在保存，请完成后再切换页面。") : t("还有未保存的标注，请先完成或按 Esc 取消草稿，再切换页面。"), "warning");
     return;
   }
   cancelWorkspaceLoad(app);
@@ -344,7 +352,7 @@ async function ensureAuthenticated(epoch = state.selectionEpoch) {
   if (!current()) return false;
   if (state.authReady) return true;
   try {
-    const healthResponse = await fetch("/api/health", { credentials: "same-origin" });
+    const healthResponse = await fetch("/api/health", { credentials: "same-origin", headers: { "Accept-Language": getLocale() } });
     if (!current()) return false;
     if (!healthResponse.ok) throw new Error("Health check failed");
     const health = await healthResponse.json();
@@ -352,11 +360,11 @@ async function ensureAuthenticated(epoch = state.selectionEpoch) {
     state.health = health;
     state.authMode = health.auth_mode;
     if (health.setup_required) {
-      mountSetup(app, { escapeHtml, onComplete: () => renderLoginScreen("管理员已创建，请登录。", false, true) });
+      mountSetup(app, { escapeHtml, onComplete: () => renderLoginScreen(t("管理员已创建，请登录。"), false, true) });
       return false;
     }
     if (state.authMode !== "disabled") {
-      const response = await fetch("/api/session", { credentials: "same-origin" });
+      const response = await fetch("/api/session", { credentials: "same-origin", headers: { "Accept-Language": getLocale() } });
       if (!current()) return false;
       if (!response.ok) { renderLoginScreen(); return false; }
       const session = await response.json();
@@ -367,7 +375,7 @@ async function ensureAuthenticated(epoch = state.selectionEpoch) {
     return true;
   } catch (_) {
     if (!current()) return false;
-    app.innerHTML = `<div class="login-shell"><div class="login-card"><span class="brand-mark">${icon("logo")}</span><h1>服务不可用</h1><p>无法连接 CVSprout API，请检查服务是否已启动。</p></div></div>`;
+    app.innerHTML = `<div class="login-shell"><div class="login-card"><span class="brand-mark">${icon("logo")}</span><h1>${t("服务不可用")}</h1><p>${t("无法连接 CVSprout API，请检查服务是否已启动。")}</p></div></div>`;
     return false;
   }
 }
@@ -391,12 +399,12 @@ function renderLoginScreen(error = "", useToken = false, notice = false) {
 }
 
 async function logout() {
-  if (state.currentSection === "annotate" && (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft())) return notify("当前标注尚未完成，请先保存或放弃本地草稿，再退出登录。", "warning");
+  if (state.currentSection === "annotate" && (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft())) return notify(t("当前标注尚未完成，请先保存或放弃本地草稿，再退出登录。"), "warning");
   try {
     await releaseCurrentLock();
     await api("/api/session", { method: "DELETE" });
     state.authReady = false; state.session = null; renderLoginScreen();
-  } catch (error) { if (error.status !== 401) notify("退出登录未完成，请检查网络后重试。", "error"); }
+  } catch (error) { if (error.status !== 401) notify(t("退出登录未完成，请检查网络后重试。"), "error"); }
 }
 
 function workspaceLoadingShell(active = "projects") {
@@ -408,9 +416,9 @@ async function loadDashboard() {
   const epoch = state.selectionEpoch, session = state.session;
   const current = () => request === dashboardRequest && epoch === state.selectionEpoch && session === state.session && state.currentSection === "projects";
   state.currentSection = "projects"; state.project = null; state.asset = null; state.annotations = []; state.lockOwned = false; state.readOnly = false; state.assistPoints = []; state.drawing = null; state.polygon = []; state.shapeEdit = null;
-  const finishLoading = beginWorkspaceLoad(app, { message: "正在加载项目列表…", fallback: () => workspaceLoadingShell("projects") });
+  const finishLoading = beginWorkspaceLoad(app, { message: t("正在加载项目列表…"), fallback: () => workspaceLoadingShell("projects") });
   try {
-    const projects = await api(`/api/projects?archived=${state.projectsArchived && isAdmin()}`);
+    const projects = await api(`/api/projects?archived=${state.projectsArchived}&scope=${state.authMode === "disabled" ? "all" : state.projectsScope === "all" && !isAdmin() ? "mine" : state.projectsScope}`);
     if (!current()) return;
     state.projects = projects; renderDashboard();
   } catch (error) {
@@ -431,18 +439,20 @@ function renderDashboard() {
   const submitted = state.projects.reduce((sum, project) => sum + project.submitted_count, 0);
   app.innerHTML = `<div class="app-shell">${topbar()}
     <main class="dashboard project-dashboard"><div class="dashboard-inner">
-      <div class="page-head"><div><h1>项目工作台</h1><p class="page-subtitle">AI 完成初标，协作校正与审核，让数据进入训练。</p></div>
-        ${isAdmin() ? `<button class="btn primary" id="new-project">${icon("plus")}新建项目</button>` : ""}</div>
-      <div class="workspace-summary"><span><strong>${state.projects.length}</strong> 个${state.projectsArchived ? "归档" : "进行中"}项目</span><span><strong>${totalImages.toLocaleString()}</strong> 张图片</span><span><strong>${submitted.toLocaleString()}</strong> 张待审核</span><div class="workflow-caption" aria-label="工作流程">导入数据 <span>›</span> AI 标注 <span>›</span> 校正审核 <span>›</span> 数据版本 <span>›</span> 训练 <span>›</span> 转换与导出</div></div>
+      <div class="page-head library-heading"><div><h1>${state.projectsArchived ? t("归档项目") : t("项目空间")}</h1><p class="page-subtitle">${state.projects.length ? t("{0} 个{1}项目，{2} 张图片{3}。", [state.projects.length, state.projectsArchived ? t("归档") : t("进行中"), totalImages.toLocaleString(getLocale()), submitted ? t("，{0} 张待审核", [submitted.toLocaleString(getLocale())]) : ""]) : t("从第一张图片开始，构建你的视觉模型。")}</p></div>
+        <button class="btn primary" id="new-project">${t("{0}新建项目", [icon("plus")])}</button></div>
       <div class="project-library-toolbar">
-        <div class="library-views" aria-label="项目列表"><button data-project-view="active" class="${state.projectsArchived ? "" : "active"}" aria-pressed="${!state.projectsArchived}">我的项目</button>${isAdmin() ? `<button data-project-view="archived" class="${state.projectsArchived ? "active" : ""}" aria-pressed="${state.projectsArchived}">已归档</button>` : ""}</div>
-        <div class="library-search-controls"><div class="search">${icon("search")}<input type="search" id="project-search" aria-label="搜索项目" placeholder="搜索名称或描述" value="${escapeHtml(state.projectQuery)}" /></div><select id="project-sort" aria-label="项目排序"><option value="updated">最近更新</option><option value="images" ${state.projectSort === "images" ? "selected" : ""}>图片最多</option></select></div>
+        <div class="library-views" aria-label="${ta("项目列表")}">${[["mine",t("我的项目")],["shared",t("与我共享")],...(isAdmin()?[["all",t("全部项目")]]:[])].map(([scope,label])=>`<button data-project-view="${scope}" class="${state.projectsScope===scope?"active":""}" aria-pressed="${state.projectsScope===scope}">${label}</button>`).join("")}</div>
+        <div class="library-search-controls"><div class="search">${icon("search")}<input type="search" id="project-search" aria-label="${ta("搜索项目")}" placeholder="${ta("搜索项目")}" value="${escapeHtml(state.projectQuery)}" /></div>
+          <details class="studio-disclosure library-filter" data-studio-disclosure><summary class="btn ghost" aria-label="${ta("筛选与排序")}">${icon("sliders")}<span>${t("筛选")}</span><span class="filter-indicator" ${state.projectTaskFilter === "all" && !state.projectsArchived && state.projectSort === "updated" ? "hidden" : ""}></span></summary><div class="studio-popover"><span class="filter-label">${t("任务类型")}</span><div class="task-filters" aria-label="${ta("任务类型")}">${[["all",t("全部任务")],...Object.entries(TASK_LABELS)].map(([value,label]) => `<button data-task-filter="${value}" class="${state.projectTaskFilter === value ? "active" : ""}" aria-pressed="${state.projectTaskFilter === value}">${label}</button>`).join("")}</div><label class="filter-label" for="project-sort">${t("排序")}</label><select id="project-sort" aria-label="${ta("项目排序")}"><option value="updated">${t("最近更新")}</option><option value="images" ${state.projectSort === "images" ? "selected" : ""}>${t("图片最多")}</option></select><label class="check-line"><input type="checkbox" id="show-archived-projects" ${state.projectsArchived?"checked":""}/>${t("查看已归档项目")}</label></div></details>
+        </div>
       </div>
-      <div class="project-filter-row"><div class="task-filters" aria-label="任务类型">${[["all","全部任务"],...Object.entries(TASK_LABELS)].map(([value,label]) => `<button data-task-filter="${value}" class="${state.projectTaskFilter === value ? "active" : ""}" aria-pressed="${state.projectTaskFilter === value}">${label}</button>`).join("")}</div><span id="project-result-count" role="status"></span></div>
-      ${state.projectsArchived ? `<p class="archive-note">归档项目从默认列表收起，图片、标注和任务记录仍然保留，可随时恢复。</p>` : ""}
-      <section class="dataset-project-grid" id="project-results" aria-label="项目列表"></section>
+      <div class="project-filter-row" id="project-filter-status" ${state.projectQuery.trim() || state.projectTaskFilter !== "all" ? "" : "hidden"}><span id="project-result-count" role="status"></span><button type="button" class="studio-text-action" id="clear-project-filters">${t("清除筛选")}</button></div>
+      ${state.projectsArchived ? `<p class="archive-note">${t("归档项目从默认列表收起，图片、标注和任务记录仍然保留，可随时恢复。")}</p>` : ""}
+      <section class="dataset-project-grid" id="project-results" aria-label="${ta("项目列表")}"></section>
     </div></main></div>`;
   document.querySelector("#new-project")?.addEventListener("click", openProjectModal);
+  document.querySelector("#clear-project-filters").onclick = () => { state.projectQuery = ""; state.projectTaskFilter = "all"; renderDashboard(); document.querySelector("#project-search").focus(); };
   document.querySelector("#project-search").oninput = event => { state.projectQuery = event.target.value; renderProjectResults(); };
   document.querySelector("#project-sort").onchange = event => { state.projectSort = event.target.value; renderProjectResults(); };
   document.querySelectorAll("[data-task-filter]").forEach(button => button.onclick = () => {
@@ -451,18 +461,21 @@ function renderDashboard() {
     renderProjectResults();
   });
   document.querySelectorAll("[data-project-view]").forEach(button => button.onclick = () => {
-    state.projectsArchived = button.dataset.projectView === "archived";
+    state.projectsScope = button.dataset.projectView;
     state.projectQuery = ""; state.projectTaskFilter = "all";
     void loadDashboard();
   });
+  document.querySelector("#show-archived-projects").onchange = event => { state.projectsArchived = event.target.checked; void loadDashboard(); };
   renderProjectResults();
 }
 
 function renderProjectResults() {
   const projects = filteredProjects();
   const filtering = state.projectQuery.trim() || state.projectTaskFilter !== "all";
-  document.querySelector("#project-result-count").textContent = `${projects.length} 个项目`;
-  document.querySelector("#project-results").innerHTML = projects.length ? projects.map(projectCard).join("") : `<div class="empty-state"><span class="card-icon">${icon("folder")}</span><strong>${filtering ? "没有符合条件的项目" : state.projectsArchived ? "暂无归档项目" : "从第一批图片开始"}</strong><p>${filtering ? "试试其他名称或任务类型。" : state.projectsArchived ? "归档的项目会显示在这里。" : "创建项目并选择任务类型，然后导入图片，开始 AI 标注。"}</p>${filtering ? `<button class="btn ghost" id="reset-project-filters">清除筛选</button>` : isAdmin() && !state.projectsArchived ? `<button class="btn primary" id="empty-create-project">新建项目</button>` : ""}</div>`;
+  document.querySelector("#project-filter-status").hidden = !filtering;
+  document.querySelector(".filter-indicator").hidden = state.projectTaskFilter === "all" && !state.projectsArchived && state.projectSort === "updated";
+  document.querySelector("#project-result-count").textContent = t("{0}{1} 个项目", [state.projectTaskFilter !== "all" ? `${TASK_LABELS[state.projectTaskFilter]} · ` : "", projects.length]);
+  document.querySelector("#project-results").innerHTML = projects.length ? projects.map(projectCard).join("") : `<div class="empty-state"><span class="card-icon">${icon("folder")}</span><strong>${filtering ? t("没有符合条件的项目") : state.projectsArchived ? t("暂无归档项目") : state.projectsScope === "shared" ? t("暂无分享给你的项目") : t("从第一批图片开始")}</strong><p>${filtering ? t("试试其他名称或任务类型。") : state.projectsArchived ? t("归档的项目会显示在这里。") : state.projectsScope === "shared" ? t("其他用户将你添加为项目成员后，项目会显示在这里。") : t("创建项目并选择任务类型，然后导入图片，开始 AI 标注。")}</p>${filtering ? `<button class="btn ghost" id="reset-project-filters">${t("清除筛选")}</button>` : !state.projectsArchived ? `<button class="btn primary" id="empty-create-project">${t("新建项目")}</button>` : ""}</div>`;
   document.querySelector("#reset-project-filters")?.addEventListener("click", () => { state.projectQuery = ""; state.projectTaskFilter = "all"; renderDashboard(); });
   document.querySelector("#empty-create-project")?.addEventListener("click", openProjectModal);
   document.querySelectorAll("[data-upload-project]").forEach(button => button.onclick = () => {
@@ -473,7 +486,7 @@ function renderProjectResults() {
     button.disabled = true;
     try {
       await api(`/api/projects/${button.dataset.archiveProject}/archive`, jsonOptions("PATCH", { archived: !state.projectsArchived }));
-      notify(state.projectsArchived ? "项目已恢复到我的项目" : "项目已归档，可在已归档列表恢复");
+      notify(state.projectsArchived ? t("项目已恢复到我的项目") : t("项目已归档，可在已归档列表恢复"));
       await loadDashboard();
     } catch (error) { button.disabled = false; notify(error.message, "error"); }
   });
@@ -484,37 +497,35 @@ function projectCard(project) {
   const percent = project.asset_count ? Math.round(project.labeled_count / project.asset_count * 100) : 0;
   const approved = project.asset_count ? Math.min(percent, Math.round(project.approved_count / project.asset_count * 100)) : 0;
   const base = `#/projects/${project.id}`;
-  const nextSection = !project.asset_count ? "data" : project.labeled_count < project.asset_count ? "ai" : project.approved_count < project.asset_count ? "annotate" : "versions";
-  const nextLabel = {data:"导入数据",ai:"AI 标注",annotate:"标注与审核",versions:"生成数据版本"}[nextSection];
+  const nextSection = !canEditProject(project) ? "overview" : !project.asset_count ? "data" : project.labeled_count < project.asset_count ? "ai" : project.approved_count < project.asset_count ? "annotate" : "versions";
+  const nextLabel = {overview:t("查看项目"),data:t("导入数据"),ai:t("AI 标注"),annotate:t("标注与审核"),versions:t("生成数据版本")}[nextSection];
   const previews = project.preview_asset_ids || [];
-  return `<article class="dataset-project-card">
-    <a class="project-filmstrip" href="${base}/overview" aria-label="打开项目 ${escapeHtml(project.name)}">${previews.length ? previews.map(id => `<img src="/api/assets/${id}/thumbnail?size=480" alt="" loading="lazy" />`).join("") : `<span>${icon("image")}等待导入图片</span>`}<span class="filmstrip-count">${project.asset_count.toLocaleString()} 张图片</span></a>
-    <div class="dataset-project-body"><div class="project-title-row"><h2><a href="${base}/overview">${escapeHtml(project.name)}</a></h2><span class="task-badge">${TASK_LABELS[project.task_type || "mixed"]}</span></div>
-    <p class="project-description">${escapeHtml(project.description || "进入项目查看数据、标注和训练记录")}</p>
-    <div class="project-progress-label"><span>已标注 <strong>${project.labeled_count} / ${project.asset_count}</strong></span><strong>${percent}%</strong></div>
-    <div class="dataset-progress" role="progressbar" aria-label="已标注比例" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}"><span class="approved" style="width:${approved}%"></span><span style="width:${Math.max(0, percent - approved)}%"></span></div>
-    <div class="project-review-counts"><span>${project.label_count} 个类别</span><span>${project.submitted_count || 0} 待审核</span><span class="approved-count">${project.approved_count || 0} 已通过</span></div>
-    <div class="project-card-actions">${state.projectsArchived ? `<button class="btn primary" data-archive-project="${project.id}">恢复项目</button><a class="btn ghost link-btn" href="${base}/overview">查看项目</a>` : `<a class="btn primary link-btn" href="${base}/${nextSection}">${icon(nextSection === "ai" ? "magic" : "arrowRight")}${nextLabel}</a>${nextSection !== "data" ? `<button class="btn ghost" data-upload-project="${project.id}">${icon("upload")}导入数据</button>` : ""}${isAdmin() ? `<button class="project-archive-action" data-archive-project="${project.id}" aria-label="归档项目 ${escapeHtml(project.name)}" title="收起项目，可从归档列表恢复">归档</button>` : ""}`}${isAdmin() ? `<button class="project-delete-action" data-delete-project="${project.id}" aria-label="永久删除项目 ${escapeHtml(project.name)}">删除</button>` : ""}</div></div>
+  return `<article class="dataset-project-card" data-project-task="${escapeHtml(project.task_type || "mixed")}">
+    <a class="project-filmstrip ${previews.length ? "" : "is-empty"}" href="${base}/overview" aria-label="${ta("打开项目 {0}", [escapeHtml(project.name)])}">${previews.length ? previews.slice(0, 3).map(id => `<img src="/api/assets/${id}/thumbnail?size=480" alt="" loading="lazy" />`).join("") : `<span class="project-placeholder" aria-hidden="true"><i></i><i></i><i></i>${icon("image")}</span>`}<span class="filmstrip-count">${project.asset_count ? t("{0} 张图片", [project.asset_count.toLocaleString(getLocale())]) : t("等待导入图片")}</span><span class="filmstrip-task">${TASK_LABELS[project.task_type || "mixed"]}</span></a>
+    <div class="dataset-project-body"><div class="project-title-row"><h2><a href="${base}/overview">${escapeHtml(project.name)}</a></h2>${canEditProject(project) || canManageProject(project) ? `<details class="studio-disclosure project-options" data-studio-disclosure><summary class="btn ghost icon-btn" aria-label="${ta("项目操作：{0}", [escapeHtml(project.name)])}" title="${ta("项目操作")}"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></summary><div class="studio-popover">${project.owner_name ? `<p class="project-owner">${escapeHtml(accountDisplayName(project.owner_name))}${project.project_role === "viewer" ? t(" · 只读") : ""}</p>` : ""}${canEditProject(project) && !state.projectsArchived ? `<button data-upload-project="${project.id}">${t("{0}导入数据", [icon("upload")])}</button>` : ""}${canManageProject(project) ? `<button data-archive-project="${project.id}" aria-label="${ta("{0}项目 {1}", [state.projectsArchived ? ta("恢复") : ta("归档"), escapeHtml(project.name)])}">${icon("folder")}${state.projectsArchived ? t("恢复项目") : t("归档项目")}</button><button class="project-delete-action" data-delete-project="${project.id}" aria-label="${ta("永久删除项目 {0}", [escapeHtml(project.name)])}">${t("{0}删除项目", [icon("trash")])}</button>` : ""}</div></details>` : ""}</div>
+    ${project.description ? `<p class="project-description">${escapeHtml(project.description)}</p>` : ""}
+    ${project.asset_count ? `<div class="project-progress-label"><span>${t("标注进度")}</span><strong>${percent}%</strong></div><div class="dataset-progress" role="progressbar" aria-label="${ta("已标注比例")}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}"><span class="approved" style="width:${approved}%"></span><span style="width:${Math.max(0, percent - approved)}%"></span></div>` : ""}
+    <div class="project-card-actions"><span class="project-state ${project.submitted_count ? "needs-review" : ""}">${project.project_role === "viewer" ? t("只读成员") : project.submitted_count ? t("{0} 张待审核", [project.submitted_count]) : project.asset_count && project.approved_count === project.asset_count ? t("{0}已完成审核", [icon("check")]) : project.asset_count ? t("{0} 张已标注", [project.labeled_count.toLocaleString(getLocale())]) : t("尚未开始")}</span>${state.projectsArchived ? `<a class="studio-project-link" href="${base}/overview">${t("查看项目{0}", [icon("arrowRight")])}</a>` : `<a class="studio-project-link" href="${base}/${nextSection}">${nextLabel}${icon("arrowRight")}</a>`}</div></div>
   </article>`;
 }
 
 function openProjectDeleteModal(projectId) {
-  if (!isAdmin()) return notify("只有管理员可以删除项目", "error");
   const project = state.projects.find(item => item.id === projectId);
-  if (!project) return notify("项目列表已更新，请刷新后重试", "warning");
+  if (!project) return notify(t("项目列表已更新，请刷新后重试"), "warning");
+  if (!canManageProject(project)) return notify(t("只有项目所有者或系统管理员可以删除项目"), "error");
   const name = project.name, epoch = state.selectionEpoch, session = state.session;
   const hash = location.hash, archived = state.projectsArchived, request = dashboardRequest;
   let input, submit, pending = false, disposed = false;
   const current = () => !disposed && input?.isConnected && document.querySelector("#project-delete-name") === input &&
-    isAdmin() && state.authReady && state.session === session && state.selectionEpoch === epoch &&
+    canManageProject(project) && state.authReady && state.session === session && state.selectionEpoch === epoch &&
     state.currentSection === "projects" && location.hash === hash && state.projectsArchived === archived &&
     dashboardRequest === request && state.projects.some(item => item.id === projectId && item.name === name);
   const updateSubmit = () => { submit.disabled = pending || !current() || input.value !== name; };
-  openModal({ title: "永久删除项目", subtitle: "删除后无法恢复，请确认项目名称。", submitText: "永久删除项目",
-    body: `<div class="modal-warning project-delete-warning">此操作将永久删除项目中的图片、标注、数据块、数据版本，以及训练和模型转换的记录与结果，无法撤销。</div>
-      <p>将要删除的项目：</p><code class="project-delete-confirm-name">${escapeHtml(name)}</code>
-      <div class="field"><label for="project-delete-name">请输入项目完整名称以确认</label><input type="text" id="project-delete-name" name="project-delete-confirmation" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="project-delete-hint" autofocus /><div class="hint" id="project-delete-hint">须与上方名称完全一致，包括大小写和空格。输入前请确认已备份需要的数据。</div></div>
-      <p class="hint">如项目仍有排队或运行中的任务，或有人正在编辑标注，请先结束任务和编辑，再删除项目。</p>`,
+  openModal({ title: t("永久删除项目"), subtitle: t("删除后无法恢复，请确认项目名称。"), submitText: t("永久删除项目"),
+    body: `<div class="modal-warning project-delete-warning">${t("此操作将永久删除项目中的图片、标注、数据块、数据版本，以及训练和模型转换的记录与结果，无法撤销。")}</div>
+      <p>${t("将要删除的项目：")}</p><code class="project-delete-confirm-name">${escapeHtml(name)}</code>
+      <div class="field"><label for="project-delete-name">${t("请输入项目完整名称以确认")}</label><input type="text" id="project-delete-name" name="project-delete-confirmation" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="project-delete-hint" autofocus /><div class="hint" id="project-delete-hint">${t("须与上方名称完全一致，包括大小写和空格。输入前请确认已备份需要的数据。")}</div></div>
+      <p class="hint">${t("如项目仍有排队或运行中的任务，或有人正在编辑标注，请先结束任务和编辑，再删除项目。")}</p>`,
     onReady: () => {
       input = document.querySelector("#project-delete-name"); submit = document.querySelector("#modal-submit");
       input.value = ""; submit.classList.remove("primary"); submit.classList.add("danger");
@@ -531,16 +542,16 @@ function openProjectDeleteModal(projectId) {
     onClose: () => { disposed = true; },
     onSubmit: async () => {
       if (pending) return;
-      if (!current()) throw new Error("页面或项目已更新，请重新打开删除确认窗口");
-      if (input.value !== name) throw new Error("项目名称不一致，请输入完整名称后再删除");
+      if (!current()) throw new Error(t("页面或项目已更新，请重新打开删除确认窗口"));
+      if (input.value !== name) throw new Error(t("项目名称不一致，请输入完整名称后再删除"));
       pending = true; updateSubmit();
       try {
         const result = await api(`/api/projects/${projectId}`, jsonOptions("DELETE", { confirmation_name: input.value }));
         if (!current()) return;
         state.projects = state.projects.filter(item => item.id !== projectId);
         closeModal();
-        if (result?.cleanup?.status === "pending" || result?.cleanup?.pending_count > 0) notify("项目已删除，部分文件待管理员清理", "warning");
-        else notify("项目已删除");
+        if (result?.cleanup?.status === "pending" || result?.cleanup?.pending_count > 0) notify(t("项目已删除，部分文件待管理员清理"), "warning");
+        else notify(t("项目已删除"));
         await loadDashboard();
       } catch (error) { if (current()) throw error; }
       finally { pending = false; }
@@ -549,18 +560,18 @@ function openProjectDeleteModal(projectId) {
 }
 
 function openProjectModal() {
-  if (!isAdmin()) return notify("请联系管理员创建项目", "error");
-  openModal({ title: "新建标注项目", subtitle: "选择任务类型，设置类别，创建后即可导入图片。", body: `
-    <div class="field"><label>项目名称</label><input type="text" id="project-name" placeholder="例如：园区安全帽检测" maxlength="100" autofocus /></div>
+
+  openModal({ title: t("新建标注项目"), subtitle: t("选择任务类型，设置类别，创建后即可导入图片。"), body: `
+    <div class="field"><label for="project-name">${t("项目名称")}</label><input type="text" id="project-name" placeholder="${ta("例如：园区安全帽检测")}" maxlength="100" autofocus /></div>
     ${taskFieldsMarkup()}
-    <div class="field"><label>需要识别的类别（用逗号分隔）</label><input type="text" id="project-labels" placeholder="person, helmet" /><div class="hint">例如 person, helmet（人、安全帽），或 合格, 不合格。类别名称应与使用的 AI 模型一致；创建后管理员仍可调整。</div></div>
-    <div class="field"><label>项目描述</label><textarea id="project-description" placeholder="记录数据来源、场景和标注目标"></textarea></div>`,
+    <div class="field"><label for="project-labels">${t("需要识别的类别")}</label><input type="text" id="project-labels" placeholder="person, helmet" /><div class="hint">${t("多个类别用逗号分隔，创建后可调整。")}</div></div>
+    <details class="project-description-details"><summary>${t("添加项目描述（可选）")}</summary><div class="field"><label class="sr-only" for="project-description">${t("项目描述")}</label><textarea id="project-description" placeholder="${ta("记录数据来源、场景和标注目标")}"></textarea></div></details>`,
     onReady: bindTaskFields,
-    submitText: "创建并导入数据", onSubmit: async () => {
+    submitText: t("创建并导入数据"), onSubmit: async () => {
       const name = document.querySelector("#project-name").value.trim();
-      if (!name) throw new Error("请输入项目名称");
+      if (!name) throw new Error(t("请输入项目名称"));
       const labels = document.querySelector("#project-labels").value.split(/[,，]/).map(value => value.trim()).filter(Boolean);
-      if (!labels.length) throw new Error("请至少填写一个标签类别");
+      if (!labels.length) throw new Error(t("请至少填写一个标签类别"));
       const project = await api("/api/projects", jsonOptions("POST", { name, description: document.querySelector("#project-description").value.trim(), labels, ...readTaskFields() }));
       sessionStorage.setItem("visionforge-open-upload", "1");
       closeModal(); location.hash = `#/projects/${project.id}/data`;
@@ -568,31 +579,31 @@ function openProjectModal() {
   });
 }
 
-function canPrepareAnnotationModels() { return isAdmin() || ["annotator", "reviewer"].includes(state.session?.role); }
+function canPrepareAnnotationModels() { return isAdmin() || ["user", "annotator", "reviewer"].includes(state.session?.role); }
 function annotationModelBadge(model) {
-  if (!model.enabled) return "已停用";
-  if (model.configured) return model.last_health_status === "healthy" ? "健康" : "可用";
-  if (model.preparation?.state?.status === "downloading") return "下载中";
-  if (model.preparation?.installed) return "环境待就绪";
-  if (model.preparation?.mode === "manual") return "手动准备";
-  if (model.preparation?.downloadable) return "可下载";
-  return "待配置";
+  if (!model.enabled) return t("已停用");
+  if (model.configured) return model.last_health_status === "healthy" ? t("健康") : t("可用");
+  if (model.preparation?.state?.status === "downloading") return t("下载中");
+  if (model.preparation?.installed) return t("环境待就绪");
+  if (model.preparation?.mode === "manual") return t("手动准备");
+  if (model.preparation?.downloadable) return t("可下载");
+  return t("待配置");
 }
 
 async function renderModelsPage() {
   const request = ++modelsRequest, epoch = state.selectionEpoch, session = state.session;
   const current = () => request === modelsRequest && epoch === state.selectionEpoch && session === state.session && state.currentSection === "models";
   state.currentSection = "models"; state.project = null; state.asset = null; state.annotations = []; state.lockOwned = false; state.readOnly = false; state.assistPoints = []; state.drawing = null; state.polygon = []; state.shapeEdit = null;
-  const finishLoading = beginWorkspaceLoad(app, { message: "正在加载标注模型服务…", fallback: () => workspaceLoadingShell("models") });
+  const finishLoading = beginWorkspaceLoad(app, { message: t("正在加载标注模型服务…"), fallback: () => workspaceLoadingShell("models") });
   try {
     const models = await api("/api/models");
     if (!current()) return;
     state.models = models;
     const configured = state.models.filter((model) => model.configured).length;
     app.innerHTML = `<div class="app-shell">${topbar("models")}<main class="dashboard"><div class="dashboard-inner">
-      <div class="page-head"><div><div class="eyebrow">Model registry</div><h1>标注模型服务</h1><p class="page-subtitle">选择与项目任务匹配的 AI 模型。连接配置由管理员维护，标注时选择可下载模型会在后台准备；SAM 系列需按提示手动放置文件。</p></div><button class="btn primary" id="new-model" ${isAdmin()?"":"disabled"}>${icon("plus")}接入模型</button></div>
-      <section class="overview-strip"><div class="metric"><div class="metric-label">模型服务</div><div class="metric-value">${state.models.length}</div></div><div class="metric"><div class="metric-label">已配置</div><div class="metric-value" data-model-configured-count>${configured}</div></div><div class="metric"><div class="metric-label">全自动</div><div class="metric-value">${state.models.filter(m => m.modes.includes("auto")).length}</div></div><div class="metric"><div class="metric-label">半自动</div><div class="metric-value">${state.models.filter(m => m.modes.includes("assist")).length}</div></div></section>
-      <div class="section-head"><h2>模型目录</h2></div><section class="project-grid">${state.models.map((model) => { const local = model.provider_type.startsWith("local_"); return `<article class="project-card model-service-card" data-service-model="${escapeHtml(model.id)}" style="min-height:245px"><span class="card-icon">${icon("magic")}</span><span class="badge" data-model-service-badge>${annotationModelBadge(model)}</span><h3>${escapeHtml(model.name)}</h3><p>${escapeHtml(model.description)}</p><div class="capabilities">${model.modes.map(mode => `<span>${mode === "auto" ? "全自动" : "半自动"}</span>`).join("")}${model.capabilities.map(c => `<span>${escapeHtml(c)}</span>`).join("")}</div>${model.availability_error && !model.preparation ? `<p class="hint">模型暂不可用，${isAdmin() ? "请展开连接信息检查配置。" : "请联系管理员检查配置。"}</p>` : ""}${model.preparation && model.preparation.mode !== "remote" ? `<div data-service-preparation="${escapeHtml(model.id)}"></div>` : `<details class="technical-details"><summary>连接信息${model.availability_error ? "与不可用原因" : ""}</summary><div class="model-endpoint">${escapeHtml(local ? `本地权重 · ${model.model_name}` : model.endpoint || "尚未配置服务地址")}</div>${model.availability_error ? `<pre>${escapeHtml(model.availability_error)}</pre>` : ""}</details>`}<div class="card-meta"><span>${escapeHtml(model.family)}</span><span class="model-actions">${isAdmin()?`<button class="mini-action" data-toggle-model="${model.id}">${model.enabled?"停用":"启用"}</button>`:""}<button class="mini-action" data-health-model="${model.id}" ${model.configured ? "" : "disabled"}>检测</button>${local ? `<span class="capabilities"><span>内置</span></span>` : isAdmin() ? `<button class="mini-action" data-edit-model="${model.id}">配置</button>` : ""}</span></div></article>`; }).join("")}</section>
+      <div class="page-head"><div><div class="eyebrow">${t("模型注册表")}</div><h1>${t("标注模型服务")}</h1><p class="page-subtitle">${t("为你的标注任务准备模型，或接入自己的服务。")}</p></div><button class="btn primary" id="new-model" ${isAdmin()?"":"disabled"}>${t("{0}接入模型", [icon("plus")])}</button></div>
+      <p class="model-registry-summary">${t("{0} 个模型，", [state.models.length])}<span data-model-configured-count>${configured}</span> ${t("个已配置")}</p>
+      <div class="section-head"><h2>${t("模型目录")}</h2></div><section class="project-grid">${state.models.map((model) => { const local = model.provider_type.startsWith("local_"); return `<article class="project-card model-service-card" data-service-model="${escapeHtml(model.id)}" style="min-height:245px"><span class="card-icon">${icon("magic")}</span><span class="badge" data-model-service-badge>${annotationModelBadge(model)}</span><h3>${escapeHtml(model.name)}</h3><p>${escapeHtml(model.description)}</p><div class="capabilities">${model.modes.map(mode => `<span>${mode === "auto" ? t("全自动") : t("半自动")}</span>`).join("")}${model.capabilities.map(c => `<span>${escapeHtml(c)}</span>`).join("")}</div>${model.availability_error && !model.preparation ? `<p class="hint">${t("模型暂不可用，{0}", [isAdmin() ? t("请展开连接信息检查配置。") : t("请联系管理员检查配置。")])}</p>` : ""}${model.preparation && model.preparation.mode !== "remote" ? `<div data-service-preparation="${escapeHtml(model.id)}"></div>` : `<details class="technical-details"><summary>${t("连接信息{0}", [model.availability_error ? t("与不可用原因") : ""])}</summary><div class="model-endpoint">${escapeHtml(local ? t("本地权重 · {0}", [model.model_name]) : model.endpoint || t("尚未配置服务地址"))}</div>${model.availability_error ? `<pre>${escapeHtml(model.availability_error)}</pre>` : ""}</details>`}<div class="card-meta"><span>${escapeHtml(model.family)}</span><span class="model-actions">${isAdmin()?`<button class="mini-action" data-toggle-model="${model.id}">${model.enabled?t("停用"):t("启用")}</button>`:""}<button class="mini-action" data-health-model="${model.id}" ${model.configured ? "" : "disabled"}>${t("检测")}</button>${local ? `<span class="capabilities"><span>${t("内置")}</span></span>` : isAdmin() ? `<button class="mini-action" data-edit-model="${model.id}">${t("配置")}</button>` : ""}</span></div></article>`; }).join("")}</section>
     </div></main></div>`;
     app.querySelectorAll("[data-service-preparation]").forEach(container => {
       const model = state.models.find(item => item.id === container.dataset.servicePreparation);
@@ -608,26 +619,26 @@ async function renderModelsPage() {
     if (isAdmin()) {
       const importButton = document.createElement("button");
       importButton.className = "btn";
-      importButton.textContent = "导入训练权重";
+      importButton.textContent = t("导入训练权重");
       document.querySelector("#new-model").before(importButton);
-      importButton.onclick = () => openModal({ title: "导入训练权重", subtitle: "导入你自己训练或确认来源的 Ultralytics .pt 权重，最多 2 GiB。",
-        body: '<div class="field"><label for="checkpoint-file">模型文件</label><input id="checkpoint-file" type="file" accept=".pt"></div>',
-        submitText: "导入", onSubmit: async () => {
+      importButton.onclick = () => openModal({ title: t("导入训练权重"), subtitle: t("导入你自己训练或确认来源的 Ultralytics .pt 权重，最多 2 GiB。"),
+        body: `<div class="field"><label for="checkpoint-file">${t("模型文件")}</label>${fileInputMarkup("checkpoint-file", ".pt")}</div>`,
+        submitText: t("导入"), onSubmit: async () => {
           const file = document.querySelector("#checkpoint-file").files[0];
-          if (!file) throw new Error("请选择 .pt 文件");
+          if (!file) throw new Error(t("请选择 .pt 文件"));
           const body = new FormData(); body.append("file", file);
           await api("/api/model-downloads/import/checkpoint", { method: "POST", body });
-          closeModal(); notify("权重已导入，可以在训练模型目录中查看。"); await renderModelsPage();
+          closeModal(); notify(t("权重已导入，可以在训练模型目录中查看。")); await renderModelsPage();
         } });
       const downloadButton = document.createElement("button");
       downloadButton.className = "btn";
-      downloadButton.textContent = "下载基础模型";
+      downloadButton.textContent = t("下载基础模型");
       document.querySelector("#new-model").before(downloadButton);
       downloadButton.onclick = () => {
         let downloads;
-        openModal({ title: "下载基础模型", wide: true,
-          body: '<div id="model-download-panel" role="region" aria-label="基础模型下载">正在读取模型目录…</div>',
-          submitText: "完成", onSubmit: async () => { closeModal(); if (current()) await renderModelsPage(); },
+        openModal({ title: t("下载基础模型"), wide: true,
+          body: `<div id="model-download-panel" role="region" aria-label="${ta("基础模型下载")}">${t("正在读取模型目录…")}</div>`,
+          submitText: t("完成"), onSubmit: async () => { closeModal(); if (current()) await renderModelsPage(); },
           onClose: () => downloads?.dispose(),
           onReady: () => { downloads = mountModelDownloads(document.querySelector("#model-download-panel"), { api, escapeHtml, notify, isCurrent: current }); } });
       };
@@ -638,7 +649,7 @@ async function renderModelsPage() {
       button.disabled = true;
       try {
         await api(`/api/models/${model.id}/enabled`, jsonOptions("PATCH", { enabled: !model.enabled }));
-        if (current()) { notify(model.enabled ? "模型已停用" : "模型已启用"); await renderModelsPage(); }
+        if (current()) { notify(model.enabled ? t("模型已停用") : t("模型已启用")); await renderModelsPage(); }
       } catch (error) { if (current()) notify(error.message, "error"); }
       finally { if (button.isConnected) button.disabled = false; }
     });
@@ -648,41 +659,41 @@ async function renderModelsPage() {
 }
 
 function openModelModal(model = null) {
-  if (!isAdmin()) return notify("需要管理员权限", "error");
+  if (!isAdmin()) return notify(t("需要管理员权限"), "error");
   const epoch = state.selectionEpoch, session = state.session;
   const current = () => epoch === state.selectionEpoch && session === state.session && state.currentSection === "models";
   const editing = Boolean(model);
   const modes = model?.modes || ["auto"];
-  openModal({ title: editing ? "配置模型服务" : "接入模型服务", subtitle: "平台调用 OpenAI 兼容视觉接口，或统一的远程检测/分割协议。", wide: true, body: `
-    <div class="form-grid"><div class="field"><label>服务 ID</label><input type="text" id="model-id" value="${escapeHtml(model?.id || "")}" placeholder="factory-detector" ${editing ? "disabled" : ""}/></div><div class="field"><label>显示名称</label><input type="text" id="model-name" value="${escapeHtml(model?.name || "")}" placeholder="产线目标检测" /></div></div>
-    <div class="form-grid"><div class="field"><label>适配协议</label><select id="model-provider"><option value="remote_detection" ${model?.provider_type === "remote_detection" ? "selected" : ""}>远程目标检测</option><option value="remote_segmentation" ${model?.provider_type === "remote_segmentation" ? "selected" : ""}>远程自动分割</option><option value="remote_classification" ${model?.provider_type === "remote_classification" ? "selected" : ""}>远程图片分类</option><option value="remote_keypoints" ${model?.provider_type === "remote_keypoints" ? "selected" : ""}>远程关键点</option><option value="interactive_segmentation" ${model?.provider_type === "interactive_segmentation" ? "selected" : ""}>交互式分割</option><option value="openai_vision" ${model?.provider_type === "openai_vision" ? "selected" : ""}>OpenAI 兼容视觉模型</option></select></div><div class="field"><label>模型族</label><input type="text" id="model-family" value="${escapeHtml(model?.family || "自定义视觉模型")}" /></div></div>
-    <div class="field"><label>推理端点</label><input type="text" id="model-endpoint" value="${escapeHtml(model?.endpoint || "")}" placeholder="http://inference:8100/predict" /></div>
-    <div class="form-grid"><div class="field"><label>后端模型名</label><input type="text" id="model-backend-name" value="${escapeHtml(model?.model_name || "")}" placeholder="模型服务需要时填写" /></div><div class="field"><label>密钥环境变量</label><input type="text" id="model-secret-env" value="${escapeHtml(model?.api_key_env || "")}" placeholder="VISION_MODEL_API_KEY" /></div></div>
-    <div class="field"><label>描述</label><textarea id="model-description">${escapeHtml(model?.description || "")}</textarea></div>
-    <div class="field"><label>能力（逗号分隔）</label><input type="text" id="model-capabilities" value="${escapeHtml((model?.capabilities || ["检测框"]).join(", "))}" /></div>
-    <div class="scope-row"><label class="scope-option"><input type="checkbox" id="mode-auto" ${modes.includes("auto") ? "checked" : ""}/>全自动批量标注</label><label class="scope-option"><input type="checkbox" id="mode-assist" ${modes.includes("assist") ? "checked" : ""}/>半自动交互标注</label><label class="scope-option"><input type="checkbox" id="model-enabled" ${model?.enabled !== false ? "checked" : ""}/>启用服务</label></div>`,
-    submitText: "保存配置",
+  openModal({ title: editing ? t("配置模型服务") : t("接入模型服务"), subtitle: t("平台调用 OpenAI 兼容视觉接口，或统一的远程检测/分割协议。"), wide: true, body: `
+    <div class="form-grid"><div class="field"><label>${t("服务 ID")}</label><input type="text" id="model-id" value="${escapeHtml(model?.id || "")}" placeholder="factory-detector" ${editing ? "disabled" : ""}/></div><div class="field"><label>${t("显示名称")}</label><input type="text" id="model-name" value="${escapeHtml(model?.name || "")}" placeholder="${ta("产线目标检测")}" /></div></div>
+    <div class="form-grid"><div class="field"><label>${t("适配协议")}</label><select id="model-provider"><option value="remote_detection" ${model?.provider_type === "remote_detection" ? "selected" : ""}>${t("远程目标检测")}</option><option value="remote_segmentation" ${model?.provider_type === "remote_segmentation" ? "selected" : ""}>${t("远程自动分割")}</option><option value="remote_classification" ${model?.provider_type === "remote_classification" ? "selected" : ""}>${t("远程图片分类")}</option><option value="remote_keypoints" ${model?.provider_type === "remote_keypoints" ? "selected" : ""}>${t("远程关键点")}</option><option value="interactive_segmentation" ${model?.provider_type === "interactive_segmentation" ? "selected" : ""}>${t("交互式分割")}</option><option value="openai_vision" ${model?.provider_type === "openai_vision" ? "selected" : ""}>${t("OpenAI 兼容视觉模型")}</option></select></div><div class="field"><label>${t("模型族")}</label><input type="text" id="model-family" value="${escapeHtml(model?.family || t("自定义视觉模型"))}" /></div></div>
+    <div class="field"><label>${t("推理端点")}</label><input type="text" id="model-endpoint" value="${escapeHtml(model?.endpoint || "")}" placeholder="http://inference:8100/predict" /></div>
+    <div class="form-grid"><div class="field"><label>${t("后端模型名")}</label><input type="text" id="model-backend-name" value="${escapeHtml(model?.model_name || "")}" placeholder="${ta("模型服务需要时填写")}" /></div><div class="field"><label>${t("密钥环境变量")}</label><input type="text" id="model-secret-env" value="${escapeHtml(model?.api_key_env || "")}" placeholder="VISION_MODEL_API_KEY" /></div></div>
+    <div class="field"><label>${t("描述")}</label><textarea id="model-description">${escapeHtml(model?.description || "")}</textarea></div>
+    <div class="field"><label>${t("能力（逗号分隔）")}</label><input type="text" id="model-capabilities" value="${escapeHtml((model?.capabilities || [t("检测框")]).join(", "))}" /></div>
+    <div class="scope-row"><label class="scope-option"><input type="checkbox" id="mode-auto" ${modes.includes("auto") ? "checked" : ""}/>${t("全自动批量标注")}</label><label class="scope-option"><input type="checkbox" id="mode-assist" ${modes.includes("assist") ? "checked" : ""}/>${t("半自动交互标注")}</label><label class="scope-option"><input type="checkbox" id="model-enabled" ${model?.enabled !== false ? "checked" : ""}/>${t("启用服务")}</label></div>`,
+    submitText: t("保存配置"),
     onReady: () => {
       if (editing && !model.builtin) {
         const actions = document.querySelector(".modal-actions");
-        const remove = document.createElement("button"); remove.className = "btn danger modal-delete"; remove.textContent = "删除服务";
+        const remove = document.createElement("button"); remove.className = "btn danger modal-delete"; remove.textContent = t("删除服务");
         remove.onclick = async () => {
-          if (!window.confirm(`确定删除 ${model.name}？`)) return;
-          await api(`/api/models/${model.id}`, { method: "DELETE" }); if (current()) { closeModal(); notify("模型服务已删除"); renderModelsPage(); }
+          if (!window.confirm(t("确定删除 {0}？", [model.name]))) return;
+          await api(`/api/models/${model.id}`, { method: "DELETE" }); if (current()) { closeModal(); notify(t("模型服务已删除")); renderModelsPage(); }
         };
         actions.prepend(remove);
       }
     },
     onSubmit: async () => {
       const selectedModes = [document.querySelector("#mode-auto").checked ? "auto" : null, document.querySelector("#mode-assist").checked ? "assist" : null].filter(Boolean);
-      if (!selectedModes.length) throw new Error("至少选择一种标注模式");
+      if (!selectedModes.length) throw new Error(t("至少选择一种标注模式"));
       const payload = {
         id: (model?.id || document.querySelector("#model-id").value).trim(), name: document.querySelector("#model-name").value.trim(), family: document.querySelector("#model-family").value.trim(), provider_type: document.querySelector("#model-provider").value,
         description: document.querySelector("#model-description").value.trim(), endpoint: document.querySelector("#model-endpoint").value.trim(), model_name: document.querySelector("#model-backend-name").value.trim(), api_key_env: document.querySelector("#model-secret-env").value.trim(),
-        capabilities: document.querySelector("#model-capabilities").value.split(",").map(value => value.trim()).filter(Boolean), modes: selectedModes, timeout_seconds: model?.timeout_seconds || 180, enabled: document.querySelector("#model-enabled").checked, config: model?.config || { badge: "自定义" },
+        capabilities: document.querySelector("#model-capabilities").value.split(",").map(value => value.trim()).filter(Boolean), modes: selectedModes, timeout_seconds: model?.timeout_seconds || 180, enabled: document.querySelector("#model-enabled").checked, config: model?.config || { badge: t("自定义") },
       };
-      if (!payload.id || !payload.name || !payload.endpoint || !payload.capabilities.length) throw new Error("请完整填写 ID、名称、端点和能力");
-      await api(editing ? `/api/models/${model.id}` : "/api/models", jsonOptions(editing ? "PUT" : "POST", payload)); if (current()) { closeModal(); notify("模型服务配置已保存"); renderModelsPage(); }
+      if (!payload.id || !payload.name || !payload.endpoint || !payload.capabilities.length) throw new Error(t("请完整填写 ID、名称、端点和能力"));
+      await api(editing ? `/api/models/${model.id}` : "/api/models", jsonOptions(editing ? "PUT" : "POST", payload)); if (current()) { closeModal(); notify(t("模型服务配置已保存")); renderModelsPage(); }
     },
   });
 }
@@ -692,15 +703,15 @@ async function checkModelHealth(modelId) {
   const current = () => epoch === state.selectionEpoch && session === state.session && state.currentSection === "models";
   const button = document.querySelector(`[data-health-model="${CSS.escape(modelId)}"]`);
   if (button?.disabled) return;
-  if (button) { button.disabled = true; button.textContent = "检测中…"; }
+  if (button) { button.disabled = true; button.textContent = t("检测中…"); }
   try {
-    notify("正在检测模型服务，请稍候…", "info");
+    notify(t("正在检测模型服务，请稍候…"), "info");
     const result = await api(`/api/models/${modelId}/health`, { method: "POST" });
     if (!current()) return;
-    notify(result.status === "healthy" ? "模型服务连接正常" : `连接异常：${result.error || "未知错误"}`, result.status === "healthy" ? "success" : "error");
+    notify(result.status === "healthy" ? t("模型服务连接正常") : t("连接异常：{0}", [result.error || t("未知错误")]), result.status === "healthy" ? "success" : "error");
     await renderModelsPage();
   } catch (error) { if (current()) notify(error.message, "error"); }
-  finally { if (button?.isConnected) { button.disabled = false; button.textContent = "检测"; } }
+  finally { if (button?.isConnected) { button.disabled = false; button.textContent = t("检测"); } }
 }
 
 async function safeApi(path, fallback) {
@@ -765,7 +776,7 @@ function projectSubnav(active) {
 }
 
 function projectPageShell(section, content) {
-  return `<div class="app-shell">${topbar("projects")}${projectSubnav(section)}<main class="project-page"><div class="project-page-inner">${projectCompatibilityMarkup()}${content}</div></main></div>`;
+  return `<div class="app-shell">${topbar("projects")}${projectSubnav(section)}<main class="project-page"><div class="project-page-inner">${projectCompatibilityMarkup()}<div class="project-access-bar"><span>${canEditProject() ? "" : t("只读分享 · ")}${canExportProject() ? "" : t("下载与导出未授权")}</span>${canManageProject() ? `<button class="btn ghost" id="project-members">${t("项目成员与分享")}</button>` : ""}</div>${content}</div></main></div>`;
 }
 
 function projectCompatibilityMarkup() {
@@ -802,7 +813,7 @@ async function loadProjectSection(projectId, section, routeEpoch = state.selecti
       state.dataStatus = status; state.dataSearch = ""; state.assetRenderLimit = 200;
     }
   }
-  const finishLoading = beginWorkspaceLoad(app, { message: "正在加载项目内容…", fallback: () => workspaceLoadingShell("projects") });
+  const finishLoading = beginWorkspaceLoad(app, { message: t("正在加载项目内容…"), fallback: () => workspaceLoadingShell("projects") });
   try {
     const projectRequest = api(`/api/projects/${projectId}`);
     const [project, assets, jobs, models, analytics, versions, training, workBlocks] = await Promise.all([
@@ -812,7 +823,7 @@ async function loadProjectSection(projectId, section, routeEpoch = state.selecti
       api("/api/models"),
       safeApi(`/api/projects/${projectId}/analytics`, null),
       safeApi(`/api/projects/${projectId}/versions`, []),
-      section === "train" ? pipelineApi(trainingListURL(projectId, state.trainingPage.page, state.trainingFilters) + '&include_availability=false').catch(() => ({runs:[],total:0,counts:{},_loadError:'训练记录暂时无法加载，正在自动重试。'})) : Promise.resolve({ availability: {}, runs: [] }),
+      section === "train" ? pipelineApi(trainingListURL(projectId, state.trainingPage.page, state.trainingFilters) + '&include_availability=false').catch(() => ({runs:[],total:0,counts:{},_loadError:t("训练记录暂时无法加载，正在自动重试。")})) : Promise.resolve({ availability: {}, runs: [] }),
       loadProjectWorkBlocks(api, projectId, projectRequest, state.health),
     ]);
     if (routeEpoch !== state.selectionEpoch) return;
@@ -873,7 +884,7 @@ async function refreshWorkBlocks() {
 
 function renderWorkBlocksPage() {
   const scroll = document.querySelector(".project-page")?.scrollTop || 0;
-  app.innerHTML = projectPageShell("blocks", workBlocksMarkup({ state, isAdmin, escapeHtml, icon }));
+  app.innerHTML = projectPageShell("blocks", workBlocksMarkup({ state, isAdmin: canEditProject, escapeHtml, icon }));
   document.querySelector(".project-page").scrollTop = scroll;
   bindCommonProjectEvents();
   bindWorkBlocks({ state, api, jsonOptions, openModal, closeModal, notify, escapeHtml,
@@ -900,30 +911,29 @@ function renderProjectOverview() {
   const base = `#/projects/${state.project.id}`;
   const awaitingSubmission = state.assets.filter(asset => asset.annotation_count > 0 && ["draft", "in_progress"].includes(asset.review_status)).length;
   const next = !total
-    ? { label: "导入第一批数据", href: `${base}/data`, icon: "upload", copy: "上传图片或 ZIP，建立工作数据集。" }
+    ? { label: t("导入第一批数据"), href: `${base}/data`, icon: "upload", copy: t("上传图片或 ZIP，建立工作数据集。") }
     : running.length
-      ? { label: "查看 AI 标注进度", href: `${base}/ai?tab=history`, icon: "magic", copy: `${running.length} 个任务正在排队或标注。可以先查看已保存的结果，任务结束后按批次提交审核。` }
+      ? { label: t("查看 AI 标注进度"), href: `${base}/ai?tab=history`, icon: "magic", copy: t("{0} 个任务正在排队或标注。可以先查看已保存的结果，任务结束后按批次提交审核。", [running.length]) }
       : review.rejected
-        ? { label: "处理退回的图片", href: `${base}/data?status=rejected`, icon: "polygon", copy: `${review.rejected} 张图片需要修改。打开图片查看审核意见，校正后再次提交。` }
+        ? { label: t("处理退回的图片"), href: `${base}/data?status=rejected`, icon: "polygon", copy: t("{0} 张图片需要修改。打开图片查看审核意见，校正后再次提交。", [review.rejected]) }
         : review.submitted && canReview()
-          ? { label: "审核已提交的图片", href: `${base}/data?status=submitted`, icon: "check", copy: `${review.submitted} 张图片等待审核。检查后可单张或批量通过，也可以退回并说明修改要求。` }
+          ? { label: t("审核已提交的图片"), href: `${base}/data?status=submitted`, icon: "check", copy: t("{0} 张图片等待审核。检查后可单张或批量通过，也可以退回并说明修改要求。", [review.submitted]) }
           : awaitingSubmission
-            ? { label: "检查结果并提交审核", href: `${base}/ai?tab=history`, icon: "check", copy: `${awaitingSubmission} 张图片已有标注但尚未提交。检查结果后，从任务历史或批量选择入口提交审核。` }
+            ? { label: t("检查结果并提交审核"), href: `${base}/ai?tab=history`, icon: "check", copy: t("{0} 张图片已有标注但尚未提交。检查结果后，从任务历史或批量选择入口提交审核。", [awaitingSubmission]) }
             : labeled < total
-              ? { label: "AI 批量标注", href: `${base}/ai?tab=configure`, icon: "magic", copy: `还有 ${total - labeled} 张图片未标注，先由 AI 生成结果，再按需校正。` }
+              ? { label: t("AI 批量标注"), href: `${base}/ai?tab=configure`, icon: "magic", copy: t("还有 {0} 张图片未标注，先由 AI 生成结果，再按需校正。", [total - labeled]) }
               : state.versions.length
-                ? { label: "查看训练与模型", href: `${base}/train`, icon: "cpu", copy: `已保存 ${state.versions.length} 个数据版本。${canReview() ? "可以选择版本训练模型，再转换或下载模型。" : "可以查看训练进度并下载已完成的模型。"}` }
+                ? { label: t("查看训练与模型"), href: `${base}/train`, icon: "cpu", copy: t("已保存 {0} 个数据版本。{1}", [state.versions.length, canReview() ? t("可以选择版本训练模型，再转换或下载模型。") : t("可以查看训练进度并下载已完成的模型。")]) }
                 : approved
-                  ? { label: canReview() ? "生成数据版本" : "查看数据版本", href: `${base}/versions`, icon: "layers", copy: `已有 ${approved} 张图片审核通过。${canReview() ? "可先用这部分数据生成版本，无需等待所有图片审核完成。" : "管理员或审核员可以将它们保存为训练数据版本。"}` }
-                  : { label: "查看审核进度", href: `${base}/data?status=submitted`, icon: "check", copy: "图片已提交，等待审核员确认。可以继续导入新图片，或查看当前协作进度。" };
+                  ? { label: canReview() ? t("生成数据版本") : t("查看数据版本"), href: `${base}/versions`, icon: "layers", copy: t("已有 {0} 张图片审核通过。{1}", [approved, canReview() ? t("可先用这部分数据生成版本，无需等待所有图片审核完成。") : t("管理员或审核员可以将它们保存为训练数据版本。")]) }
+                  : { label: t("查看审核进度"), href: `${base}/data?status=submitted`, icon: "check", copy: t("图片已提交，等待审核员确认。可以继续导入新图片，或查看当前协作进度。") };
   app.innerHTML = projectPageShell("overview", `
-    <div class="page-head compact-head"><div><div class="eyebrow">项目概览</div><h1>${escapeHtml(state.project.name)}</h1><p class="page-subtitle">${escapeHtml(state.project.description || "从原始数据到可部署模型的完整视觉数据流程。")}</p></div><a class="btn primary link-btn" href="${next.href}">${icon(next.icon)}${next.label}</a></div>
-    <section class="overview-strip project-metrics"><div class="metric"><div class="metric-label">图片总数</div><div class="metric-value">${Number(total).toLocaleString()}</div></div><div class="metric"><div class="metric-label">标注对象</div><div class="metric-value">${Number(annotations).toLocaleString()}</div></div><div class="metric"><div class="metric-label">已标注图片</div><div class="metric-value">${Number(labeled).toLocaleString()}</div></div><div class="metric"><div class="metric-label">审核完成</div><div class="metric-value">${Number(approved).toLocaleString()}</div></div></section>
-    <div class="project-overview-grid"><section class="surface workflow-surface"><div class="surface-head"><div><span class="eyebrow">建议下一步</span><h2>${next.label}</h2></div><span class="completion-ring" style="--progress:${completionPercent() * 3.6}deg"><strong>${completionPercent()}%</strong><small>审核通过</small></span></div><p>${next.copy}</p><a class="btn primary link-btn" href="${next.href}">${icon(next.icon)}开始</a><div class="workflow-funnel"><a href="${base}/data?status=all"><strong>${total}</strong><span>已导入</span></a><i></i><a href="${base}/data?status=unlabeled"><strong>${workflow.unlabeled ?? total - labeled}</strong><span>未标注</span></a><i></i><a href="${base}/data?status=submitted"><strong>${review.submitted || 0}</strong><span>待审核</span></a><i></i><a href="${base}/data?status=approved"><strong>${approved}</strong><span>已通过</span></a></div>${approved && !state.versions.length ? `<p class="workflow-version-ready">已有 ${approved} 张审核通过的图片，可用于<a href="${base}/versions">生成数据版本</a>。</p>` : ""}</section>
-      <section class="surface"><div class="surface-head"><div><span class="eyebrow">质量检查</span><h2>数据质量</h2></div><a href="#/projects/${state.project.id}/data">查看数据</a></div>${qualityChecklistMarkup()}</section>
-      <section class="surface overview-training"><div class="surface-head"><div><h2>训练记录</h2></div><a href="${base}/train">训练与模型</a></div><div id="overview-training-content" aria-live="polite"><div class="empty-compact">正在加载训练记录…</div></div></section>
-      <section class="surface"><div class="surface-head"><div><span class="eyebrow">任务动态</span><h2>运行中的任务</h2></div><a href="#/projects/${state.project.id}/ai?tab=history">任务中心</a></div>${running.length ? running.map(projectJobCard).join("") : `<div class="empty-compact">当前没有运行中的 AI 任务</div>`}</section>
-      <section class="surface"><div class="surface-head"><div><span class="eyebrow">数据版本</span><h2>最近版本</h2></div><a href="#/projects/${state.project.id}/versions">全部版本</a></div>${state.versions.length ? state.versions.slice(0, 3).map(versionCompactCard).join("") : `<div class="empty-compact">审核通过后，由管理员或审核员创建数据版本，用于后续训练。</div>`}</section></div>`);
+    <div class="page-head compact-head"><div><h1>${escapeHtml(state.project.name)}</h1>${state.project.description ? `<p class="page-subtitle">${escapeHtml(state.project.description)}</p>` : ""}<div class="overview-metadata"><span>${TASK_LABELS[state.project.task_type || "mixed"]}</span><span>${t("{0} 张图片", [Number(total).toLocaleString(getLocale())])}</span>${annotations ? `<span>${t("{0} 个标注对象", [Number(annotations).toLocaleString(getLocale())])}</span>` : ""}</div></div></div>
+    <div class="project-overview-grid ${total ? "" : "is-new-project"}"><section class="surface workflow-surface"><div class="surface-head"><div><span class="eyebrow">${t("建议下一步")}</span><h2>${next.label}</h2></div>${total ? `<span class="completion-ring" style="--progress:${completionPercent() * 3.6}deg"><strong>${completionPercent()}%</strong><small>${t("审核通过")}</small></span>` : ""}</div><p>${next.copy}</p><a class="btn primary link-btn" href="${next.href}">${icon(next.icon)}${next.label}</a>${total ? `<div class="workflow-funnel"><a href="${base}/data?status=all"><strong>${total}</strong><span>${t("已导入")}</span></a><i></i><a href="${base}/data?status=unlabeled"><strong>${workflow.unlabeled ?? total - labeled}</strong><span>${t("未标注")}</span></a><i></i><a href="${base}/data?status=submitted"><strong>${review.submitted || 0}</strong><span>${t("待审核")}</span></a><i></i><a href="${base}/data?status=approved"><strong>${approved}</strong><span>${t("已通过")}</span></a></div>` : ""}${approved && !state.versions.length ? `<p class="workflow-version-ready">${t("已有 {0} 张审核通过的图片，可用于", [approved])}<a href="${base}/versions">${t("生成数据版本")}</a>${t("。")}</p>` : ""}</section>
+      ${total ? `<section class="surface"><div class="surface-head"><h2>${t("数据质量")}</h2><a href="#/projects/${state.project.id}/data">${t("查看数据")}</a></div>${qualityChecklistMarkup()}</section>` : ""}
+      <section class="surface overview-training"><div class="surface-head"><div><h2>${t("训练记录")}</h2></div><a href="${base}/train">${t("训练与模型")}</a></div><div id="overview-training-content" aria-live="polite"><div class="empty-compact">${t("正在加载训练记录…")}</div></div></section>
+      ${running.length ? `<section class="surface"><div class="surface-head"><h2>${t("运行中的任务")}</h2><a href="#/projects/${state.project.id}/ai?tab=history">${t("任务中心")}</a></div>${running.map(projectJobCard).join("")}</section>` : ""}
+      ${state.versions.length ? `<section class="surface"><div class="surface-head"><h2>${t("最近版本")}</h2><a href="#/projects/${state.project.id}/versions">${t("全部版本")}</a></div>${state.versions.slice(0, 3).map(versionCompactCard).join("")}</section>` : ""}</div>`);
   bindCommonProjectEvents();
   const projectId = state.project.id, epoch = state.selectionEpoch;
   mountOverviewTraining({ projectId, userId: state.session?.user?.id || state.session?.actor || "local", api, escapeHtml, statusLabel: trainingStatusLabel, isCurrent: () => state.project?.id === projectId && state.selectionEpoch === epoch && state.currentSection === "overview" });
@@ -931,7 +941,7 @@ function renderProjectOverview() {
 }
 
 function qualityChecklistMarkup() {
-  if (!state.assets.length) return `<div class="empty-compact">导入图片后，这里会检查标注、审核和文件状态。</div>`;
+  if (!state.assets.length) return `<div class="empty-compact">${t("导入图片后，这里会检查标注、审核和文件状态。")}</div>`;
   const quality = state.analytics?.quality || {};
   const summary = state.analytics?.summary || {};
   const review = state.analytics?.review || {};
@@ -939,13 +949,15 @@ function qualityChecklistMarkup() {
   const unapproved = (summary.asset_count ?? state.assets.length) - Number(review.approved || 0);
   const issueCount = Number(quality.missing_file_count || 0) + Number(quality.empty_labeled_count || 0) + Number(quality.approved_without_annotations_count || 0) + Number(quality.duplicate_hash_group_count || 0) + Number(quality.tiny_annotation_count || 0);
   const checks = [
-    [Number(unlabeled) === 0, "所有图片已有标注", unlabeled ? `${unlabeled} 张未标注` : "已完成"],
-    [Number(unapproved) === 0, "所有标注已经审核", unapproved ? `${unapproved} 张未通过` : "已完成"],
-    [Number(review.rejected || 0) === 0, "没有待修改的退回图片", review.rejected ? `${review.rejected} 张待修改` : "正常"],
-    [issueCount === 0, "文件和标注位置检查", issueCount ? `${issueCount} 个问题` : "正常"],
-    [state.project.labels.length > 0, "已设置标注类别", `${state.project.labels.length} 个类别`],
+    [Number(unlabeled) === 0, t("所有图片已有标注"), unlabeled ? t("{0} 张未标注", [unlabeled]) : t("已完成")],
+    [Number(unapproved) === 0, t("所有标注已经审核"), unapproved ? t("{0} 张未通过", [unapproved]) : t("已完成")],
+    [Number(review.rejected || 0) === 0, t("没有待修改的退回图片"), review.rejected ? t("{0} 张待修改", [review.rejected]) : t("正常")],
+    [issueCount === 0, t("文件和标注位置检查"), issueCount ? t("{0} 个问题", [issueCount]) : t("正常")],
+    [state.project.labels.length > 0, t("已设置标注类别"), t("{0} 个类别", [state.project.labels.length])],
   ];
-  return `<div class="quality-list">${checks.map(([ok, label, detail]) => `<div class="quality-row ${ok ? "ok" : "attention"}"><span>${ok ? icon("check") : icon("warning")}</span><div><strong>${label}</strong><small>${detail}</small></div></div>`).join("")}</div>`;
+  const rows = entries => entries.map(([ok, label, detail]) => `<div class="quality-row ${ok ? "ok" : "attention"}"><span>${ok ? icon("check") : icon("warning")}</span><div><strong>${label}</strong><small>${detail}</small></div></div>`).join("");
+  const attention = checks.filter(([ok]) => !ok), completed = checks.filter(([ok]) => ok);
+  return `${attention.length ? `<div class="quality-list">${rows(attention)}</div>` : `<p class="quality-clear">${t("{0}所有检查已通过", [icon("check")])}</p>`}${completed.length ? `<details class="studio-quality-details"><summary>${t("{0} 项检查已通过", [completed.length])}</summary><div class="quality-list">${rows(completed)}</div></details>` : ""}`;
 }
 
 function filteredDataAssets() {
@@ -963,15 +975,15 @@ function renderDataPage() {
   if (currentDataPage(mounted)) { updateDataPageResults(mounted); return; }
   const filtered = filteredDataAssets();
   app.innerHTML = projectPageShell("data", `
-    <div class="page-head compact-head"><div><div class="eyebrow">图片与标注</div><h1>数据管理</h1><p class="page-subtitle">导入图片并运行 AI 标注；检查结果后可批量提交审核，审核员可批量通过或退回。</p></div><div class="page-head-actions"><button class="btn ghost" id="data-export" ${state.assets.length ? "" : "disabled"}>${icon("download")}下载当前数据</button><button class="btn primary" id="data-upload">${icon("upload")}导入数据</button></div></div>
-    <div class="work-block-entry"><span>${state.workBlocks.enabled ? `已启用任务块，领取后仅修改自己负责的图片。${state.workBlocks.unassigned_count ? `还有 ${state.workBlocks.unassigned_count} 张未分块。` : ""}` : "多人协作时，可以将图片分成任务块，由成员独立领取。"}</span><a class="btn ghost link-btn" href="#/projects/${state.project.id}/blocks">${state.workBlocks.enabled ? "我的任务 / 领取" : "管理任务块"}</a></div>
+    <div class="page-head compact-head"><div><div class="eyebrow">${t("图片与标注")}</div><h1>${t("数据管理")}</h1><p class="page-subtitle">${t("导入图片并运行 AI 标注；检查结果后可批量提交审核，审核员可批量通过或退回。")}</p></div><div class="page-head-actions"><button class="btn ghost" id="data-export" ${state.assets.length ? "" : "disabled"}>${t("{0}下载当前数据", [icon("download")])}</button><button class="btn primary" id="data-upload">${t("{0}导入数据", [icon("upload")])}</button></div></div>
+    <div class="work-block-entry"><span>${state.workBlocks.enabled ? t("已启用任务块，领取后仅修改自己负责的图片。{0}", [state.workBlocks.unassigned_count ? t("还有 {0} 张未分块。", [state.workBlocks.unassigned_count]) : ""]) : t("多人协作时，可以将图片分成任务块，由成员独立领取。")}</span><a class="btn ghost link-btn" href="#/projects/${state.project.id}/blocks">${state.workBlocks.enabled ? t("我的任务 / 领取") : t("管理任务块")}</a></div>
     ${reviewQueueMarkup(state, canReview())}
-    <section class="data-toolbar surface"><div class="search data-search">${icon("search")}<input id="data-search" aria-label="按文件名搜索图片" placeholder="按文件名搜索" value="${escapeHtml(state.dataSearch)}" /></div><select id="data-status" aria-label="状态筛选"><option value="all">全部状态</option><option value="unlabeled" ${state.dataStatus === "unlabeled" ? "selected" : ""}>未标注</option><option value="labeled" ${state.dataStatus === "labeled" ? "selected" : ""}>已标注</option><option value="draft" ${state.dataStatus === "draft" ? "selected" : ""}>草稿</option><option value="in_progress" ${state.dataStatus === "in_progress" ? "selected" : ""}>标注中</option><option value="submitted" ${state.dataStatus === "submitted" ? "selected" : ""}>待审核</option><option value="approved" ${state.dataStatus === "approved" ? "selected" : ""}>已通过</option><option value="rejected" ${state.dataStatus === "rejected" ? "selected" : ""}>已退回</option></select><span class="data-result-count">${filtered.length.toLocaleString()} / ${state.assets.length.toLocaleString()} 张</span><div class="toolbar-spacer"></div><button class="btn ghost" id="select-visible">选择全部 ${filtered.length} 张结果</button><button class="btn ghost" id="clear-selection" ${state.selectedAssetIds.size ? "" : "disabled"}>清除选择</button><button class="btn primary" id="annotate-selection" ${state.selectedAssetIds.size ? "" : "disabled"}>${icon("magic")}AI 标注 ${state.selectedAssetIds.size || ""}</button>${isAdmin() ? `<button class="btn ghost danger" id="delete-selected-assets" ${!state.selectedAssetIds.size || state.selectedAssetIds.size > 500 ? "disabled" : ""} title="每次最多删除 500 张图片">${icon("trash")}删除所选</button>` : ""}</section>
+    <section class="data-toolbar surface"><div class="search data-search">${icon("search")}<input id="data-search" aria-label="${ta("按文件名搜索图片")}" placeholder="${ta("按文件名搜索")}" value="${escapeHtml(state.dataSearch)}" /></div><select id="data-status" aria-label="${ta("状态筛选")}"><option value="all">${t("全部状态")}</option><option value="unlabeled" ${state.dataStatus === "unlabeled" ? "selected" : ""}>${t("未标注")}</option><option value="labeled" ${state.dataStatus === "labeled" ? "selected" : ""}>${t("已标注")}</option><option value="draft" ${state.dataStatus === "draft" ? "selected" : ""}>${t("草稿")}</option><option value="in_progress" ${state.dataStatus === "in_progress" ? "selected" : ""}>${t("标注中")}</option><option value="submitted" ${state.dataStatus === "submitted" ? "selected" : ""}>${t("待审核")}</option><option value="approved" ${state.dataStatus === "approved" ? "selected" : ""}>${t("已通过")}</option><option value="rejected" ${state.dataStatus === "rejected" ? "selected" : ""}>${t("已退回")}</option></select><span class="data-result-count">${t("{0} / {1} 张", [filtered.length.toLocaleString(getLocale()), state.assets.length.toLocaleString(getLocale())])}</span><div class="toolbar-spacer"></div><button class="btn ghost" id="select-visible">${t("选择全部 {0} 张结果", [filtered.length])}</button><button class="btn ghost" id="clear-selection" ${state.selectedAssetIds.size ? "" : "disabled"}>${t("清除选择")}</button><button class="btn primary" id="annotate-selection" ${state.selectedAssetIds.size ? "" : "disabled"}>${t("{0}AI 标注 {1}", [icon("magic"), state.selectedAssetIds.size || ""])}</button>${canEditProject() ? `<button class="btn ghost danger" id="delete-selected-assets" ${!state.selectedAssetIds.size || state.selectedAssetIds.size > 500 ? "disabled" : ""} title="${ta("每次最多删除 500 张图片")}">${t("{0}删除所选", [icon("trash")])}</button>` : ""}</section>
     <div id="selection-slot">${dataSelectionMarkup()}</div>
     <section class="asset-data-grid" id="data-results"></section>
     <button class="btn ghost load-more-data" id="load-more-data" hidden></button>`);
   const grid = document.querySelector("#data-results");
-  grid._dataPage = { projectId: state.project.id, epoch: state.selectionEpoch, session: state.session, admin: isAdmin(), cards: new Map(), selection: null };
+  grid._dataPage = { projectId: state.project.id, epoch: state.selectionEpoch, session: state.session, admin: canEditProject(), cards: new Map(), selection: null };
   bindCommonProjectEvents();
   document.querySelector("#data-upload").onclick = openUploadModal;
   document.querySelector("#data-export").onclick = openExportModal;
@@ -1012,7 +1024,7 @@ function renderDataPage() {
 function currentDataPage(grid) {
   const view = grid?._dataPage;
   return Boolean(grid?.isConnected && view && state.currentSection === "data" && view.projectId === state.project?.id &&
-    view.epoch === state.selectionEpoch && view.session === state.session && view.admin === isAdmin());
+    view.epoch === state.selectionEpoch && view.session === state.session && view.admin === canEditProject());
 }
 
 function refreshDataPageSelection(grid) {
@@ -1030,12 +1042,12 @@ function updateDataPageResults(grid) {
   if (!currentDataPage(grid)) return;
   const page = grid.closest(".project-page"), scroll = page.scrollTop;
   const block = page.querySelector(".work-block-entry");
-  block.querySelector("span").textContent = state.workBlocks.enabled ? `已启用任务块，领取后仅修改自己负责的图片。${state.workBlocks.unassigned_count ? `还有 ${state.workBlocks.unassigned_count} 张未分块。` : ""}` : "多人协作时，可以将图片分成任务块，由成员独立领取。";
-  block.querySelector("a").textContent = state.workBlocks.enabled ? "我的任务 / 领取" : "管理任务块";
-  page.querySelector("#data-export").disabled = !state.assets.length;
+  block.querySelector("span").textContent = state.workBlocks.enabled ? t("已启用任务块，领取后仅修改自己负责的图片。{0}", [state.workBlocks.unassigned_count ? t("还有 {0} 张未分块。", [state.workBlocks.unassigned_count]) : ""]) : t("多人协作时，可以将图片分成任务块，由成员独立领取。");
+  block.querySelector("a").textContent = state.workBlocks.enabled ? t("我的任务 / 领取") : t("管理任务块");
+  page.querySelector("#data-export").disabled = !canExportProject() || !state.assets.length;
   const queue = page.querySelector(".review-queue-shortcuts"), reviewer = canReview();
-  queue.querySelector("span").textContent = reviewer ? "审核队列" : "协作进度";
-  queue.querySelector("small").textContent = reviewer ? "先检查图片与标注；批量通过仅处理已提交的图片。" : "检查 AI 结果后提交审核；已退回的图片需要修改后再次提交。";
+  queue.querySelector("span").textContent = reviewer ? t("审核队列") : t("协作进度");
+  queue.querySelector("small").textContent = reviewer ? t("先检查图片与标注；批量通过仅处理已提交的图片。") : t("检查 AI 结果后提交审核；已退回的图片需要修改后再次提交。");
   page.querySelectorAll("[data-review-filter]").forEach(button => {
     const active = state.dataStatus === button.dataset.reviewFilter;
     button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active));
@@ -1047,15 +1059,15 @@ function updateDataPageResults(grid) {
   if (search.dataset.composing === "true") return;
   if (search.value !== state.dataSearch) search.value = state.dataSearch;
   const filtered = filteredDataAssets(), visible = filtered.slice(0, state.assetRenderLimit);
-  page.querySelector(".data-result-count").textContent = `${filtered.length.toLocaleString()} / ${state.assets.length.toLocaleString()} 张`;
+  page.querySelector(".data-result-count").textContent = t("{0} / {1} 张", [filtered.length.toLocaleString(getLocale()), state.assets.length.toLocaleString(getLocale())]);
   const selectAll = page.querySelector("#select-visible");
-  selectAll.textContent = `选择全部 ${filtered.length} 张结果`; selectAll.disabled = !filtered.length;
+  selectAll.textContent = t("选择全部 {0} 张结果", [filtered.length]); selectAll.disabled = !filtered.length;
   const cards = grid._dataPage.cards, visibleIds = new Set(visible.map(asset => asset.id));
   for (const [id, entry] of cards) if (!visibleIds.has(id)) { entry.node.remove(); cards.delete(id); }
   if (!visible.length) {
     const empty = state.assets.length ? "filtered" : "empty";
     if (grid.dataset.emptyState !== empty) {
-      grid.innerHTML = `<div class="empty-state"><span class="card-icon">${icon("image")}</span><strong>${state.assets.length ? "没有符合条件的图片" : "还没有导入图片"}</strong><p>${state.assets.length ? "调整搜索或筛选条件后再试。" : "点击“导入数据”添加图片，然后开始 AI 标注。"}</p>${state.assets.length ? `<button class="btn ghost" id="reset-data-filters">清除筛选</button>` : `<button class="btn primary" id="empty-data-upload">导入图片</button>`}</div>`;
+      grid.innerHTML = `<div class="empty-state"><span class="card-icon">${icon("image")}</span><strong>${state.assets.length ? t("没有符合条件的图片") : t("还没有导入图片")}</strong><p>${state.assets.length ? t("调整搜索或筛选条件后再试。") : t("点击“导入数据”添加图片，然后开始 AI 标注。")}</p>${state.assets.length ? `<button class="btn ghost" id="reset-data-filters">${t("清除筛选")}</button>` : `<button class="btn primary" id="empty-data-upload">${t("导入图片")}</button>`}</div>`;
       grid.dataset.emptyState = empty;
     }
   } else {
@@ -1069,8 +1081,8 @@ function updateDataPageResults(grid) {
         if (!entry) { entry = { node: next }; cards.set(asset.id, entry); }
         else {
           entry.node.querySelector(".data-card-body").replaceWith(next.querySelector(".data-card-body"));
-          entry.node.querySelector("[data-open-asset]").setAttribute("aria-label", `打开 ${asset.filename}`);
-          entry.node.querySelector("[data-delete-asset]")?.setAttribute("aria-label", `删除图片 ${asset.filename}`);
+          entry.node.querySelector("[data-open-asset]").setAttribute("aria-label", t("打开 {0}", [asset.filename]));
+          entry.node.querySelector("[data-delete-asset]")?.setAttribute("aria-label", t("删除图片 {0}", [asset.filename]));
         }
         entry.signature = signature;
       }
@@ -1080,12 +1092,13 @@ function updateDataPageResults(grid) {
     });
   }
   const more = page.querySelector("#load-more-data"), remaining = filtered.length - visible.length;
-  more.hidden = remaining <= 0; more.textContent = `再显示 ${Math.min(200, remaining)} 张`;
+  more.hidden = remaining <= 0; more.textContent = t("再显示 {0} 张", [Math.min(200, remaining)]);
   refreshDataPageSelection(grid);
   page.scrollTop = scroll;
 }
 
 function dataSelectionMarkup() {
+  if (!canEditProject()) return "";
   return batchReviewSelectionMarkup(state, canReview());
 }
 
@@ -1095,14 +1108,14 @@ function refreshDataSelectionUI() {
     input.checked = selected; input.closest(".data-asset-card")?.classList.toggle("selected", selected);
   });
   const button = document.querySelector("#annotate-selection");
-  if (button) { button.disabled = !state.selectedAssetIds.size; button.innerHTML = `${icon("magic")}AI 标注 ${state.selectedAssetIds.size || ""}`; }
+  if (button) { button.disabled = !canEditProject() || !state.selectedAssetIds.size; button.innerHTML = t("{0}AI 标注 {1}", [icon("magic"), state.selectedAssetIds.size || ""]); }
   const clear = document.querySelector("#clear-selection"); if (clear) clear.disabled = !state.selectedAssetIds.size;
   const deleteButton = document.querySelector("#delete-selected-assets"); if (deleteButton) deleteButton.disabled = !state.selectedAssetIds.size || state.selectedAssetIds.size > 500;
   const slot = document.querySelector("#selection-slot"); if (slot) slot.innerHTML = dataSelectionMarkup();
 }
 
 function dataAssetCard(asset) {
-  return `<article class="data-asset-card ${state.selectedAssetIds.has(asset.id) ? "selected" : ""}"><label class="asset-check" title="选择图片"><input type="checkbox" data-select-asset="${asset.id}" ${state.selectedAssetIds.has(asset.id) ? "checked" : ""}/><span></span></label><button class="data-thumb" data-open-asset="${asset.id}" aria-label="打开 ${escapeHtml(asset.filename)}"><img alt="" loading="lazy" decoding="async" src="/api/assets/${asset.id}/thumbnail?size=360" onerror="this.onerror=null;this.src='/api/assets/${asset.id}/image'" /></button><div class="data-card-body"><strong title="${escapeHtml(asset.filename)}">${escapeHtml(asset.filename)}</strong><span>${asset.width}×${asset.height} · ${formatBytes(asset.size_bytes)}</span><div><span class="review-mini ${asset.review_status}">${reviewStatusName(asset.review_status)}</span><small>${projectTask() === "classify" ? asset.annotation_count ? "已分类" : "待分类" : asset.annotation_count ? `${asset.annotation_count} 个标注` : "尚无标注"}</small></div></div>${isAdmin() ? `<div class="data-card-delete"><button class="btn ghost danger" data-delete-asset="${asset.id}" aria-label="删除图片 ${escapeHtml(asset.filename)}">${icon("trash")}删除图片</button></div>` : ""}</article>`;
+  return `<article class="data-asset-card ${state.selectedAssetIds.has(asset.id) ? "selected" : ""}"><label class="asset-check" title="${ta("选择图片")}"><input type="checkbox" data-select-asset="${asset.id}" ${state.selectedAssetIds.has(asset.id) ? "checked" : ""}/><span></span></label><button class="data-thumb" data-open-asset="${asset.id}" aria-label="${ta("打开 {0}", [escapeHtml(asset.filename)])}"><img alt="" loading="lazy" decoding="async" src="/api/assets/${asset.id}/thumbnail?size=360" onerror="this.onerror=null;this.src='/api/assets/${asset.id}/image'" /></button><div class="data-card-body"><strong title="${escapeHtml(asset.filename)}">${escapeHtml(asset.filename)}</strong><span>${asset.width}×${asset.height} · ${formatBytes(asset.size_bytes)}</span><div><span class="review-mini ${asset.review_status}">${reviewStatusName(asset.review_status)}</span><small>${projectTask() === "classify" ? asset.annotation_count ? t("已分类") : t("待分类") : asset.annotation_count ? t("{0} 个标注", [asset.annotation_count]) : t("尚无标注")}</small></div></div>${canEditProject() ? `<div class="data-card-delete"><button class="btn ghost danger" data-delete-asset="${asset.id}" aria-label="${ta("删除图片 {0}", [escapeHtml(asset.filename)])}">${t("{0}删除图片", [icon("trash")])}</button></div>` : ""}</article>`;
 }
 
 function renderAiPage() {
@@ -1110,19 +1123,19 @@ function renderAiPage() {
   const tab = getSectionTab(state.session, state.project.id, "ai", "configure");
   const focusedTab = document.activeElement?.closest('[data-section-tab^="ai:"]')?.id;
   const history = createHistoryNavigation({ projectId: state.project.id, kind: "ai", session: state.session, records: state.jobs, pageSize: 8, escapeHtml,
-    searchText: job => `${state.models.find(model => model.id === job.model_id)?.name || "AI 标注"} 任务 #${job.id}`,
-    statuses: [["queued", "排队中"], ["running", "标注中"], ["completed", "已完成"], ["failed", "未完成"], ["cancelled", "已取消"]] });
+    searchText: job => t("{0} 任务 #{1}", [state.models.find(model => model.id === job.model_id)?.name || t("AI 标注"), job.id]),
+    statuses: [["queued", t("排队中")], ["running", t("标注中")], ["completed", t("已完成")], ["failed", t("未完成")], ["cancelled", t("已取消")]] });
   if (!history) return;
   const available = state.models.filter(model => model.enabled && model.configured && modelFitsProject(model));
   const selectable = state.models.filter(model => modelFitsProject(model) && annotationModelSelectable(model, canPrepareAnnotationModels()));
   const modelsExpanded = Boolean(app.querySelector('.ai-model-strip')?.closest('details')?.open);
   app.innerHTML = projectPageShell("ai", `
-    <div class="page-head compact-head"><div><div class="eyebrow">AI 标注</div><h1>AI 标注中心</h1><p class="page-subtitle">由 AI 批量完成${escapeHtml(TASK_LABELS[projectTask()])}标注，成员按需校正，审核通过后进入训练。</p></div><button class="btn primary" id="new-ai-job" ${selectable.length && state.assets.length ? "" : "disabled"}>${icon("magic")}开始 AI 标注</button></div><div class="ai-page-tabs">${sectionTabsMarkup("ai", [["configure", "配置标注任务"], ["history", `任务历史（${state.jobs.length}）`]], tab, escapeHtml)}</div><div ${sectionPanelAttributes("ai", "configure", tab)}>${!state.assets.length ? `<div class="step-guidance"><strong>先导入图片</strong><span>导入后才能让 AI 标注。</span><a href="#/projects/${state.project.id}/data">前往导入</a></div>` : !available.length ? `<div class="step-guidance"><strong>${selectable.length ? "先准备标注模型" : "暂时没有可用模型"}</strong><span>${selectable.length ? "打开配置窗口选择模型，按提示下载或手动准备文件；就绪后即可预览。" : isAdmin() ? "请先配置支持当前任务类型的模型。" : "请联系管理员配置模型后再继续。"}</span>${isAdmin() ? `<a href="#/models">配置模型</a>` : ""}</div>` : ""}
-    <section class="surface ai-config-intro"><div><h2>先试标，再批量处理</h2><p>选择图片和 AI 模型，核对类别与识别阈值。可先选 1–3 张样本预览，调整提示词和置信度；预览满意后，沿用当前参数启动正式标注。</p><div class="ai-config-counts"><span>项目图片 <strong>${state.assets.length}</strong> 张</span><span>可用模型 <strong>${available.length}</strong> 个</span><span>运行中 <strong>${state.jobs.filter(job => ["queued", "running"].includes(job.status)).length}</strong> 个任务</span></div></div><button class="btn primary" id="configure-ai-start" ${selectable.length && state.assets.length ? "" : "disabled"}>${icon("sliders")}配置与预览效果</button></section>
-    <details class="advanced-settings" ${modelsExpanded ? "open" : ""}><summary>查看本项目可用的 ${available.length} 个 AI 模型</summary><section class="ai-model-strip">${available.length ? available.map(model => `<article><span class="card-icon">${icon("magic")}</span><div><strong>${escapeHtml(model.name)}</strong><small>${model.modes.includes("auto") ? "批量自动标注" : "交互辅助"} · ${model.capabilities.map(escapeHtml).join(" / ")}</small></div><span class="status-dot"></span></article>`).join("") : `<div class="empty-state"><p>没有可用的标注模型。请联系管理员配置。</p></div>`}</section></details>
-    </div><div ${sectionPanelAttributes("ai", "history", tab)}><section class="surface ai-review-entry"><div><h2>跨任务选择与审核</h2><p>单次任务可从下方历史记录提交审核。需要合并多个任务的图片，或批量通过、退回时，可在这里选择。</p><span>待审核 ${state.assets.filter(asset => asset.review_status === "submitted").length} 张 · 已通过 ${state.assets.filter(asset => asset.review_status === "approved").length} 张</span></div><button class="btn primary" data-review-picker ${state.assets.length ? "" : "disabled"}>选择图片，批量提交与审核</button></section>
-    <div class="section-head project-section-head"><div><h2>任务历史</h2><p>检查结果后，点击对应任务的“提交审核”，自动使用该任务已保存的图片范围。</p></div>${isAdmin() ? `<a class="btn ghost link-btn" href="#/models">管理标注模型</a>` : ""}</div>
-    <section class="history-list" ${history.attributes}>${history.toolbar}<div class="task-table surface">${history.items.length ? history.items.map(projectJobCard).join("") : state.jobs.length ? history.empty : `<div class="empty-state borderless"><span class="card-icon">${icon("magic")}</span><strong>还没有 AI 标注任务</strong><p>先预览样本效果，确认提示词和置信度后再批量运行。</p></div>`}</div>${history.footer}</section></div>`);
+    <div class="page-head compact-head"><div><div class="eyebrow">${t("AI 标注")}</div><h1>${t("AI 标注中心")}</h1><p class="page-subtitle">${t("由 AI 批量完成{0}标注，成员按需校正，审核通过后进入训练。", [escapeHtml(TASK_LABELS[projectTask()])])}</p></div><button class="btn primary" id="new-ai-job" ${selectable.length && state.assets.length ? "" : "disabled"}>${t("{0}开始 AI 标注", [icon("magic")])}</button></div><div class="ai-page-tabs">${sectionTabsMarkup("ai", [["configure", t("配置标注任务")], ["history", t("任务历史（{0}）", [state.jobs.length])]], tab, escapeHtml)}</div><div ${sectionPanelAttributes("ai", "configure", tab)}>${!state.assets.length ? `<div class="step-guidance"><strong>${t("先导入图片")}</strong><span>${t("导入后才能让 AI 标注。")}</span><a href="#/projects/${state.project.id}/data">${t("前往导入")}</a></div>` : !available.length ? `<div class="step-guidance"><strong>${selectable.length ? t("先准备标注模型") : t("暂时没有可用模型")}</strong><span>${selectable.length ? t("打开配置窗口选择模型，按提示下载或手动准备文件；就绪后即可预览。") : canEditProject() ? t("请先配置支持当前任务类型的模型。") : t("请联系管理员配置模型后再继续。")}</span>${canEditProject() ? `<a href="#/models">${t("配置模型")}</a>` : ""}</div>` : ""}
+    <section class="surface ai-config-intro"><div><h2>${t("先试标，再批量处理")}</h2><p>${t("选择图片和 AI 模型，核对类别与识别阈值。可先选 1–3 张样本预览，调整提示词和置信度；预览满意后，沿用当前参数启动正式标注。")}</p><div class="ai-config-counts"><span>${t("项目图片")} <strong>${state.assets.length}</strong> ${t("张")}</span><span>${t("可用模型")} <strong>${available.length}</strong> ${t("个")}</span><span>${t("运行中")} <strong>${state.jobs.filter(job => ["queued", "running"].includes(job.status)).length}</strong> ${t("个任务")}</span></div></div><button class="btn primary" id="configure-ai-start" ${selectable.length && state.assets.length ? "" : "disabled"}>${t("{0}配置与预览效果", [icon("sliders")])}</button></section>
+    <details class="advanced-settings" ${modelsExpanded ? "open" : ""}><summary>${t("查看本项目可用的 {0} 个 AI 模型", [available.length])}</summary><section class="ai-model-strip">${available.length ? available.map(model => `<article><span class="card-icon">${icon("magic")}</span><div><strong>${escapeHtml(model.name)}</strong><small>${model.modes.includes("auto") ? t("批量自动标注") : t("交互辅助")} · ${model.capabilities.map(escapeHtml).join(" / ")}</small></div><span class="status-dot"></span></article>`).join("") : `<div class="empty-state"><p>${t("没有可用的标注模型。请联系管理员配置。")}</p></div>`}</section></details>
+    </div><div ${sectionPanelAttributes("ai", "history", tab)}><section class="surface ai-review-entry"><div><h2>${t("跨任务选择与审核")}</h2><p>${t("单次任务可从下方历史记录提交审核。需要合并多个任务的图片，或批量通过、退回时，可在这里选择。")}</p><span>${t("待审核 {0} 张 · 已通过 {1} 张", [state.assets.filter(asset => asset.review_status === "submitted").length, state.assets.filter(asset => asset.review_status === "approved").length])}</span></div><button class="btn primary" data-review-picker ${state.assets.length ? "" : "disabled"}>${t("选择图片，批量提交与审核")}</button></section>
+    <div class="section-head project-section-head"><div><h2>${t("任务历史")}</h2><p>${t("检查结果后，点击对应任务的“提交审核”，自动使用该任务已保存的图片范围。")}</p></div>${canEditProject() ? `<a class="btn ghost link-btn" href="#/models">${t("管理标注模型")}</a>` : ""}</div>
+    <section class="history-list" ${history.attributes}>${history.toolbar}<div class="task-table surface">${history.items.length ? history.items.map(projectJobCard).join("") : state.jobs.length ? history.empty : `<div class="empty-state borderless"><span class="card-icon">${icon("magic")}</span><strong>${t("还没有 AI 标注任务")}</strong><p>${t("先预览样本效果，确认提示词和置信度后再批量运行。")}</p></div>`}</div>${history.footer}</section></div>`);
   bindCommonProjectEvents();
   bindSectionTabs(app, "ai", { selected: tab, onChange: value => setSectionTab(state.session, state.project.id, "ai", value) });
   document.querySelector("#configure-ai-start")?.addEventListener("click", () => openAiModal());
@@ -1135,18 +1148,18 @@ function renderAiPage() {
 function projectJobCard(job) {
   const progress = job.total ? Math.round(job.processed / job.total * 100) : 0;
   const model = state.models.find(item => item.id === job.model_id);
-  const statusName = { queued:"排队中", running:"标注中", completed:"已完成", failed:"未完成", cancelled:"已取消" }[job.status] || job.status;
+  const statusName = { queued:t("排队中"), running:t("标注中"), completed:t("已完成"), failed:t("未完成"), cancelled:t("已取消") }[job.status] || job.status;
   const finished = ["completed", "failed", "cancelled"].includes(job.status);
   const created = new Date(job.created_at);
-  const createdText = Number.isFinite(created.getTime()) ? created.toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) : "";
+  const createdText = Number.isFinite(created.getTime()) ? created.toLocaleString(getLocale(), { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) : "";
   const pendingService = job.status === "queued" && state.health?.annotation_workers?.status !== "online";
-  const message = job.status === "completed" ? (job.created_count ? "请检查 AI 结果，确认无误后提交审核。" : "没有生成可用标注。请检查类别是否匹配，或换模型、降低置信度后用少量图片重试。") : job.status === "failed" ? "任务未完成，已保存的结果仍会保留。查看失败原因后重试；无法解决时联系管理员。" : job.status === "cancelled" ? "任务已停止，已完成的结果仍会保留。" : pendingService ? "任务已保存，等待标注服务。请联系管理员检查服务状态。" : job.status === "queued" ? "等待前面的任务完成，可以离开此页稍后查看。" : "正在生成标注，可以继续浏览其他图片。";
-  return `<article class="task-row" data-job-id="${job.id}" data-history-record="${job.id}"><span class="task-type-icon">${icon("magic")}</span><div class="task-main"><div class="job-head"><strong>${escapeHtml(model?.name || "AI 标注")}</strong><span class="job-status ${job.status}">${statusName}</span></div><div class="task-meta"><span>任务 #${job.id}</span>${createdText ? `<time class="task-created" datetime="${escapeHtml(job.created_at)}">创建于 ${escapeHtml(createdText)}</time>` : ""}<span>已处理 ${job.processed} / ${job.total || "?"} 张图片</span><span>生成 ${job.created_count} 个标注</span></div><div class="progress-mini"><span style="width:${progress}%"></span></div><p class="job-next-step">${message}</p>${job.error || job.progress_message ? `<details class="technical-details"><summary>${job.error ? "查看失败原因" : "查看处理详情"}</summary><pre>${escapeHtml(job.error || job.progress_message)}</pre></details>` : ""}</div><strong class="task-progress">${progress}%</strong><div class="job-actions"><button class="btn primary" data-job-review="${job.id}" ${finished ? "" : "disabled"} title="${finished ? "预览本任务已处理图片的当前标注，再提交审核" : "请等待任务结束后再提交审核"}">${finished ? "提交审核" : "等待任务结束后提交"}</button>${["queued","running"].includes(job.status) ? `<button class="mini-action" data-cancel-job="${job.id}" ${state.jobActionIds.has(job.id) ? "disabled" : ""}>取消任务</button>` : ""}${["failed","cancelled"].includes(job.status) ? `<button class="mini-action" data-retry-job="${job.id}" ${state.jobActionIds.has(job.id) ? "disabled" : ""}>重试任务</button>` : ""}${job.status === "completed" || job.created_count ? `<a class="btn ghost link-btn" href="#/projects/${state.project.id}/annotate">打开校正页</a>` : ""}</div></article>`;
+  const message = job.status === "completed" ? (job.created_count ? t("请检查 AI 结果，确认无误后提交审核。") : t("没有生成可用标注。请检查类别是否匹配，或换模型、降低置信度后用少量图片重试。")) : job.status === "failed" ? t("任务未完成，已保存的结果仍会保留。查看失败原因后重试；无法解决时联系管理员。") : job.status === "cancelled" ? t("任务已停止，已完成的结果仍会保留。") : pendingService ? t("任务已保存，等待标注服务。请联系管理员检查服务状态。") : job.status === "queued" ? t("等待前面的任务完成，可以离开此页稍后查看。") : t("正在生成标注，可以继续浏览其他图片。");
+  return `<article class="task-row" data-job-id="${job.id}" data-history-record="${job.id}"><span class="task-type-icon">${icon("magic")}</span><div class="task-main"><div class="job-head"><strong>${escapeHtml(model?.name || t("AI 标注"))}</strong><span class="job-status ${job.status}">${statusName}</span></div><div class="task-meta"><span>${t("任务 #{0}", [job.id])}</span>${createdText ? `<time class="task-created" datetime="${escapeHtml(job.created_at)}">${t("创建于 {0}", [escapeHtml(createdText)])}</time>` : ""}<span>${t("已处理 {0} / {1} 张图片", [job.processed, job.total || "?"])}</span><span>${t("生成 {0} 个标注", [job.created_count])}</span></div><div class="progress-mini"><span style="width:${progress}%"></span></div><p class="job-next-step">${message}</p>${job.error || job.progress_message ? `<details class="technical-details"><summary>${job.error ? t("查看失败原因") : t("查看处理详情")}</summary><pre>${escapeHtml(job.error || job.progress_message)}</pre></details>` : ""}</div><strong class="task-progress">${progress}%</strong><div class="job-actions"><button class="btn primary" data-job-review="${job.id}" ${finished ? "" : "disabled"} title="${finished ? ta("预览本任务已处理图片的当前标注，再提交审核") : ta("请等待任务结束后再提交审核")}">${finished ? t("提交审核") : t("等待任务结束后提交")}</button>${["queued","running"].includes(job.status) ? `<button class="mini-action" data-cancel-job="${job.id}" ${state.jobActionIds.has(job.id) ? "disabled" : ""}>${t("取消任务")}</button>` : ""}${["failed","cancelled"].includes(job.status) ? `<button class="mini-action" data-retry-job="${job.id}" ${state.jobActionIds.has(job.id) ? "disabled" : ""}>${t("重试任务")}</button>` : ""}${job.status === "completed" || job.created_count ? `<a class="btn ghost link-btn" href="#/projects/${state.project.id}/annotate">${t("打开校正页")}</a>` : ""}</div></article>`;
 }
 
 function versionCompactCard(version) {
   const split = version.splits || version.split_counts || {};
-  return `<article class="version-compact"><span>V${version.version_number || version.number || version.id}</span>${versionSamplesMarkup(version, escapeHtml, true)}<div><strong>${escapeHtml(version.name || `数据版本 ${version.version_number || version.id}`)}</strong><small>${version.asset_count || 0} 张 · ${version.annotation_count || 0} 个对象 · 训练 ${splitAssetCount(split, "train")} / 验证 ${splitAssetCount(split, "valid")} / 测试 ${splitAssetCount(split, "test")}</small>${versionAugmentationMarkup(version, escapeHtml, true)}</div><span class="immutable-pill">已保存</span></article>`;
+  return `<article class="version-compact"><span>V${version.version_number || version.number || version.id}</span>${versionSamplesMarkup(version, escapeHtml, true)}<div><strong>${escapeHtml(version.name || t("数据版本 {0}", [version.version_number || version.id]))}</strong><small>${t("{0} 张 · {1} 个对象 · 训练 {2} / 验证 {3} / 测试 {4}", [version.asset_count || 0, version.annotation_count || 0, splitAssetCount(split, "train"), splitAssetCount(split, "valid"), splitAssetCount(split, "test")])}</small>${versionAugmentationMarkup(version, escapeHtml, true)}</div><span class="immutable-pill">${t("已保存")}</span></article>`;
 }
 
 function renderVersionsPage() {
@@ -1156,11 +1169,11 @@ function renderVersionsPage() {
   const total = state.assets.length;
   const approved = state.assets.filter(asset => asset.review_status === "approved").length;
   const allowed = canReview();
-  const reason = !allowed ? "数据版本由审核员或管理员生成。你可以查看和下载已有版本。" : !total ? "请先导入图片，再完成标注与审核。" : !approved ? "还没有审核通过的图片。建议先检查标注并通过审核，再生成训练版本。" : `已有 ${approved} 张图片审核通过，可以生成训练版本。`;
+  const reason = !allowed ? t("数据版本由项目所有者或协作者生成。你可以查看和下载已有版本。") : !total ? t("请先导入图片，再完成标注与审核。") : !approved ? t("还没有审核通过的图片。建议先检查标注并通过审核，再生成训练版本。") : t("已有 {0} 张图片审核通过，可以生成训练版本。", [approved]);
   app.innerHTML = projectPageShell("versions", `
-    <div class="page-head compact-head"><div><h1>数据版本</h1><p class="page-subtitle">把当前图片和标注保存成一份固定的数据，用于训练或下载。之后修改标注，不会影响已生成的版本。</p></div><button class="btn primary" id="create-version" ${allowed && total ? "" : "disabled"} title="${escapeHtml(reason)}">${icon("plus")}生成数据版本</button></div>
-    <div class="version-principle"><span>${icon("layers")}</span><div><strong>下一步：${approved ? "保存审核结果，用于训练" : total ? "完成标注审核" : "导入第一批图片"}</strong><p>${escapeHtml(reason)}</p></div>${!approved ? `<a class="btn ghost link-btn" href="#/projects/${state.project.id}/${total ? "annotate" : "data"}">${total ? "查看标注" : "导入图片"}</a>` : ""}</div>
-    <section class="history-list" ${history.attributes}>${history.toolbar}<div class="version-list">${history.items.length ? history.items.map(versionCard).join("") : state.versions.length ? history.empty : `<div class="empty-state"><span class="card-icon">${icon("layers")}</span><strong>还没有数据版本</strong><p>${allowed && total ? "默认只保存审核通过的图片。生成后，可以直接去训练或下载数据。" : escapeHtml(reason)}</p>${allowed && total ? `<button class="btn primary" id="create-first-version">生成第一个版本</button>` : ""}</div>`}</div>${history.footer}</section>`);
+    <div class="page-head compact-head"><div><h1>${t("数据版本")}</h1><p class="page-subtitle">${t("把当前图片和标注保存成一份固定的数据，用于训练或下载。之后修改标注，不会影响已生成的版本。")}</p></div><button class="btn primary" id="create-version" ${allowed && total ? "" : "disabled"} title="${escapeHtml(reason)}">${t("{0}生成数据版本", [icon("plus")])}</button></div>
+    <div class="version-principle"><span>${icon("layers")}</span><div><strong>${t("下一步：{0}", [approved ? t("保存审核结果，用于训练") : total ? t("完成标注审核") : t("导入第一批图片")])}</strong><p>${escapeHtml(reason)}</p></div>${!approved ? `<a class="btn ghost link-btn" href="#/projects/${state.project.id}/${total ? "annotate" : "data"}">${total ? t("查看标注") : t("导入图片")}</a>` : ""}</div>
+    <section class="history-list" ${history.attributes}>${history.toolbar}<div class="version-list">${history.items.length ? history.items.map(versionCard).join("") : state.versions.length ? history.empty : `<div class="empty-state"><span class="card-icon">${icon("layers")}</span><strong>${t("还没有数据版本")}</strong><p>${allowed && total ? t("默认只保存审核通过的图片。生成后，可以直接去训练或下载数据。") : escapeHtml(reason)}</p>${allowed && total ? `<button class="btn primary" id="create-first-version">${t("生成第一个版本")}</button>` : ""}</div>`}</div>${history.footer}</section>`);
   bindCommonProjectEvents();
   document.querySelector("#create-version")?.addEventListener("click", openVersionModal);
   document.querySelector("#create-first-version")?.addEventListener("click", openVersionModal);
@@ -1174,7 +1187,7 @@ function versionCard(version) {
   const split = version.splits || version.split_counts || {};
   const number = version.version_number || version.number || version.id;
   const hash = version.content_hash || version.sha256 || "";
-  return `<article class="version-card" data-history-record="${version.id}"><div class="version-number">V${number}</div><div class="version-main"><div class="version-title"><div><h2>${escapeHtml(version.name || `数据版本 ${number}`)}</h2><p>${escapeHtml(version.description || (version.approved_only ? "仅包含审核通过的图片" : "包含未审核的图片，训练前请确认数据质量"))}</p></div><span class="immutable-pill">${icon("check")}已保存</span></div>${versionSamplesMarkup(version, escapeHtml)}<div class="version-stats"><div><strong>${version.asset_count || 0}</strong><span>图片</span></div><div><strong>${version.annotation_count || 0}</strong><span>标注</span></div><div><strong>${splitAssetCount(split, "train")}</strong><span>用于训练</span></div><div><strong>${splitAssetCount(split, "valid")}</strong><span>用于验证</span></div><div><strong>${splitAssetCount(split, "test")}</strong><span>用于测试</span></div></div><div class="split-bar"><span class="train" style="width:${splitPercent(split, "train")}%"></span><span class="valid" style="width:${splitPercent(split, "valid")}%"></span><span class="test" style="width:${splitPercent(split, "test")}%"></span></div>${versionAugmentationMarkup(version, escapeHtml)}<div class="version-meta"><span>${new Date(version.created_at).toLocaleString()}</span><button class="btn ghost" data-version-view="${version.id}">${icon("image")}查看版本图片</button><button class="btn ghost" data-version-export="${version.id}">${icon("download")}下载数据</button>${canReview() ? `<a class="btn primary link-btn" data-version-train="${version.id}" href="#/projects/${state.project.id}/train">用此版本训练</a>` : ""}</div>${hash ? `<details class="pipeline-details"><summary>版本技术信息</summary><p>创建人：${escapeHtml(version.created_by || "系统")}</p><p>内容校验值用于确认数据一致，日常操作无需填写。</p><code>${escapeHtml(hash)}</code></details>` : ""}</div></article>`;
+  return `<article class="version-card" data-history-record="${version.id}"><div class="version-number">V${number}</div><div class="version-main"><div class="version-title"><div><h2>${escapeHtml(version.name || t("数据版本 {0}", [number]))}</h2><p>${escapeHtml(version.description || (version.approved_only ? t("仅包含审核通过的图片") : t("包含未审核的图片，训练前请确认数据质量")))}</p></div><span class="immutable-pill">${t("{0}已保存", [icon("check")])}</span></div>${versionSamplesMarkup(version, escapeHtml)}<div class="version-stats"><div><strong>${version.asset_count || 0}</strong><span>${t("图片")}</span></div><div><strong>${version.annotation_count || 0}</strong><span>${t("标注")}</span></div><div><strong>${splitAssetCount(split, "train")}</strong><span>${t("用于训练")}</span></div><div><strong>${splitAssetCount(split, "valid")}</strong><span>${t("用于验证")}</span></div><div><strong>${splitAssetCount(split, "test")}</strong><span>${t("用于测试")}</span></div></div><div class="split-bar"><span class="train" style="width:${splitPercent(split, "train")}%"></span><span class="valid" style="width:${splitPercent(split, "valid")}%"></span><span class="test" style="width:${splitPercent(split, "test")}%"></span></div>${versionAugmentationMarkup(version, escapeHtml)}<div class="version-meta"><span>${new Date(version.created_at).toLocaleString(getLocale())}</span><button class="btn ghost" data-version-view="${version.id}">${t("{0}查看版本图片", [icon("image")])}</button><button class="btn ghost" data-version-export="${version.id}">${t("{0}下载数据", [icon("download")])}</button>${canReview() ? `<a class="btn primary link-btn" data-version-train="${version.id}" href="#/projects/${state.project.id}/train">${t("用此版本训练")}</a>` : ""}</div>${hash ? `<details class="pipeline-details"><summary>${t("版本技术信息")}</summary><p>${t("创建人：{0}", [escapeHtml(version.created_by || t("系统"))])}</p><p>${t("内容校验值用于确认数据一致，日常操作无需填写。")}</p><code>${escapeHtml(hash)}</code></details>` : ""}</div></article>`;
 }
 
 function splitAssetCount(split, name) {
@@ -1188,10 +1201,10 @@ function splitPercent(split, name) {
 }
 
 function openVersionModal() {
-  if (!canReview()) return notify("请由审核员或管理员生成数据版本", "error");
+  if (!canReview()) return notify(t("请由项目所有者或协作者生成数据版本"), "error");
   const projectId = state.project.id, section = state.currentSection;
   openDatasetGeneration({ state, api, jsonOptions, openModal, closeModal, escapeHtml, notify, onCreated: version => {
-      state.versions.unshift(version); notify(`数据版本已生成，实际保存 ${version.asset_count || 0} 张图片。可以查看分组、去训练或下载数据。`);
+      state.versions.unshift(version); notify(t("数据版本已生成，实际保存 {0} 张图片。可以查看分组、去训练或下载数据。", [version.asset_count || 0]));
       resetHistoryNavigation(projectId, "versions");
       if (section === "versions") {
         renderVersionsPage();
@@ -1204,21 +1217,23 @@ function openVersionModal() {
 }
 
 function openVersionExportModal(versionId) {
+  if (!canExportProject()) return notify(t("项目所有者尚未授予下载与导出权限"), "error");
   const version = state.versions.find(item => item.id === versionId);
-  openModal({ title: `下载 ${version?.name || `V${versionId}`}`, subtitle: `下载 ${version?.asset_count || 0} 张图片及其标注，内容来自这个已保存的版本。`, body: `<div class="field"><label>数据格式</label>${exportFormatMarkup("version-format", version?.stats?.task_type)}</div><p class="hint">在本平台训练无需下载。需要交给其他工具时，按对方要求选择格式；不确定时可保持默认。</p><div class="export-note">${icon("check")}下载文件是 ZIP 压缩包，包含图片、标注、标签名称以及训练 / 验证 / 测试划分。</div>`, submitText: "下载 ZIP 压缩包", onSubmit: async () => { const format = document.querySelector('input[name="version-format"]:checked').value; await downloadArtifact(`/api/versions/${versionId}/export/${format}`, `dataset-${versionId}.zip`); closeModal(); } });
+  openModal({ title: t("下载 {0}", [version?.name || `V${versionId}`]), subtitle: t("下载 {0} 张图片及其标注，内容来自这个已保存的版本。", [version?.asset_count || 0]), body: `<div class="field"><label>${t("数据格式")}</label>${exportFormatMarkup("version-format", version?.stats?.task_type)}</div><p class="hint">${t("在本平台训练无需下载。需要交给其他工具时，按对方要求选择格式；不确定时可保持默认。")}</p><div class="export-note">${t("{0}下载文件是 ZIP 压缩包，包含图片、标注、标签名称以及训练 / 验证 / 测试划分。", [icon("check")])}</div>`, submitText: t("下载 ZIP 压缩包"), onSubmit: async () => { const format = document.querySelector('input[name="version-format"]:checked').value; await downloadArtifact(`/api/versions/${versionId}/export/${format}`, `dataset-${versionId}.zip`); closeModal(); } });
 }
 
 async function downloadArtifact(url, fallbackName = "download") {
-  const progressNotice = notify("正在准备下载，文件较大时请稍候。", "info");
+  if (!canExportProject()) return notify(t("项目所有者尚未授予下载与导出权限"), "error");
+  const progressNotice = notify(t("正在准备下载，文件较大时请稍候。"), "info");
   try {
   let response;
-  try { response = await fetch(url, { credentials: "same-origin" }); }
-  catch (cause) { const error = new Error("下载连接中断，请检查网络后重新下载。"); error.technicalMessage = cause.message; throw error; }
+  try { response = await fetch(url, { credentials: "same-origin", headers: { "Accept-Language": getLocale() } }); }
+  catch (cause) { const error = new Error(t("下载连接中断，请检查网络后重新下载。")); error.technicalMessage = cause.message; throw error; }
   if (!response.ok) {
     let detail = "";
-    try { const body = await response.json(); detail = typeof body.detail === "string" ? body.detail : Array.isArray(body.detail) ? body.detail.map(item => item.msg || "参数不正确").join("；") : ""; } catch (_) { /* The status still explains non-JSON failures. */ }
-    const fallback = response.status === 401 ? "登录已过期，请重新登录后下载。" : response.status === 403 ? "当前账号无权下载此文件，请联系管理员。" : "暂时无法下载，请刷新后重试；仍失败时请联系管理员。";
-    const error = new Error(detail && /[\u4e00-\u9fff]/.test(detail) && detail.length < 240 ? detail : fallback);
+    try { const body = localizePayload(await response.json(), url, response.status); detail = typeof body.detail === "string" ? body.detail : Array.isArray(body.detail) ? body.detail.map(item => item.msg || t("参数不正确")).join(t("；")) : ""; } catch (_) { /* The status still explains non-JSON failures. */ }
+    const fallback = response.status === 401 ? t("登录已过期，请重新登录后下载。") : response.status === 403 ? t("当前账号无权下载此文件，请联系管理员。") : t("暂时无法下载，请刷新后重试；仍失败时请联系管理员。");
+    const error = new Error(detail && (getLocale() === "en" || /[\u4e00-\u9fff]/.test(detail)) && detail.length < 240 ? detail : fallback);
     if (detail && error.message !== detail) error.technicalMessage = detail;
     throw error;
   }
@@ -1228,19 +1243,19 @@ async function downloadArtifact(url, fallbackName = "download") {
   if (encoded) { try { filename = decodeURIComponent(encoded); } catch (_) { /* Use the plain fallback filename. */ } }
   let blob;
   try { blob = await response.blob(); }
-  catch (cause) { const error = new Error("文件尚未完整接收，请检查网络后重新下载。"); error.technicalMessage = cause.message; throw error; }
+  catch (cause) { const error = new Error(t("文件尚未完整接收，请检查网络后重新下载。")); error.technicalMessage = cause.message; throw error; }
   const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = objectUrl; anchor.download = filename.replace(/[\\/]/g, "_");
   document.body.append(anchor); anchor.click(); anchor.remove();
   setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
-  notify("已交给浏览器下载，可在浏览器的下载列表查看。");
+  notify(t("已交给浏览器下载，可在浏览器的下载列表查看。"));
   } finally { progressNotice.remove(); }
 }
 
-import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.27.0";
-import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.27.0";
-import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.27.0";
+import { trainingChartMarkup, evaluationMetric } from "./training-charts.js?v=0.29.3";
+import { trainingListURL, trainingListMarkup, trainingPreferenceKey } from "./training-navigation.js?v=0.29.3";
+import { conversionFormatName, conversionFormatDescription, conversionFormats, conversionFormatCards, conversionSettingsEntries, conversionSettingsSummary, mountConversionForm } from "./conversion-ui.js?v=0.29.3";
 
 const trainingChartViews = new Map();
 const trainingDetailViews = new Map();
@@ -1312,12 +1327,12 @@ async function loadTrainingList({ page = state.trainingPage.page, locateId = nul
     const response = await pipelineApi(trainingListURL(projectId, page, state.trainingFilters, locateId) + '&include_availability=false');
     if (!current()) return;
     applyTrainingListResponse(response); rememberTrainingNavigation();
-    if (locateId && response.locate_found === false) notify("当前训练记录已不在本项目列表中，请刷新右侧详情。", "warning");
+    if (locateId && response.locate_found === false) notify(t("当前训练记录已不在本项目列表中，请刷新右侧详情。"), "warning");
     renderTrainingPage(); startPipelinePolling();
     if (locateId && response.locate_found) document.querySelector(`[data-select-training="${locateId}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
   } catch (error) {
     if (!current()) return;
-    state.trainingPage.loading = false; state.trainingPage.error = `记录列表加载失败：${error.message} 当前训练详情仍可查看。`;
+    state.trainingPage.loading = false; state.trainingPage.error = t("记录列表加载失败：{0} 当前训练详情仍可查看。", [error.message]);
     renderTrainingPage();
   }
 }
@@ -1336,13 +1351,13 @@ async function selectTrainingMonitor(id, scroll = false, { render = true } = {})
   try {
     const run = await pipelineApi(`/api/training-runs/${id}`);
     if (!current()) return;
-    if (run.project_id !== projectId) throw new Error("这条训练记录不属于当前项目，请从左侧选择本项目的记录。");
+    if (run.project_id !== projectId) throw new Error(t("这条训练记录不属于当前项目，请从左侧选择本项目的记录。"));
     state.selectedTrainingRun = run; state.trainingSelectionLoading = false;
     state.pipelineUpdatedAt = Date.now();
     void loadRunConversions(id, { render: true });
   } catch (error) {
     if (!current()) return;
-    state.trainingSelectionLoading = false; state.trainingSelectionError = `无法打开训练 ${id}：${error.message} 请重试，或从左侧重新选择。`;
+    state.trainingSelectionLoading = false; state.trainingSelectionError = t("无法打开训练 {0}：{1} 请重试，或从左侧重新选择。", [id, error.message]);
   }
   if (current() && render) {
     renderTrainingPage(); startPipelinePolling();
@@ -1352,15 +1367,15 @@ async function selectTrainingMonitor(id, scroll = false, { render = true } = {})
 
 function trainingMonitorMarkup(run) {
   if (!run) return "";
-  return `<section class="training-monitor surface" id="training-monitor" aria-labelledby="training-monitor-heading"><div class="training-monitor-head"><div><h2 id="training-monitor-heading">训练曲线与进度</h2><p>损失（Loss）反映预测误差，通常越低越好。结合验证表现判断效果。</p></div></div>${trainingChartMarkup(run, state.trainingMetricsHistory[run.id], trainingChartViews.get(run.id))}</section>`;
+  return `<section class="training-monitor surface" id="training-monitor" aria-labelledby="training-monitor-heading"><div class="training-monitor-head"><div><h2 id="training-monitor-heading">${t("训练曲线与进度")}</h2><p>${t("损失（Loss）反映预测误差，通常越低越好。结合验证表现判断效果。")}</p></div></div>${trainingChartMarkup(run, state.trainingMetricsHistory[run.id], trainingChartViews.get(run.id))}</section>`;
 }
 
 const TRAINING_TASK_META = {
-  detect: { name: "目标检测", short: "检测", icon: "box", description: "矩形框定位与分类", schema: "矩形框 / 多边形可转外接框" },
-  segment: { name: "实例分割", short: "分割", icon: "polygon", description: "逐实例像素级轮廓", schema: "多边形；矩形框可降级转轮廓" },
-  classify: { name: "图像分类", short: "分类", icon: "image", description: "整张图片类别预测", schema: "需要图像级分类标签" },
-  pose: { name: "姿态估计", short: "姿态", icon: "target", description: "目标关键点定位", schema: "需要关键点标注" },
-  obb: { name: "旋转框检测", short: "OBB", icon: "box", description: "带方向的目标检测", schema: "需要旋转框标注" },
+  detect: { name: t("目标检测"), short: t("检测"), icon: "box", description: t("矩形框定位与分类"), schema: t("矩形框 / 多边形可转外接框") },
+  segment: { name: t("实例分割"), short: t("分割"), icon: "polygon", description: t("逐实例像素级轮廓"), schema: t("多边形；矩形框可降级转轮廓") },
+  classify: { name: t("图像分类"), short: t("分类"), icon: "image", description: t("整张图片类别预测"), schema: t("需要图像级分类标签") },
+  pose: { name: t("姿态估计"), short: t("姿态"), icon: "target", description: t("目标关键点定位"), schema: t("需要关键点标注") },
+  obb: { name: t("旋转框检测"), short: "OBB", icon: "box", description: t("带方向的目标检测"), schema: t("需要旋转框标注") },
 };
 
 function normalizeTrainingCatalog(raw, availability = {}) {
@@ -1380,7 +1395,7 @@ function normalizeTrainingCatalog(raw, availability = {}) {
     Object.entries(availability?.base_models || {}).forEach(([task, model], index) => {
       const path = model?.path || "";
       const filename = path.split("/").pop() || (task === "segment" ? "yolo26n-seg.pt" : "yolo26n.pt");
-      models.push(normalizeTrainingModel({ id: filename, name: filename.replace(/\.pt$/i, ""), model_arch: filename, path, task, family: "Ultralytics YOLO", available: model?.exists !== false, reason: model?.exists === false ? `服务器未找到 ${filename}` : "", size_bytes: model?.size_bytes, recommended: true }, index));
+      models.push(normalizeTrainingModel({ id: filename, name: filename.replace(/\.pt$/i, ""), model_arch: filename, path, task, family: "Ultralytics YOLO", available: model?.exists !== false, reason: model?.exists === false ? t("服务器未找到 {0}", [filename]) : "", size_bytes: model?.size_bytes, recommended: true }, index));
     });
   }
   return {
@@ -1420,16 +1435,16 @@ function normalizeTrainingResources(raw, catalog = {}, availability = {}) {
   return { ...source, default_device: source.default_device || (availability?.cuda_available ? "auto" : "cpu"), devices };
 }
 
-function trainingTaskInfo(task) { return { id: task, ...(TRAINING_TASK_META[task] || { name: task, short: task, icon: "cpu", description: "自定义视觉任务", schema: "请确认数据格式兼容" }), ...(state.trainingCatalog?.tasks?.[task] || {}) }; }
+function trainingTaskInfo(task) { return { id: task, ...(TRAINING_TASK_META[task] || { name: task, short: task, icon: "cpu", description: t("自定义视觉任务"), schema: t("请确认数据格式兼容") }), ...(state.trainingCatalog?.tasks?.[task] || {}) }; }
 function trainingModelSupports(model, task) { return (model.tasks || [model.task]).includes(task); }
 function taskModels(task, availableOnly = false) { return (state.trainingCatalog?.models || []).filter(model => trainingModelSupports(model, task) && (!availableOnly || model.available)); }
 function taskAvailable(task) { const config = trainingTaskInfo(task); return config.available !== false && taskModels(task, true).length > 0; }
 function versionDefaultTask(version) { return version?.stats?.task_type || "detect"; }
 function trainingDataIssue(version) {
   const split = version?.splits || version?.stats?.splits || {};
-  if (version?.annotation_count === 0) return "这个版本还没有标注，暂时不能训练。请完成标注后重新生成数据版本。";
-  if (split.valid !== undefined && !splitAssetCount(split, "valid")) return "这个版本没有验证图片，暂时不能训练。请补充已审核图片，或提高验证比例后重新生成数据版本。";
-  if (split.train?.annotation_count === 0 || split.valid?.annotation_count === 0) return "训练或验证图片没有有效标注。请补充标注，或调整图片划分后重新生成数据版本。";
+  if (version?.annotation_count === 0) return t("这个版本还没有标注，暂时不能训练。请完成标注后重新生成数据版本。");
+  if (split.valid !== undefined && !splitAssetCount(split, "valid")) return t("这个版本没有验证图片，暂时不能训练。请补充已审核图片，或提高验证比例后重新生成数据版本。");
+  if (split.train?.annotation_count === 0 || split.valid?.annotation_count === 0) return t("训练或验证图片没有有效标注。请补充标注，或调整图片划分后重新生成数据版本。");
   return "";
 }
 function countConversions(runs) { return Number.isFinite(Number(state.conversionCounts?.completed)) ? Number(state.conversionCounts.completed) : runs.reduce((sum, run) => sum + (run.conversions?.filter(item => item.status === "completed").length || 0), 0); }
@@ -1442,18 +1457,18 @@ function trainingReadiness() {
   const hasWorker = Boolean(worker.embedded_enabled || Number(worker.online_count || 0) > 0);
   const runtimeHealthy = Boolean(availability.available && hasModel && hasWorker);
   const blocked = (status, reason, action = null) => ({ ready: false, runtimeHealthy, status, reason, action });
-  if (!canReview()) return blocked("permission", "训练与模型转换由审核员或管理员操作，你可以查看记录和下载已有模型。");
-  if (!state.versions.length) return blocked("version", "请先生成数据版本，再开始训练。", { href: `#/projects/${state.project.id}/versions`, label: "去生成数据版本" });
-  if (!runtimeHealthy && state.trainingEnvironmentLoading) return blocked("loading", "正在检查训练环境，已有训练记录与进度会照常更新。");
+  if (!canReview()) return blocked("permission", t("训练与模型转换由项目所有者或协作者操作，你可以查看记录和下载已有模型。"));
+  if (!state.versions.length) return blocked("version", t("请先生成数据版本，再开始训练。"), { href: `#/projects/${state.project.id}/versions`, label: t("去生成数据版本") });
+  if (!runtimeHealthy && state.trainingEnvironmentLoading) return blocked("loading", t("正在检查训练环境，已有训练记录与进度会照常更新。"));
   const backendReason = String(availability.reason || "").trim();
   if (!hasModel && (!backendReason || /权重|checkpoint/i.test(backendReason) || availability.available)) {
-    const reason = backendReason || models.find(model => model.reason)?.reason || "没有可用于训练的本地模型权重。";
-    return blocked("model", `${reason} ${isAdmin() ? "请到“模型服务”下载或导入训练权重，然后返回此页刷新。" : "请联系管理员到“模型服务”准备训练权重，再返回此页刷新。"}`,
-      isAdmin() ? { href: "#/models", label: "准备训练模型" } : null);
+    const reason = backendReason || models.find(model => model.reason)?.reason || t("没有可用于训练的本地模型权重。");
+    return blocked("model", `${reason} ${isAdmin() ? t("请到“模型服务”下载或导入训练权重，然后返回此页刷新。") : t("请联系管理员到“模型服务”准备训练权重，再返回此页刷新。")}`,
+      isAdmin() ? { href: "#/models", label: t("准备训练模型") } : null);
   }
-  if (!availability.available) return blocked("environment", backendReason || "训练环境暂时无法检查，请联系管理员检查依赖与服务配置，再刷新重试。");
-  if (!hasWorker) return blocked("worker", "训练模型可用，但没有在线的训练执行服务。请联系管理员启动 worker，或检查训练功能是否启用，再刷新重试。");
-  return { ready: true, runtimeHealthy: true, status: "ready", reason: "数据与训练服务已就绪。默认使用预训练权重，未安装的官方权重会在首次训练时自动下载。", action: null };
+  if (!availability.available) return blocked("environment", backendReason || t("训练环境暂时无法检查，请联系管理员检查依赖与服务配置，再刷新重试。"));
+  if (!hasWorker) return blocked("worker", t("训练模型可用，但没有在线的训练执行服务。请联系管理员启动 worker，或检查训练功能是否启用，再刷新重试。"));
+  return { ready: true, runtimeHealthy: true, status: "ready", reason: t("数据与训练服务已就绪。默认使用预训练权重，未安装的官方权重会在首次训练时自动下载。"), action: null };
 }
 
 const trainingBackgroundConversions = new Map();
@@ -1464,13 +1479,13 @@ function renderTrainingPage() {
   const monitored = monitoredTrainingRun();
   const refresh = trainingBackgroundConversions.get(monitored?.id);
   const detailRun = refresh?.epoch === state.selectionEpoch && refresh?.session === state.session ? { ...monitored, _conversionsLoading: false } : monitored;
-  const availability = state.training?.availability || { available: false, reason: "训练环境不可用" };
+  const availability = state.training?.availability || { available: false, reason: t("训练环境不可用") };
   const models = state.trainingCatalog?.models || [];
   const tasks = Object.keys(state.trainingCatalog?.tasks || {});
   const { ready: createReady, runtimeHealthy, reason: blockReason, action } = trainingReadiness();
   const readinessAction = action ? `<a class="btn ghost link-btn" href="${escapeHtml(action.href)}">${escapeHtml(action.label)}</a>` : "";
-  let detail = state.trainingSelectionLoading ? '<div class="training-detail-empty surface" role="status"><span class="spinner"></span><strong>正在读取所选训练…</strong><p>请稍候，操作按钮将在记录确认后显示。</p></div>' : state.trainingSelectionError ? `<div class="training-detail-empty surface" role="alert"><strong>暂时无法显示这次训练</strong><p>${escapeHtml(state.trainingSelectionError)}</p><button class="btn ghost" id="retry-selected-training">重新读取</button></div>` : monitored ? trainingRunCard(detailRun) : `<div class="training-detail-empty surface"><span class="card-icon">${icon("cpu")}</span><strong>${state.training.total ? "选择一条训练记录" : "还没有训练记录"}</strong><p>${state.training.total ? "从左侧选择后，这里会显示曲线、参数及模型文件。" : escapeHtml(blockReason)}</p>${createReady ? '<button class="btn primary" id="empty-new-training">开始第一次训练</button>' : readinessAction}</div>`;
-  const content = `<div class="page-head compact-head"><div><h1>训练与模型导出</h1><p class="page-subtitle">每次训练独立保存。选择左侧记录，查看曲线、参数和模型文件。</p></div><div class="training-page-actions"><button class="btn ghost" id="refresh-training" ${state.pipelineManualRefreshing ? "disabled" : ""}>${state.pipelineManualRefreshing ? '<span class="spinner"></span>刷新中' : `${icon("refresh")}刷新`}</button><button class="btn primary" id="new-training" ${createReady ? "" : "disabled"} title="${escapeHtml(blockReason)}">${icon("play")}开始新训练</button></div></div><div data-training-sync-slot></div>${!createReady ? `<div class="inline-notice training-start-notice" role="status"><span>${escapeHtml(blockReason)}</span>${readinessAction}</div>` : ""}<div class="training-workbench">${trainingListMarkup(state, { escapeHtml, trainingStatusLabel, trainingTaskInfo, formatDateTime, icon })}<section class="training-selected-detail" data-selected-run="${monitored?.id || ""}" aria-label="所选训练详情">${detail}</section></div><details class="training-runtime-details surface pipeline-details" data-pipeline-detail="catalog"><summary>${runtimeHealthy ? "训练环境与可用模型" : "训练环境暂不可用 · 查看原因"}</summary><p>${escapeHtml(blockReason)}</p>${!runtimeHealthy ? `<p>${escapeHtml(availability.reason || "没有在线的训练执行服务或可用模型。")}</p>` : ""}<div class="task-capability-grid">${tasks.map(trainingTaskCapabilityCard).join("")}</div><div class="catalog-model-strip">${models.map(trainingCatalogModelCard).join("")}</div>${trainingLicenseMarkup()}</details>`;
+  let detail = state.trainingSelectionLoading ? `<div class="training-detail-empty surface" role="status"><span class="spinner"></span><strong>${t("正在读取所选训练…")}</strong><p>${t("请稍候，操作按钮将在记录确认后显示。")}</p></div>` : state.trainingSelectionError ? `<div class="training-detail-empty surface" role="alert"><strong>${t("暂时无法显示这次训练")}</strong><p>${escapeHtml(state.trainingSelectionError)}</p><button class="btn ghost" id="retry-selected-training">${t("重新读取")}</button></div>` : monitored ? trainingRunCard(detailRun) : `<div class="training-detail-empty surface"><span class="card-icon">${icon("cpu")}</span><strong>${state.training.total ? t("选择一条训练记录") : t("还没有训练记录")}</strong><p>${state.training.total ? t("从左侧选择后，这里会显示曲线、参数及模型文件。") : escapeHtml(blockReason)}</p>${createReady ? `<button class="btn primary" id="empty-new-training">${t("开始第一次训练")}</button>` : readinessAction}</div>`;
+  const content = `<div class="page-head compact-head"><div><h1>${t("训练与部署")}</h1><p class="page-subtitle">${t("选择训练记录查看效果，转换模型后可直接部署到已连接的边缘设备。")}</p></div><div class="training-page-actions"><button class="btn ghost" id="refresh-training" ${state.pipelineManualRefreshing ? "disabled" : ""}>${state.pipelineManualRefreshing ? `<span class="spinner"></span>${t("刷新中")}` : t("{0}刷新", [icon("refresh")])}</button><button class="btn primary" id="new-training" ${createReady ? "" : "disabled"} title="${escapeHtml(blockReason)}">${t("{0}开始新训练", [icon("play")])}</button></div></div><div data-training-sync-slot></div>${!createReady ? `<div class="inline-notice training-start-notice" role="status"><span>${escapeHtml(blockReason)}</span>${readinessAction}</div>` : ""}<div class="training-workbench">${trainingListMarkup(state, { escapeHtml, trainingStatusLabel, trainingTaskInfo, formatDateTime, icon })}<section class="training-selected-detail" data-selected-run="${monitored?.id || ""}" aria-label="${ta("所选训练详情")}">${detail}</section></div><details class="training-runtime-details surface pipeline-details" data-pipeline-detail="catalog"><summary>${runtimeHealthy ? t("训练环境与可用模型") : t("训练环境暂不可用 · 查看原因")}</summary><p>${escapeHtml(blockReason)}</p>${!runtimeHealthy ? `<p>${escapeHtml(availability.reason || t("没有在线的训练执行服务或可用模型。"))}</p>` : ""}<div class="task-capability-grid">${tasks.map(trainingTaskCapabilityCard).join("")}</div><div class="catalog-model-strip">${models.map(trainingCatalogModelCard).join("")}</div>${trainingLicenseMarkup()}</details>`;
   if (!commitTrainingMarkup(content)) return;
   bindCommonProjectEvents(); bindTrainingPageEvents(); restoreTrainingViewState(viewSnapshot);
   if (monitored && !state.trainingMetricsHistory[monitored.id]?.attemptedAt) void loadTrainingMetrics(monitored.id, { render: true });
@@ -1550,19 +1565,19 @@ function trainingTaskCapabilityCard(task) {
   const info = trainingTaskInfo(task);
   const models = taskModels(task);
   const available = taskAvailable(task);
-  return `<article class="task-capability ${available ? "available" : "unavailable"}"><span>${icon(info.icon)}</span><div><strong>${escapeHtml(info.name)}</strong><small>${escapeHtml(info.description || info.schema || "视觉训练任务")}</small></div><em>${available ? `${models.filter(model => model.available).length} 个模型` : escapeHtml(info.reason || "当前数据结构不兼容")}</em></article>`;
+  return `<article class="task-capability ${available ? "available" : "unavailable"}"><span>${icon(info.icon)}</span><div><strong>${escapeHtml(info.name)}</strong><small>${escapeHtml(info.description || info.schema || t("视觉训练任务"))}</small></div><em>${available ? t("{0} 个模型", [models.filter(model => model.available).length]) : escapeHtml(info.reason || t("当前数据结构不兼容"))}</em></article>`;
 }
 
 function trainingCatalogModelCard(model) {
   const task = trainingTaskInfo(model.task);
-  const size = model.parameters || model.parameter_count ? `${formatCompactNumber(model.parameters || model.parameter_count)} 参数` : model.size_bytes ? formatBytes(model.size_bytes) : "本地权重";
-  return `<article class="catalog-model ${model.available ? "" : "unavailable"}" title="${escapeHtml(model.reason || model.description || "")}"><div><strong>${escapeHtml(model.name)}</strong>${model.recommended ? `<span>推荐</span>` : ""}</div><p>${escapeHtml(model.family)} · ${escapeHtml(task.short)} · ${escapeHtml(size)}</p><small>${model.available ? escapeHtml(trainingInitializationLabel(model)) : escapeHtml(model.reason || "当前不可用")}</small></article>`;
+  const size = model.parameters || model.parameter_count ? t("{0} 参数", [formatCompactNumber(model.parameters || model.parameter_count)]) : model.size_bytes ? formatBytes(model.size_bytes) : t("本地权重");
+  return `<article class="catalog-model ${model.available ? "" : "unavailable"}" title="${escapeHtml(model.reason || model.description || "")}"><div><strong>${escapeHtml(model.name)}</strong>${model.recommended ? `<span>${t("推荐")}</span>` : ""}</div><p>${escapeHtml(model.family)} · ${escapeHtml(task.short)} · ${escapeHtml(size)}</p><small>${model.available ? escapeHtml(trainingInitializationLabel(model)) : escapeHtml(model.reason || t("当前不可用"))}</small></article>`;
 }
 
 function trainingLicenseMarkup() {
   const licensing = state.trainingCatalog?.licensing;
-  const notice = typeof licensing === "string" ? licensing : licensing?.notice || licensing?.summary || "Ultralytics 权重及其训练产物用于生产环境前，请由部署方确认适用的 AGPL-3.0 或 Enterprise 许可。";
-  return `<div class="training-license-note">${icon("warning")}<span><strong>生产许可提示</strong>${escapeHtml(notice)}</span></div>`;
+  const notice = typeof licensing === "string" ? licensing : licensing?.notice || licensing?.summary || t("Ultralytics 权重及其训练产物用于生产环境前，请由部署方确认适用的 AGPL-3.0 或 Enterprise 许可。");
+  return `<div class="training-license-note">${icon("warning")}<span><strong>${t("生产许可提示")}</strong>${escapeHtml(notice)}</span></div>`;
 }
 
 function bindTrainingPageEvents() {
@@ -1624,6 +1639,7 @@ function bindTrainingPageEvents() {
   document.querySelectorAll("[data-download-conversion]").forEach(button => button.onclick = async () => { button.disabled = true; try { await downloadArtifact(`/api/conversions/${button.dataset.downloadConversion}/artifact`, `converted-model-${button.dataset.downloadConversion}`); } catch (error) { notify(error.message, "error"); } finally { button.disabled = false; } });
   document.querySelectorAll("[data-download-conversion-manifest]").forEach(button => button.onclick = async () => { button.disabled = true; try { await downloadArtifact(`/api/conversions/${button.dataset.downloadConversionManifest}/manifest`, `conversion-${button.dataset.downloadConversionManifest}-deployment.json`); } catch (error) { notify(error.message, "error"); } finally { button.disabled = false; } });
   document.querySelectorAll("[data-conversion-logs]").forEach(button => button.onclick = () => openConversionLogModal(Number(button.dataset.conversionLogs)));
+  document.querySelectorAll("[data-deploy-conversion]").forEach(button => button.onclick = () => openTrainingDeployment(Number(button.dataset.deployConversion)));
   document.querySelectorAll("[data-cancel-conversion]").forEach(button => button.onclick = () => confirmCancelConversion(Number(button.dataset.cancelConversion)));
   document.querySelectorAll("[data-retry-conversion]").forEach(button => button.onclick = () => retryConversion(Number(button.dataset.retryConversion), button));
 }
@@ -1637,30 +1653,30 @@ function trainingRunCard(run) {
   const task = trainingTaskInfo(run.task || "detect");
   const displayStatus = run.cancel_requested && ["queued", "running"].includes(run.status) ? "cancelling" : run.status;
   const version = state.versions.find(item => item.id === run.version_id || item.id === run.dataset_version_id);
-  const modelName = run.model_name || run.model_arch || String(run.settings?.base_model || "模型未记录").split("/").pop();
+  const modelName = run.model_name || run.model_arch || String(run.settings?.base_model || t("模型未记录")).split("/").pop();
   const active = ["queued", "running", "cancelling"].includes(displayStatus);
   const retryable = ["failed", "cancelled"].includes(run.status) && (run.lineage ? run.lineage.retryable : Number(run.attempt || 0) < Number(run.max_retries ?? 2));
   const manage = canReview();
-  return `<div class="training-selected-header surface"><div class="training-selected-title"><span class="task-type-icon">${icon(task.icon)}</span><div><h2 id="training-selected-heading" tabindex="-1">${escapeHtml(run.name || `${modelName} 训练`)}</h2><p>${escapeHtml(task.name)} · ${escapeHtml(modelName)} · ${escapeHtml(version?.name || `数据版本 ${run.version_id}`)}</p><p><time datetime="${escapeHtml(run.created_at || "")}">${escapeHtml(formatDateTime(run.created_at))}</time> · ${formatRunTime(run)}</p></div><span class="job-status ${escapeHtml(displayStatus)}">${trainingStatusLabel(displayStatus)}</span></div><div class="training-selected-actions" aria-label="当前训练的操作">${manage && active && !run.cancel_requested ? `<button class="btn danger" data-cancel-training="${run.id}">取消这次训练</button>` : ""}${manage && retryable ? `<button class="btn ghost" data-retry-training="${run.id}">${icon("refresh")}按原配置重试</button>` : ""}${manage && !active ? `<button class="btn ghost" data-clone-training="${run.id}">${icon("branch")}修改配置再训练</button>` : ""}${run.status === "completed" && run.artifact?.available ? `<button class="btn primary" data-download-training="${run.id}">${icon("download")}下载模型（${formatBytes(run.artifact.size_bytes)}）</button><button class="btn ghost" data-download-deployment="${run.id}">${icon("download")}下载推理部署包</button>${manage ? `<button class="btn ghost" data-convert-training="${run.id}">${icon("external")}转换并导出</button>` : ""}` : ""}</div>${run.status === "completed" && !run.artifact?.available ? `<p class="hint training-artifact-notice">${escapeHtml(run.artifact?.error || "这次训练暂无可下载的模型文件。可查看运行日志，或请管理员检查模型保存位置。")}</p>` : ""}${run.error ? `<div class="training-run-failure"><p>${escapeHtml(pipelineFailureAdvice(run.error))}</p><details class="pipeline-details pipeline-error" data-pipeline-detail="run-error-${run.id}"><summary>查看失败原因</summary><pre>${escapeHtml(run.error)}</pre></details></div>` : ""}</div>${sectionTabsMarkup("train", [["overview", "训练概况"], ["details", "参数与日志"], ["conversions", "模型转换"]], tab, escapeHtml)}<div class="training-tab-panel" ${sectionPanelAttributes("train", "overview", tab)}>${trainingMonitorMarkup(run)}</div><div class="training-tab-panel" ${sectionPanelAttributes("train", "details", tab)}><section class="training-configuration surface" aria-label="当前训练的参数与日志">${trainingRunDetails(run, version)}</section></div><div class="training-tab-panel" ${sectionPanelAttributes("train", "conversions", tab)}><section class="training-selected-conversions surface"><div class="conversion-title"><div><h3>这次训练的模型转换</h3><p>下载和转换文件均来自上方选中的训练记录。</p></div><button class="btn ghost" data-refresh-run-conversions="${run.id}">刷新</button></div>${run._conversionError ? `<p class="inline-error" role="alert">${escapeHtml(run._conversionError)}</p>` : ""}${(run.conversions || []).length ? `<div class="conversion-list">${run.conversions.map(conversionRow).join("")}</div>` : `<p class="hint">${run._conversionsLoading ? "正在读取转换记录…" : run.status === "completed" && run.artifact?.available ? "还没有转换记录。需要其他格式时，点击上方“转换并导出”。" : "训练完成并保存模型后，可以在这里查看转换文件。"}</p>`}</section></div>`;
+  return `<div class="training-selected-header surface"><div class="training-selected-title"><span class="task-type-icon">${icon(task.icon)}</span><div><h2 id="training-selected-heading" tabindex="-1">${escapeHtml(run.name || t("{0} 训练", [modelName]))}</h2><p>${escapeHtml(task.name)} · ${escapeHtml(modelName)} · ${escapeHtml(version?.name || t("数据版本 {0}", [run.version_id]))}</p><p><time datetime="${escapeHtml(run.created_at || "")}">${escapeHtml(formatDateTime(run.created_at))}</time> · ${formatRunTime(run)}</p></div><span class="job-status ${escapeHtml(displayStatus)}">${trainingStatusLabel(displayStatus)}</span></div><div class="training-selected-actions" aria-label="${ta("当前训练的操作")}">${manage && active && !run.cancel_requested ? `<button class="btn danger" data-cancel-training="${run.id}">${t("取消这次训练")}</button>` : ""}${manage && retryable ? `<button class="btn ghost" data-retry-training="${run.id}">${t("{0}按原配置重试", [icon("refresh")])}</button>` : ""}${manage && !active ? `<button class="btn ghost" data-clone-training="${run.id}">${t("{0}修改配置再训练", [icon("branch")])}</button>` : ""}${run.status === "completed" && run.artifact?.available ? `<button class="btn primary" data-download-training="${run.id}">${t("{0}下载模型（{1}）", [icon("download"), formatBytes(run.artifact.size_bytes)])}</button><button class="btn ghost" data-download-deployment="${run.id}">${t("{0}下载推理部署包", [icon("download")])}</button>${manage ? `<button class="btn ghost" data-convert-training="${run.id}">${t("{0}转换并导出", [icon("external")])}</button>` : ""}` : ""}</div>${run.status === "completed" && !run.artifact?.available ? `<p class="hint training-artifact-notice">${escapeHtml(run.artifact?.error || t("这次训练暂无可下载的模型文件。可查看运行日志，或请管理员检查模型保存位置。"))}</p>` : ""}${run.error ? `<div class="training-run-failure"><p>${escapeHtml(pipelineFailureAdvice(run.error))}</p><details class="pipeline-details pipeline-error" data-pipeline-detail="run-error-${run.id}"><summary>${t("查看失败原因")}</summary><pre>${escapeHtml(run.error)}</pre></details></div>` : ""}</div>${sectionTabsMarkup("train", [["overview", t("训练概况")], ["details", t("参数与日志")], ["conversions", t("转换与部署")]], tab, escapeHtml)}<div class="training-tab-panel" ${sectionPanelAttributes("train", "overview", tab)}>${trainingMonitorMarkup(run)}</div><div class="training-tab-panel" ${sectionPanelAttributes("train", "details", tab)}><section class="training-configuration surface" aria-label="${ta("当前训练的参数与日志")}">${trainingRunDetails(run, version)}</section></div><div class="training-tab-panel" ${sectionPanelAttributes("train", "conversions", tab)}><section class="training-selected-conversions surface"><div class="conversion-title"><div><h3>${t("这次训练的转换与部署")}</h3><p>${t("选择 reCamera Pro 系统模型转换结果，再点击“部署到设备”。下载与部署均使用当前训练记录的模型。")}</p></div><button class="btn ghost" data-refresh-run-conversions="${run.id}">${t("刷新")}</button></div>${run._conversionError ? `<p class="inline-error" role="alert">${escapeHtml(run._conversionError)}</p>` : ""}${(run.conversions || []).length ? `<div class="conversion-list">${run.conversions.map(conversionRow).join("")}</div>` : `<p class="hint">${run._conversionsLoading ? t("正在读取转换记录…") : run.status === "completed" && run.artifact?.available ? t("还没有转换记录。需要其他格式时，点击上方“转换并导出”。") : t("训练完成并保存模型后，可以在这里查看转换文件。")}</p>`}</section></div>`;
 }
 
 function pipelineFailureAdvice(error) {
   const message = String(error || "");
-  if (/out of memory|显存|内存不足/i.test(message)) return "计算内存不足。请修改配置，减小每批图片数或图像尺寸后重新训练。";
-  if (/missing|not found|不存在|未找到|文件缺失/i.test(message)) return "所需模型或数据文件不可用。请查看失败原因，并请管理员确认文件后再重试。";
-  if (/permission|权限/i.test(message)) return "无法访问所需文件或资源。请联系管理员检查权限后重试。";
-  if (/network|download|connection|下载|连接/i.test(message)) return "无法连接或下载所需资源。请确认服务器网络恢复后再重试。";
-  if (/compatible|不兼容|验证集|训练集|标注/i.test(message)) return "请检查失败原因中的数据要求，修正标注或数据划分后生成新版本再训练。";
-  return "任务未完成。先查看失败原因；修正问题后可重试，或请管理员协助。";
+  if (/out of memory|显存|内存不足/i.test(message)) return t("计算内存不足。请修改配置，减小每批图片数或图像尺寸后重新训练。");
+  if (/missing|not found|不存在|未找到|文件缺失/i.test(message)) return t("所需模型或数据文件不可用。请查看失败原因，并请管理员确认文件后再重试。");
+  if (/permission|权限/i.test(message)) return t("无法访问所需文件或资源。请联系管理员检查权限后重试。");
+  if (/network|download|connection|下载|连接/i.test(message)) return t("无法连接或下载所需资源。请确认服务器网络恢复后再重试。");
+  if (/compatible|不兼容|验证集|训练集|标注/i.test(message)) return t("请检查失败原因中的数据要求，修正标注或数据划分后生成新版本再训练。");
+  return t("任务未完成。先查看失败原因；修正问题后可重试，或请管理员协助。");
 }
 
 function trainingMetricsMarkup(run) {
   const metrics = run.metrics || {}, primary = evaluationMetric(run.task, metrics);
   const suffix = run.task === "segment" ? "M" : run.task === "pose" ? "P" : "B";
-  const values = [[primary.label, primary.value, primary.description], ...(run.task === "classify" ? [["前五项命中率", metrics["metrics/accuracy_top5"] ?? metrics.top5, "正确类别出现在前五个预测中的比例，越高越好。"]] : [["预测准确率", metrics[`metrics/precision(${suffix})`] ?? metrics.precision, "预测出的目标中正确的比例，越高越好。"], ["目标找全率", metrics[`metrics/recall(${suffix})`] ?? metrics.recall, "实际目标中被找到的比例，越高越好。"]])];
+  const values = [[primary.label, primary.value, primary.description], ...(run.task === "classify" ? [[t("前五项命中率"), metrics["metrics/accuracy_top5"] ?? metrics.top5, t("正确类别出现在前五个预测中的比例，越高越好。")]] : [[t("预测准确率"), metrics[`metrics/precision(${suffix})`] ?? metrics.precision, t("预测出的目标中正确的比例，越高越好。")], [t("目标找全率"), metrics[`metrics/recall(${suffix})`] ?? metrics.recall, t("实际目标中被找到的比例，越高越好。")]])];
   const present = values.filter(([, value]) => value != null && value !== "" && Number.isFinite(Number(value)));
   if (!present.length) return "";
-  return `<div class="metric-chips">${present.map(([label, value, description]) => `<span title="${escapeHtml(description)}"><small>${escapeHtml(label)}</small><strong>${formatMetric(value)}</strong></span>`).join("")}</div><p class="pipeline-metric-hint">${run.status === "completed" ? "训练程序保存的最终验证表现。" : "最近记录的验证表现。"}数值通常越高越好，部署前仍需用实际场景图片检查。</p>`;
+  return `<div class="metric-chips">${present.map(([label, value, description]) => `<span title="${escapeHtml(description)}"><small>${escapeHtml(label)}</small><strong>${formatMetric(value)}</strong></span>`).join("")}</div><p class="pipeline-metric-hint">${t("{0}数值通常越高越好，部署前仍需用实际场景图片检查。", [run.status === "completed" ? t("训练程序保存的最终验证表现。") : t("最近记录的验证表现。")])}</p>`;
 }
 
 function trainingRunDetails(run, version) {
@@ -1668,47 +1684,49 @@ function trainingRunDetails(run, version) {
   const artifact = run.artifact || {};
   const parentId = run.lineage?.parent_run_id || run.parent_run_id;
   const resolvedDevice = run.resource?.resolved_device || run.resource?.requested_device || settings.device || "auto";
-  return `<details class="pipeline-details" data-pipeline-detail="run-settings-${run.id}"><summary>训练参数与技术信息</summary><div class="run-detail-grid"><section><div class="detail-heading">${icon("branch")}数据与训练来源</div><dl class="run-properties"><div><dt>冻结版本</dt><dd>${escapeHtml(version?.name || `V${run.version_id}`)}</dd></div><div><dt>内容哈希</dt><dd><code>${escapeHtml(settings.version_content_hash?.slice(0, 16) || version?.content_hash?.slice(0, 16) || "—")}</code></dd></div><div><dt>初始化方式</dt><dd>${settings.pretrained === false ? "从零训练（随机初始化）" : "使用预训练权重"}</dd></div><div><dt>基础权重哈希</dt><dd><code>${escapeHtml(settings.base_model_sha256?.slice(0, 16) || "—")}</code></dd></div><div><dt>配置哈希</dt><dd><code>${escapeHtml(run.config_hash?.slice(0, 16) || "—")}</code></dd></div><div><dt>重试记录</dt><dd>${parentId ? `Run #${parentId} → ` : ""}Run #${run.id}</dd></div><div><dt>创建时间</dt><dd>${formatDateTime(run.created_at)}</dd></div><div><dt>开始 / 结束</dt><dd>${formatDateTime(run.started_at)} / ${formatDateTime(run.finished_at)}</dd></div>${artifact.sha256 ? `<div><dt>训练权重校验</dt><dd><code>${escapeHtml(artifact.sha256.slice(0, 16))}</code></dd></div>` : ""}</dl></section><section><div class="detail-heading">${icon("sliders")}训练参数</div><dl class="run-properties"><div><dt>训练轮数 / 每批图片数</dt><dd>${run.total_epochs || settings.epochs || "—"} / ${settings.batch_size ?? "—"}</dd></div><div><dt>图像尺寸</dt><dd>${settings.image_size || settings.imgsz || "—"}</dd></div><div><dt>设备 / 策略</dt><dd>${escapeHtml(resolvedDevice)} / ${escapeHtml(settings.resource_profile || "balanced")}</dd></div><div><dt>优化器 / LR</dt><dd>${escapeHtml(settings.optimizer || "auto")} / ${settings.lr0 ?? "auto"}</dd></div><div><dt>权重衰减</dt><dd>${settings.weight_decay ?? "—"}</dd></div><div><dt>随机种子</dt><dd>${settings.seed ?? "—"}${settings.deterministic ? " · 可复现" : ""}</dd></div><div><dt>早停 / 重试</dt><dd>${settings.patience ?? "—"} / ${run.lineage?.max_retries ?? run.max_retries ?? "—"}</dd></div></dl></section></div></details><details class="pipeline-details" data-training-log-detail="${run.id}" data-pipeline-detail="run-log-${run.id}"><summary>原始运行日志（排查问题时查看）</summary><section class="run-log-section"><div class="detail-heading"><span>${icon("terminal")}运行日志</span><button class="mini-action" data-refresh-logs="${run.id}">${icon("refresh")}刷新</button></div>${renderTrainingLogConsole(run)}</section></details>`;
+  return `<details class="pipeline-details" data-pipeline-detail="run-settings-${run.id}"><summary>${t("训练参数与技术信息")}</summary><div class="run-detail-grid"><section><div class="detail-heading">${t("{0}数据与训练来源", [icon("branch")])}</div><dl class="run-properties"><div><dt>${t("冻结版本")}</dt><dd>${escapeHtml(version?.name || `V${run.version_id}`)}</dd></div><div><dt>${t("内容哈希")}</dt><dd><code>${escapeHtml(settings.version_content_hash?.slice(0, 16) || version?.content_hash?.slice(0, 16) || "—")}</code></dd></div><div><dt>${t("初始化方式")}</dt><dd>${settings.pretrained === false ? t("从零训练（随机初始化）") : t("使用预训练权重")}</dd></div><div><dt>${t("基础权重哈希")}</dt><dd><code>${escapeHtml(settings.base_model_sha256?.slice(0, 16) || "—")}</code></dd></div><div><dt>${t("配置哈希")}</dt><dd><code>${escapeHtml(run.config_hash?.slice(0, 16) || "—")}</code></dd></div><div><dt>${t("重试记录")}</dt><dd>${parentId ? `Run #${parentId} → ` : ""}Run #${run.id}</dd></div><div><dt>${t("创建时间")}</dt><dd>${formatDateTime(run.created_at)}</dd></div><div><dt>${t("开始 / 结束")}</dt><dd>${formatDateTime(run.started_at)} / ${formatDateTime(run.finished_at)}</dd></div>${artifact.sha256 ? `<div><dt>${t("训练权重校验")}</dt><dd><code>${escapeHtml(artifact.sha256.slice(0, 16))}</code></dd></div>` : ""}</dl></section><section><div class="detail-heading">${t("{0}训练参数", [icon("sliders")])}</div><dl class="run-properties"><div><dt>${t("训练轮数 / 每批图片数")}</dt><dd>${run.total_epochs || settings.epochs || "—"} / ${settings.batch_size ?? "—"}</dd></div><div><dt>${t("图像尺寸")}</dt><dd>${settings.image_size || settings.imgsz || "—"}</dd></div><div><dt>${t("设备 / 策略")}</dt><dd>${escapeHtml(resolvedDevice)} / ${escapeHtml(settings.resource_profile || "balanced")}</dd></div><div><dt>${t("优化器 / LR")}</dt><dd>${escapeHtml(settings.optimizer || "auto")} / ${settings.lr0 ?? "auto"}</dd></div><div><dt>${t("权重衰减")}</dt><dd>${settings.weight_decay ?? "—"}</dd></div><div><dt>${t("随机种子")}</dt><dd>${settings.seed ?? "—"}${settings.deterministic ? t(" · 可复现") : ""}</dd></div><div><dt>${t("早停 / 重试")}</dt><dd>${settings.patience ?? "—"} / ${run.lineage?.max_retries ?? run.max_retries ?? "—"}</dd></div></dl></section></div></details><details class="pipeline-details" data-training-log-detail="${run.id}" data-pipeline-detail="run-log-${run.id}"><summary>${t("原始运行日志（排查问题时查看）")}</summary><section class="run-log-section"><div class="detail-heading"><span>${t("{0}运行日志", [icon("terminal")])}</span><button class="mini-action" data-refresh-logs="${run.id}">${t("{0}刷新", [icon("refresh")])}</button></div>${renderTrainingLogConsole(run)}</section></details>`;
 }
 
 function conversionRow(item) {
   const displayStatus = item.cancel_requested && ["queued", "running"].includes(item.status) ? "cancelling" : item.status;
-  const status = item.status === "completed" && !item.artifact?.available ? "已完成" : trainingStatusLabel(displayStatus, true);
+  const status = item.status === "completed" && !item.artifact?.available ? t("已完成") : trainingStatusLabel(displayStatus, true);
   const rawProgress = Number(item.progress || 0);
   const progress = Math.round(Math.max(0, Math.min(100, rawProgress <= 1 ? rawProgress * 100 : rawProgress)));
   const attempt = Number(item.lineage?.attempt ?? item.attempt ?? 0);
   const retryable = ["failed", "cancelled"].includes(item.status) && (item.lineage ? item.lineage.retryable : attempt < Number(item.max_retries ?? 2));
   const details = conversionSettingsEntries(item);
   const available = item.status === "completed" && item.artifact?.available;
-  const message = item.status === "failed" ? "转换未完成。查看失败原因，解决后可重试；原始模型仍可下载。" : item.status === "queued" ? "等待可用资源，无需重复提交。" : item.status === "completed" ? available ? "转换完成。部署前请用实际图片验证预测结果。" : "转换已结束，但模型文件不可下载。请查看日志或请管理员检查文件。" : item.status === "cancelled" ? "转换已取消，原始模型仍会保留。" : "正在转换，可以离开页面，任务会继续运行。";
-  return `<article class="conversion-row conversion-record"><div class="conversion-record-heading"><div><strong>${escapeHtml(conversionFormatName(item.format))}</strong>${attempt ? `<span class="conversion-attempt">第 ${attempt} 次重试</span>` : ""}<p>${escapeHtml(conversionSettingsSummary(item))}</p></div><span class="job-status ${escapeHtml(displayStatus)}">${escapeHtml(status)}</span></div><p class="conversion-record-feedback">${escapeHtml(message)}</p>${["queued", "running", "cancelling"].includes(displayStatus) ? `<div class="conversion-record-progress"><progress max="100" value="${progress}" aria-label="转换进度"></progress><span>${progress}%</span></div>` : ""}<details class="pipeline-details conversion-settings" data-pipeline-detail="conversion-settings-${item.id}"><summary>查看转换设置与时间</summary><dl class="run-properties">${details.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(String(value))}</dd></div>`).join("")}<div><dt>提交时间</dt><dd>${escapeHtml(formatDateTime(item.created_at))}</dd></div><div><dt>开始 / 结束</dt><dd>${escapeHtml(formatDateTime(item.started_at))} / ${escapeHtml(formatDateTime(item.finished_at))}</dd></div></dl></details>${item.error ? `<details class="pipeline-details pipeline-error conversion-error" data-pipeline-detail="conversion-error-${item.id}"><summary>查看失败原因</summary><pre>${escapeHtml(item.error)}</pre></details>` : ""}<div class="conversion-actions"><button class="mini-action" data-conversion-logs="${item.id}">${icon("terminal")}查看日志</button>${canReview() && ["queued", "running"].includes(item.status) && !item.cancel_requested ? `<button class="mini-action danger" data-cancel-conversion="${item.id}">取消转换</button>` : ""}${canReview() && retryable ? `<button class="mini-action" data-retry-conversion="${item.id}">${icon("refresh")}按原设置重试</button>` : ""}${available ? `<button class="mini-action" data-download-conversion="${item.id}">${icon("download")}下载模型（${formatBytes(item.artifact.size_bytes)}）</button>` : ""}${available && item.manifest_available ? `<button class="mini-action" data-download-conversion-manifest="${item.id}">${icon("download")}下载部署说明</button>` : ""}</div>${available && item.manifest_available ? '<p class="hint conversion-manifest-hint">部署说明包含输入预处理、输出结构及标签信息，可交给设备端开发人员。</p>' : ""}</article>`;
+  const systemModel = available && item.format === "rknn" && item.settings?.rknn?.deployment_profile === "recamera_system";
+  const deploymentAction = systemModel ? isAdmin() && !state.project?.archived_at ? `<button class="btn primary" data-deploy-conversion="${item.id}">${t("{0}部署到设备", [icon("external")])}</button>` : `<span class="hint">${state.project?.archived_at ? t("恢复项目后可部署到设备。") : t("设备部署由系统管理员操作。")}</span>` : "";
+  const message = item.status === "failed" ? t("转换未完成。查看失败原因，解决后可重试；原始模型仍可下载。") : item.status === "queued" ? t("等待可用资源，无需重复提交。") : item.status === "completed" ? available ? t("转换完成。部署前请用实际图片验证预测结果。") : t("转换已结束，但模型文件不可下载。请查看日志或请管理员检查文件。") : item.status === "cancelled" ? t("转换已取消，原始模型仍会保留。") : t("正在转换，可以离开页面，任务会继续运行。");
+  return `<article class="conversion-row conversion-record"><div class="conversion-record-heading"><div><strong>${escapeHtml(conversionFormatName(item.format))}</strong>${attempt ? `<span class="conversion-attempt">${t("第 {0} 次重试", [attempt])}</span>` : ""}<p>${escapeHtml(conversionSettingsSummary(item))}</p></div><span class="job-status ${escapeHtml(displayStatus)}">${escapeHtml(status)}</span></div><p class="conversion-record-feedback">${escapeHtml(message)}</p>${["queued", "running", "cancelling"].includes(displayStatus) ? `<div class="conversion-record-progress"><progress max="100" value="${progress}" aria-label="${ta("转换进度")}"></progress><span>${progress}%</span></div>` : ""}<details class="pipeline-details conversion-settings" data-pipeline-detail="conversion-settings-${item.id}"><summary>${t("查看转换设置与时间")}</summary><dl class="run-properties">${details.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(String(value))}</dd></div>`).join("")}<div><dt>${t("提交时间")}</dt><dd>${escapeHtml(formatDateTime(item.created_at))}</dd></div><div><dt>${t("开始 / 结束")}</dt><dd>${escapeHtml(formatDateTime(item.started_at))} / ${escapeHtml(formatDateTime(item.finished_at))}</dd></div></dl></details>${item.error ? `<details class="pipeline-details pipeline-error conversion-error" data-pipeline-detail="conversion-error-${item.id}"><summary>${t("查看失败原因")}</summary><pre>${escapeHtml(item.error)}</pre></details>` : ""}<div class="conversion-actions">${deploymentAction}<button class="mini-action" data-conversion-logs="${item.id}">${t("{0}查看日志", [icon("terminal")])}</button>${canReview() && ["queued", "running"].includes(item.status) && !item.cancel_requested ? `<button class="mini-action danger" data-cancel-conversion="${item.id}">${t("取消转换")}</button>` : ""}${canReview() && retryable ? `<button class="mini-action" data-retry-conversion="${item.id}">${t("{0}按原设置重试", [icon("refresh")])}</button>` : ""}${available ? `<button class="mini-action" data-download-conversion="${item.id}">${t("{0}下载模型（{1}）", [icon("download"), formatBytes(item.artifact.size_bytes)])}</button>` : ""}${available && item.manifest_available ? `<button class="mini-action" data-download-conversion-manifest="${item.id}">${t("{0}下载部署说明", [icon("download")])}</button>` : ""}</div>${available && item.manifest_available ? `<p class="hint conversion-manifest-hint">${t("部署说明包含输入预处理、输出结构及标签信息，可交给设备端开发人员。")}</p>` : ""}</article>`;
 }
 
-function trainingStatusLabel(status, conversion = false) { return ({ queued: "排队中", pending: "等待中", running: conversion ? "转换中" : "训练中", cancelling: "正在取消", completed: conversion ? "可下载" : "已完成", failed: "失败", cancelled: "已取消" })[status] || status || "未知"; }
+function trainingStatusLabel(status, conversion = false) { return ({ queued: t("排队中"), pending: t("等待中"), running: conversion ? t("转换中") : t("训练中"), cancelling: t("正在取消"), completed: conversion ? t("可下载") : t("已完成"), failed: t("失败"), cancelled: t("已取消") })[status] || status || t("未知"); }
 function formatMetric(value) { const number = Number(value); return value != null && value !== "" && Number.isFinite(number) ? number.toFixed(3) : "—"; }
 function formatCompactNumber(value) { const number = Number(value); if (!Number.isFinite(number)) return "—"; if (number >= 1e9) return `${(number / 1e9).toFixed(1)}B`; if (number >= 1e6) return `${(number / 1e6).toFixed(1)}M`; if (number >= 1e3) return `${(number / 1e3).toFixed(1)}K`; return String(number); }
-function formatDateTime(value) { if (!value) return "—"; const date = new Date(value); return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString(); }
-function formatRunTime(run) { if (!run.started_at) return "尚未开始"; const start = new Date(run.started_at); const end = run.finished_at ? new Date(run.finished_at) : new Date(); if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "时长未知"; const seconds = Math.max(0, Math.round((end - start) / 1000)); return formatDuration(seconds); }
-function formatDuration(seconds) { if (!Number.isFinite(Number(seconds))) return "时长未知"; if (seconds < 60) return `${seconds} 秒`; if (seconds < 3600) return `${Math.ceil(seconds / 60)} 分钟`; return `${(seconds / 3600).toFixed(1)} 小时`; }
+function formatDateTime(value) { if (!value) return "—"; const date = new Date(value); return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString(getLocale()); }
+function formatRunTime(run) { if (!run.started_at) return t("尚未开始"); const start = new Date(run.started_at); const end = run.finished_at ? new Date(run.finished_at) : new Date(); if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return t("时长未知"); const seconds = Math.max(0, Math.round((end - start) / 1000)); return formatDuration(seconds); }
+function formatDuration(seconds) { if (!Number.isFinite(Number(seconds))) return t("时长未知"); if (seconds < 60) return t("{0} 秒", [seconds]); if (seconds < 3600) return t("{0} 分钟", [Math.ceil(seconds / 60)]); return t("{0} 小时", [(seconds / 3600).toFixed(1)]); }
 
 function trainingTaskChoices(selectedTask) {
   const tasks = Object.keys(state.trainingCatalog?.tasks || {});
-  return tasks.map(task => { const info = trainingTaskInfo(task); const models = taskModels(task, true); const available = taskAvailable(task); return `<label class="training-task-option ${available ? "" : "unavailable"}"><input type="radio" name="train-task" value="${escapeHtml(task)}" ${task === selectedTask ? "checked" : ""} ${available ? "" : "disabled"}/><span>${icon(info.icon)}</span><div><strong>${escapeHtml(info.name)}</strong><small>${available ? `${models.length} 个兼容模型 · ${escapeHtml(info.schema || info.description)}` : escapeHtml(info.reason || "当前标注结构不支持")}</small></div></label>`; }).join("");
+  return tasks.map(task => { const info = trainingTaskInfo(task); const models = taskModels(task, true); const available = taskAvailable(task); return `<label class="training-task-option ${available ? "" : "unavailable"}"><input type="radio" name="train-task" value="${escapeHtml(task)}" ${task === selectedTask ? "checked" : ""} ${available ? "" : "disabled"}/><span>${icon(info.icon)}</span><div><strong>${escapeHtml(info.name)}</strong><small>${available ? t("{0} 个兼容模型 · {1}", [models.length, escapeHtml(info.schema || info.description)]) : escapeHtml(info.reason || t("当前标注结构不支持"))}</small></div></label>`; }).join("");
 }
 
 function trainingDeviceChoices(selected = "auto") {
   const resources = state.trainingResources || {};
-  const devices = [{ id: "auto", type: "auto", name: "自动调度", available: true, reason: "优先选择空闲 GPU，无可用 GPU 时回退 CPU" }, ...(resources.devices || [])];
+  const devices = [{ id: "auto", type: "auto", name: t("自动调度"), available: true, reason: t("优先选择空闲 GPU，无可用 GPU 时回退 CPU") }, ...(resources.devices || [])];
   const unique = [...new Map(devices.map(device => [device.id, device])).values()];
-  return unique.map(device => { const memory = device.total_memory_bytes ? `${formatBytes(device.free_memory_bytes || 0)} / ${formatBytes(device.total_memory_bytes)} 可用` : device.type === "cpu" ? `${device.logical_cores || device.cores || "—"} 核 CPU` : device.reason || "由 Worker 决定"; return `<label class="resource-option ${device.available === false ? "unavailable" : ""}"><input type="radio" name="train-device" value="${escapeHtml(device.id)}" ${device.id === selected ? "checked" : ""} ${device.available === false ? "disabled" : ""}/><span>${icon(device.type === "cpu" ? "cpu" : "chip")}</span><div><strong>${escapeHtml(device.name || device.id)}</strong><small>${escapeHtml(memory)}${Number.isFinite(Number(device.utilization_percent)) ? ` · ${Number(device.utilization_percent).toFixed(0)}% 使用率` : ""}</small></div></label>`; }).join("");
+  return unique.map(device => { const memory = device.total_memory_bytes ? t("{0} / {1} 可用", [formatBytes(device.free_memory_bytes || 0), formatBytes(device.total_memory_bytes)]) : device.type === "cpu" ? t("{0} 核 CPU", [device.logical_cores || device.cores || "—"]) : device.reason || t("由 Worker 决定"); return `<label class="resource-option ${device.available === false ? "unavailable" : ""}"><input type="radio" name="train-device" value="${escapeHtml(device.id)}" ${device.id === selected ? "checked" : ""} ${device.available === false ? "disabled" : ""}/><span>${icon(device.type === "cpu" ? "cpu" : "chip")}</span><div><strong>${escapeHtml(device.name || device.id)}</strong><small>${escapeHtml(memory)}${Number.isFinite(Number(device.utilization_percent)) ? t(" · {0}% 使用率", [Number(device.utilization_percent).toFixed(0)]) : ""}</small></div></label>`; }).join("");
 }
 
 function trainingResourceProfileOptions(selected = "balanced") {
   const supplied = state.trainingCatalog?.resource_profiles;
   const defaults = {
-    balanced: { name: "均衡", description: "优先 GPU，不可用时安全回退" },
-    performance: { name: "吞吐优先", description: "优先空闲显存最大的 GPU" },
-    low_memory: { name: "低显存", description: "优先空闲显存比例最高的设备" },
+    balanced: { name: t("均衡"), description: t("优先 GPU，不可用时安全回退") },
+    performance: { name: t("吞吐优先"), description: t("优先空闲显存最大的 GPU") },
+    low_memory: { name: t("低显存"), description: t("优先空闲显存比例最高的设备") },
   };
   const profiles = supplied && typeof supplied === "object" ? supplied : defaults;
   return Object.entries(profiles).map(([id, config]) => {
@@ -1718,8 +1736,8 @@ function trainingResourceProfileOptions(selected = "balanced") {
 }
 
 function openTrainingModal(templateRun = null) {
-  if (!canReview()) return notify("请由审核员或管理员开始训练", "error");
-  if (!state.versions.length) return notify("请先到“数据版本”保存一份训练数据", "error");
+  if (!canReview()) return notify(t("请由项目所有者或协作者开始训练"), "error");
+  if (!state.versions.length) return notify(t("请先到“数据版本”保存一份训练数据"), "error");
   const current = trainingContextGuard(), projectId = state.project.id;
   const settings = templateRun?.settings || {};
   const versionId = templateRun?.version_id || templateRun?.dataset_version_id || state.selectedTrainingVersion || state.versions[0].id;
@@ -1729,11 +1747,11 @@ function openTrainingModal(templateRun = null) {
   const selectedDevice = settings.device || state.trainingResources?.default_device || "auto";
   const formats = availableConversionFormats();
   let form = null, modelForm = null;
-  openModal({ title: templateRun ? "复用训练配置" : "开始新训练", subtitle: "选择审核后的数据版本和推荐模型。提交后将在后台训练，可以离开页面。", wide: true, body: `
-    <section class="wizard-section"><div class="wizard-section-title"><span>1</span><div><strong>选择训练数据</strong><small>使用已保存的数据版本，之后修改标注不会影响本次训练</small></div></div><div class="form-grid"><div class="field"><label>数据版本</label><select id="train-version">${state.versions.map(item => `<option value="${item.id}" ${item.id === version.id ? "selected" : ""}>${escapeHtml(item.name || `V${item.version_number || item.id}`)} · ${item.asset_count || 0} 张 / ${item.annotation_count || 0} 标注</option>`).join("")}</select></div><div class="field"><label>训练名称</label><input type="text" id="train-name" maxlength="100" value="${escapeHtml(templateRun ? `${templateRun.name || "训练"}（重新训练）` : `${state.project.name} 第 ${Number(state.training.total || 0) + 1} 次训练`)}" /></div></div><details class="pipeline-details"><summary>训练任务（已按数据版本选择）</summary><div class="training-task-grid">${trainingTaskChoices(initialTask)}</div></details><div class="training-compatibility" id="training-compatibility"></div></section>
-    <section class="wizard-section"><div class="wizard-section-title"><span>2</span><div><strong>选择起始模型</strong><small>默认使用预训练权重，缺少的官方权重会在开始训练后自动下载。</small></div></div><div class="training-model-controls"><div class="field"><label for="train-model-search">搜索模型</label><input id="train-model-search" type="search" placeholder="模型名称或文件名" autocomplete="off" aria-controls="training-model-picker" /></div><div class="field"><label for="train-model-family">模型家族</label><select id="train-model-family" aria-controls="training-model-picker"><option value="">全部家族</option></select></div></div><div class="training-model-results-head"><p id="train-model-count" role="status" aria-live="polite"></p><button type="button" class="mini-action" id="train-model-clear" hidden>清除筛选</button></div><div class="training-model-selection" role="status" aria-live="polite"><p>当前已选：<strong id="train-model-selected-name"></strong></p><p id="train-model-selected-note" hidden>已选模型不在当前筛选中，仍保留用于训练。</p></div><p class="hint training-model-size-help">同一家族的 n / s / m / l / x 通常由小到大，计算开销也随之增加。实际内存需求还取决于图片尺寸和每批数量。</p><div class="training-model-picker" id="training-model-picker"></div><div class="training-model-empty" id="train-model-empty" hidden><strong id="train-model-empty-title">没有符合条件的模型</strong><p>调整搜索或家族筛选，当前模型选择会保留。</p><button type="button" class="btn ghost" id="train-model-reset">清除筛选</button></div><p class="hint training-model-defaults" id="train-model-defaults" hidden></p><div class="training-initialization"><label class="check-line"><input id="train-pretrained" type="checkbox" ${settings.pretrained === false ? "" : "checked"} aria-describedby="train-pretrained-help"/>使用预训练权重（推荐）</label><p class="hint" id="train-pretrained-help"></p></div><p class="hint training-model-feedback" id="train-model-hint" role="status"></p>${isAdmin() ? `<details class="pipeline-details training-weight-upload"><summary>上传自己的 .pt 权重</summary><p class="hint">上传你自己训练或确认来源的 Ultralytics 权重，最多 2 GiB。上传后检查任务类型，并保留当前训练设置。</p><div class="training-weight-upload-controls"><div class="field"><label for="train-checkpoint-file">模型文件</label><input id="train-checkpoint-file" type="file" accept=".pt" /></div><button type="button" class="btn ghost" id="train-upload-button">上传并选择</button></div><p class="training-upload-feedback" id="train-upload-feedback" role="status" hidden></p></details>` : `<p class="hint">需要添加自己的权重时，请联系管理员上传。</p>`}</section>
-    <section class="wizard-section"><div class="wizard-section-title"><span>3</span><div><strong>训练设置</strong><small>首次使用可保持推荐值。每轮会学习一遍训练图片，轮数越多通常耗时越长。</small></div></div><div class="form-grid"><div class="field"><label>训练轮数</label><input type="number" id="train-epochs" min="1" max="10000" value="${settings.epochs ?? 50}" /></div></div><details class="advanced-training pipeline-details"><summary>${icon("sliders")}高级训练设置（可保持默认）</summary><div class="form-grid three"><div class="field"><label>图像尺寸</label><input type="number" id="train-imgsz" min="32" max="4096" step="32" value="${settings.image_size || settings.imgsz || 640}" /></div><div class="field"><label>每批图片数</label><input type="number" id="train-batch" min="-1" max="4096" value="${settings.batch_size ?? -1}" /><div class="hint">-1 表示自动选择；内存不足时可改小。</div></div><div class="field"><label>效果不再提升时等待轮数</label><input type="number" id="train-patience" min="0" max="10000" value="${settings.patience ?? 25}" /></div></div><div class="resource-grid" id="training-resource-grid">${trainingDeviceChoices(selectedDevice)}</div><div class="form-grid three"><div class="field"><label>优化器</label><select id="train-optimizer"><option value="auto">自动选择</option>${["SGD", "Adam", "AdamW", "NAdam", "RAdam", "RMSProp", "MuSGD"].map(value => `<option value="${value}" ${settings.optimizer === value ? "selected" : ""}>${value}</option>`).join("")}</select></div><div class="field"><label>初始学习率</label><input type="number" id="train-lr0" min="0.0000001" max="1" step="0.0001" value="${settings.lr0 ?? 0.01}" /></div><div class="field"><label>权重衰减</label><input type="number" id="train-weight-decay" min="0" max="1" step="0.0001" value="${settings.weight_decay ?? 0.0005}" /></div><div class="field"><label>数据读取进程数</label><input type="number" id="train-workers" min="0" max="64" value="${settings.workers ?? 4}" /></div><div class="field"><label>随机种子</label><input type="number" id="train-seed" min="0" max="2147483647" value="${settings.seed ?? 42}" /></div><div class="field"><label>资源策略</label><select id="train-resource-profile">${trainingResourceProfileOptions(settings.resource_profile || "balanced")}</select></div><div class="field"><label>数据缓存</label><select id="train-cache"><option value="false">关闭</option><option value="ram" ${settings.cache === "ram" ? "selected" : ""}>内存</option><option value="disk" ${settings.cache === "disk" ? "selected" : ""}>磁盘</option></select></div><div class="field"><label>每隔多少轮保存</label><input type="number" id="train-save-period" min="-1" max="10000" value="${settings.save_period ?? -1}" /><div class="hint">-1 仅保留最佳模型和最后一轮模型</div></div><div class="field"><label>冻结前 N 层</label><input type="number" id="train-freeze" min="0" max="1000" placeholder="不冻结" value="${Number.isInteger(settings.freeze) ? settings.freeze : ""}" /></div><div class="field"><label>关闭 Mosaic</label><input type="number" id="train-close-mosaic" min="0" max="10000" value="${settings.close_mosaic ?? 10}" /><div class="hint">最后多少轮停止拼图增强</div></div><div class="field"><label>最多允许重试次数</label><input type="number" id="train-max-retries" min="0" max="10" value="${templateRun?.max_retries ?? settings.max_retries ?? 2}" /></div></div><div class="check-stack"><label class="check-line"><input id="train-deterministic" type="checkbox" ${settings.deterministic === false ? "" : "checked"}/>尽量保持多次训练结果一致（可能稍慢）</label><label class="check-line"><input id="train-amp" type="checkbox" ${settings.amp === false ? "" : "checked"}/>启用自动混合精度（运行时支持时）</label><label class="check-line"><input id="train-cos-lr" type="checkbox" ${settings.cos_lr ? "checked" : ""}/>使用余弦学习率调度</label></div></details></section>
-    <div class="training-submit-summary" id="training-submit-summary">正在检查配置兼容性…</div><div class="export-note">${icon("database")}提交后会自动保存训练记录。完成后可下载原始模型，或转换为：${formats.length ? formats.map(value => escapeHtml(value.toUpperCase())).join("、") : "当前无可用转换器"}</div>`, submitText: "开始训练", onReady: () => {
+  openModal({ title: templateRun ? t("复用训练配置") : t("开始新训练"), subtitle: t("选择审核后的数据版本和推荐模型。提交后将在后台训练，可以离开页面。"), wide: true, body: `
+    <section class="wizard-section"><div class="wizard-section-title"><span>1</span><div><strong>${t("选择训练数据")}</strong><small>${t("使用已保存的数据版本，之后修改标注不会影响本次训练")}</small></div></div><div class="form-grid"><div class="field"><label>${t("数据版本")}</label><select id="train-version">${state.versions.map(item => `<option value="${item.id}" ${item.id === version.id ? "selected" : ""}>${t("{0} · {1} 张 / {2} 标注", [escapeHtml(item.name || `V${item.version_number || item.id}`), item.asset_count || 0, item.annotation_count || 0])}</option>`).join("")}</select></div><div class="field"><label>${t("训练名称")}</label><input type="text" id="train-name" maxlength="100" value="${escapeHtml(templateRun ? t("{0}（重新训练）", [templateRun.name || t("训练")]) : t("{0} 第 {1} 次训练", [state.project.name, Number(state.training.total || 0) + 1]))}" /></div></div><details class="pipeline-details"><summary>${t("训练任务（已按数据版本选择）")}</summary><div class="training-task-grid">${trainingTaskChoices(initialTask)}</div></details><div class="training-compatibility" id="training-compatibility"></div></section>
+    <section class="wizard-section"><div class="wizard-section-title"><span>2</span><div><strong>${t("选择起始模型")}</strong><small>${t("默认使用预训练权重，缺少的官方权重会在开始训练后自动下载。")}</small></div></div><div class="training-model-controls"><div class="field"><label for="train-model-search">${t("搜索模型")}</label><input id="train-model-search" type="search" placeholder="${ta("模型名称或文件名")}" autocomplete="off" aria-controls="training-model-picker" /></div><div class="field"><label for="train-model-family">${t("模型家族")}</label><select id="train-model-family" aria-controls="training-model-picker"><option value="">${t("全部家族")}</option></select></div></div><div class="training-model-results-head"><p id="train-model-count" role="status" aria-live="polite"></p><button type="button" class="mini-action" id="train-model-clear" hidden>${t("清除筛选")}</button></div><div class="training-model-selection" role="status" aria-live="polite"><p>${t("当前已选：")}<strong id="train-model-selected-name"></strong></p><p id="train-model-selected-note" hidden>${t("已选模型不在当前筛选中，仍保留用于训练。")}</p></div><p class="hint training-model-size-help">${t("同一家族的 n / s / m / l / x 通常由小到大，计算开销也随之增加。实际内存需求还取决于图片尺寸和每批数量。")}</p><div class="training-model-picker" id="training-model-picker"></div><div class="training-model-empty" id="train-model-empty" hidden><strong id="train-model-empty-title">${t("没有符合条件的模型")}</strong><p>${t("调整搜索或家族筛选，当前模型选择会保留。")}</p><button type="button" class="btn ghost" id="train-model-reset">${t("清除筛选")}</button></div><p class="hint training-model-defaults" id="train-model-defaults" hidden></p><div class="training-initialization"><label class="check-line"><input id="train-pretrained" type="checkbox" ${settings.pretrained === false ? "" : "checked"} aria-describedby="train-pretrained-help"/>${t("使用预训练权重（推荐）")}</label><p class="hint" id="train-pretrained-help"></p></div><p class="hint training-model-feedback" id="train-model-hint" role="status"></p>${isAdmin() ? `<details class="pipeline-details training-weight-upload"><summary>${t("上传自己的 .pt 权重")}</summary><p class="hint">${t("上传你自己训练或确认来源的 Ultralytics 权重，最多 2 GiB。上传后检查任务类型，并保留当前训练设置。")}</p><div class="training-weight-upload-controls"><div class="field"><label for="train-checkpoint-file">${t("模型文件")}</label>${fileInputMarkup("train-checkpoint-file", ".pt")}</div><button type="button" class="btn ghost" id="train-upload-button">${t("上传并选择")}</button></div><p class="training-upload-feedback" id="train-upload-feedback" role="status" hidden></p></details>` : `<p class="hint">${t("需要添加自己的权重时，请联系管理员上传。")}</p>`}</section>
+    <section class="wizard-section"><div class="wizard-section-title"><span>3</span><div><strong>${t("训练设置")}</strong><small>${t("首次使用可保持推荐值。每轮会学习一遍训练图片，轮数越多通常耗时越长。")}</small></div></div><div class="form-grid"><div class="field"><label>${t("训练轮数")}</label><input type="number" id="train-epochs" min="1" max="10000" value="${settings.epochs ?? 50}" /></div></div><details class="advanced-training pipeline-details"><summary>${t("{0}高级训练设置（可保持默认）", [icon("sliders")])}</summary><div class="form-grid three"><div class="field"><label>${t("图像尺寸")}</label><input type="number" id="train-imgsz" min="32" max="4096" step="32" value="${settings.image_size || settings.imgsz || 640}" /></div><div class="field"><label>${t("每批图片数")}</label><input type="number" id="train-batch" min="-1" max="4096" value="${settings.batch_size ?? -1}" /><div class="hint">${t("-1 表示自动选择；内存不足时可改小。")}</div></div><div class="field"><label>${t("效果不再提升时等待轮数")}</label><input type="number" id="train-patience" min="0" max="10000" value="${settings.patience ?? 25}" /></div></div><div class="resource-grid" id="training-resource-grid">${trainingDeviceChoices(selectedDevice)}</div><div class="form-grid three"><div class="field"><label>${t("优化器")}</label><select id="train-optimizer"><option value="auto">${t("自动选择")}</option>${["SGD", "Adam", "AdamW", "NAdam", "RAdam", "RMSProp", "MuSGD"].map(value => `<option value="${value}" ${settings.optimizer === value ? "selected" : ""}>${value}</option>`).join("")}</select></div><div class="field"><label>${t("初始学习率")}</label><input type="number" id="train-lr0" min="0.0000001" max="1" step="0.0001" value="${settings.lr0 ?? 0.01}" /></div><div class="field"><label>${t("权重衰减")}</label><input type="number" id="train-weight-decay" min="0" max="1" step="0.0001" value="${settings.weight_decay ?? 0.0005}" /></div><div class="field"><label>${t("数据读取进程数")}</label><input type="number" id="train-workers" min="0" max="64" value="${settings.workers ?? 4}" /></div><div class="field"><label>${t("随机种子")}</label><input type="number" id="train-seed" min="0" max="2147483647" value="${settings.seed ?? 42}" /></div><div class="field"><label>${t("资源策略")}</label><select id="train-resource-profile">${trainingResourceProfileOptions(settings.resource_profile || "balanced")}</select></div><div class="field"><label>${t("数据缓存")}</label><select id="train-cache"><option value="false">${t("关闭")}</option><option value="ram" ${settings.cache === "ram" ? "selected" : ""}>${t("内存")}</option><option value="disk" ${settings.cache === "disk" ? "selected" : ""}>${t("磁盘")}</option></select></div><div class="field"><label>${t("每隔多少轮保存")}</label><input type="number" id="train-save-period" min="-1" max="10000" value="${settings.save_period ?? -1}" /><div class="hint">${t("-1 仅保留最佳模型和最后一轮模型")}</div></div><div class="field"><label>${t("冻结前 N 层")}</label><input type="number" id="train-freeze" min="0" max="1000" placeholder="${ta("不冻结")}" value="${Number.isInteger(settings.freeze) ? settings.freeze : ""}" /></div><div class="field"><label>${t("关闭 Mosaic")}</label><input type="number" id="train-close-mosaic" min="0" max="10000" value="${settings.close_mosaic ?? 10}" /><div class="hint">${t("最后多少轮停止拼图增强")}</div></div><div class="field"><label>${t("最多允许重试次数")}</label><input type="number" id="train-max-retries" min="0" max="10" value="${templateRun?.max_retries ?? settings.max_retries ?? 2}" /></div></div><div class="check-stack"><label class="check-line"><input id="train-deterministic" type="checkbox" ${settings.deterministic === false ? "" : "checked"}/>${t("尽量保持多次训练结果一致（可能稍慢）")}</label><label class="check-line"><input id="train-amp" type="checkbox" ${settings.amp === false ? "" : "checked"}/>${t("启用自动混合精度（运行时支持时）")}</label><label class="check-line"><input id="train-cos-lr" type="checkbox" ${settings.cos_lr ? "checked" : ""}/>${t("使用余弦学习率调度")}</label></div></details></section>
+    <div class="training-submit-summary" id="training-submit-summary">${t("正在检查配置兼容性…")}</div><div class="export-note">${t("{0}提交后会自动保存训练记录。完成后可下载原始模型，或转换为：{1}", [icon("database"), formats.length ? formats.map(value => escapeHtml(value.toUpperCase())).join(t("、")) : t("当前无可用转换器")])}</div>`, submitText: t("开始训练"), onReady: () => {
       form = document.querySelector(".modal");
       modelForm = bindTrainingModelForm(form, { current, templateRun });
     }, onSubmit: async () => {
@@ -1741,26 +1759,26 @@ function openTrainingModal(templateRun = null) {
       const cacheValue = form.querySelector("#train-cache").value;
       const freezeValue = form.querySelector("#train-freeze").value.trim();
       const payload = { version_id: Number(form.querySelector("#train-version").value), name: form.querySelector("#train-name").value.trim(), task, model_arch: model.model_arch, pretrained, epochs: Number(form.querySelector("#train-epochs").value), image_size: Number(form.querySelector("#train-imgsz").value), batch_size: Number(form.querySelector("#train-batch").value), device: form.querySelector('input[name="train-device"]:checked')?.value || "auto", workers: Number(form.querySelector("#train-workers").value), patience: Number(form.querySelector("#train-patience").value), optimizer: form.querySelector("#train-optimizer").value, lr0: Number(form.querySelector("#train-lr0").value), weight_decay: Number(form.querySelector("#train-weight-decay").value), seed: Number(form.querySelector("#train-seed").value), deterministic: form.querySelector("#train-deterministic").checked, amp: form.querySelector("#train-amp").checked, cache: cacheValue === "false" ? false : cacheValue, save_period: Number(form.querySelector("#train-save-period").value), freeze: freezeValue === "" ? null : Number(freezeValue), cos_lr: form.querySelector("#train-cos-lr").checked, close_mosaic: Number(form.querySelector("#train-close-mosaic").value), max_retries: Number(form.querySelector("#train-max-retries").value), resource_profile: form.querySelector("#train-resource-profile").value };
-      if (!payload.name) throw new Error("请输入训练名称，方便之后查找");
+      if (!payload.name) throw new Error(t("请输入训练名称，方便之后查找"));
       validateTrainingPayload(payload);
       const run = await api(`/api/projects/${projectId}/training-runs`, jsonOptions("POST", payload));
       if (!modelForm.live()) return;
-      closeModal(); notify("训练已加入队列。右侧显示这次新训练，无需重复提交。"); await revealNewTraining(run.id);
+      closeModal(); notify(t("训练已加入队列。右侧显示这次新训练，无需重复提交。")); await revealNewTraining(run.id);
     }, onClose: () => modelForm?.dispose(),
   });
 }
 
 function trainingModelIssue(model, pretrained = true) {
-  if (!model) return "请选择可用的训练模型";
-  if (!model.available) return model.reason || "所选模型当前不可训练";
-  if (!pretrained && !model.supports_scratch) return "这个模型无法从零训练，请开启预训练权重或选择支持从零训练的模型。";
+  if (!model) return t("请选择可用的训练模型");
+  if (!model.available) return model.reason || t("所选模型当前不可训练");
+  if (!pretrained && !model.supports_scratch) return t("这个模型无法从零训练，请开启预训练权重或选择支持从零训练的模型。");
   return "";
 }
 
 function trainingInitializationLabel(model, pretrained = true) {
-  if (!pretrained) return "从零训练：随机初始化，不下载预训练权重";
-  if (model?.source === "builtin" && model.installed === false) return "使用预训练权重 · 首次训练自动下载";
-  return model?.source === "custom" || model?.source === "local" ? "使用已导入的模型权重继续训练" : "使用已安装的预训练权重";
+  if (!pretrained) return t("从零训练：随机初始化，不下载预训练权重");
+  if (model?.source === "builtin" && model.installed === false) return t("使用预训练权重 · 首次训练自动下载");
+  return model?.source === "custom" || model?.source === "local" ? t("使用已导入的模型权重继续训练") : t("使用已安装的预训练权重");
 }
 
 function trainingModelMatchesFilter(model, search, family) {
@@ -1772,19 +1790,19 @@ function trainingModelMatchesFilter(model, search, family) {
 function trainingModelDefaultsHint(model) {
   if (!model) return "";
   const defaults = model.defaults || {}, hints = [];
-  if (Number.isInteger(defaults.batch_size)) hints.push(defaults.batch_size === -1 ? "每批数量自动选择" : `每批 ${defaults.batch_size} 张`);
-  if (Number.isInteger(defaults.image_size)) hints.push(`图片 ${defaults.image_size} 像素`);
-  if (defaults.amp === false) hints.push("关闭自动混合精度");
-  if (defaults.deterministic === false) hints.push("关闭严格可复现设置");
+  if (Number.isInteger(defaults.batch_size)) hints.push(defaults.batch_size === -1 ? t("每批数量自动选择") : t("每批 {0} 张", [defaults.batch_size]));
+  if (Number.isInteger(defaults.image_size)) hints.push(t("图片 {0} 像素", [defaults.image_size]));
+  if (defaults.amp === false) hints.push(t("关闭自动混合精度"));
+  if (defaults.deterministic === false) hints.push(t("关闭严格可复现设置"));
   const minimum = Number(model.constraints?.min_image_size);
-  if (Number.isFinite(minimum) && minimum > 0) hints.push(`图片尺寸至少 ${minimum} 像素`);
+  if (Number.isFinite(minimum) && minimum > 0) hints.push(t("图片尺寸至少 {0} 像素", [minimum]));
   const warnings = Array.isArray(model.warnings) ? model.warnings.filter(value => typeof value === "string") : [];
-  return [hints.length ? `所选模型建议：${hints.join("，")}。新建训练会更新未手动修改的每批数量、混合精度和可复现设置；其余已填参数与复用配置保持。` : "", ...warnings].filter(Boolean).join(" ");
+  return [hints.length ? t("所选模型建议：{0}。新建训练会更新未手动修改的每批数量、混合精度和可复现设置；其余已填参数与复用配置保持。", [hints.join(t("，"))]) : "", ...warnings].filter(Boolean).join(" ");
 }
 
 function trainingModelConfigurationIssue(model, imageSize) {
   const minimum = Number(model?.constraints?.min_image_size);
-  return Number.isFinite(minimum) && minimum > 0 && Number(imageSize) < minimum ? `当前模型的图片尺寸至少为 ${minimum} 像素，请在高级训练设置中调整。` : "";
+  return Number.isFinite(minimum) && minimum > 0 && Number(imageSize) < minimum ? t("当前模型的图片尺寸至少为 {0} 像素，请在高级训练设置中调整。", [minimum]) : "";
 }
 
 function bindTrainingModelForm(form, { current, templateRun = null } = {}) {
@@ -1804,20 +1822,20 @@ function bindTrainingModelForm(form, { current, templateRun = null } = {}) {
   const filterModels = ({ resetScroll = false } = {}) => {
     if (!live()) return;
     const models = taskModels(selectedTask()), selected = selectedModel();
-    const families = [...new Set(models.map(model => model.family))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    const families = [...new Set(models.map(model => model.family))].sort((a, b) => a.localeCompare(b, getLocale(), { numeric: true }));
     const selectedFamily = families.includes(familySelect.value) ? familySelect.value : "";
-    const options = '<option value="">全部家族</option>' + families.map(family => `<option value="${escapeHtml(family)}">${escapeHtml(family)}</option>`).join("");
+    const options = `<option value="">${t("全部家族")}</option>` + families.map(family => `<option value="${escapeHtml(family)}">${escapeHtml(family)}</option>`).join("");
     if (options !== familyOptions) { familySelect.innerHTML = options; familyOptions = options; }
     familySelect.value = selectedFamily;
     const visible = new Set(models.filter(model => trainingModelMatchesFilter(model, modelSearch, selectedFamily)).map(model => String(model.id)));
     picker.querySelectorAll('input[name="train-model"]').forEach(input => { input.closest("label").hidden = !visible.has(input.value); });
     picker.hidden = !visible.size;
     if (resetScroll) picker.scrollTop = 0;
-    query("#train-model-count").textContent = `${trainingTaskInfo(selectedTask()).name}：显示 ${visible.size} / ${models.length} 个模型`;
+    query("#train-model-count").textContent = t("{0}：显示 {1} / {2} 个模型", [trainingTaskInfo(selectedTask()).name, visible.size, models.length]);
     query("#train-model-clear").hidden = !modelSearch.trim() && !selectedFamily;
     query("#train-model-empty").hidden = Boolean(visible.size);
-    query("#train-model-empty-title").textContent = models.length ? "没有符合条件的模型" : "当前任务暂无模型";
-    query("#train-model-selected-name").textContent = selected?.name || "尚未选择";
+    query("#train-model-empty-title").textContent = models.length ? t("没有符合条件的模型") : t("当前任务暂无模型");
+    query("#train-model-selected-name").textContent = selected?.name || t("尚未选择");
     query("#train-model-selected-note").hidden = !selected || visible.has(String(selected.id));
     const defaults = query("#train-model-defaults"), advice = trainingModelDefaultsHint(selected);
     defaults.textContent = advice; defaults.hidden = !advice;
@@ -1874,14 +1892,14 @@ function bindTrainingModelForm(form, { current, templateRun = null } = {}) {
     lastDefaultsModelId = selectedModelId;
     // Keep an unsupported cloned scratch configuration visible until the user fixes it.
     pretrainedInput.disabled = Boolean(model && !model.supports_scratch && pretrainedInput.checked);
-    query("#train-pretrained-help").textContent = model && !model.supports_scratch ? "此模型不支持从零训练，需使用已有权重。" : "推荐保持开启。关闭后仅使用模型结构，通常需要更多数据和训练时间。";
+    query("#train-pretrained-help").textContent = model && !model.supports_scratch ? t("此模型不支持从零训练，需使用已有权重。") : t("推荐保持开启。关闭后仅使用模型结构，通常需要更多数据和训练时间。");
     query("#train-imgsz").min = String(Math.max(32, Number(model?.constraints?.min_image_size) || 32));
     const configurationIssue = trainingModelConfigurationIssue(model, query("#train-imgsz").value);
     query("#train-model-hint").textContent = trainingModelIssue(model, pretrainedInput.checked) || configurationIssue || trainingInitializationLabel(model, pretrainedInput.checked);
     updateTrainingSubmitSummary(form);
     let compatibility = { compatible: false, warnings: [] };
     try {
-      if (!version) throw new Error("请选择有效的数据版本");
+      if (!version) throw new Error(t("请选择有效的数据版本"));
       if (!compatibilityCache.has(version.id)) {
         const request = api(`/api/versions/${version.id}/training-compatibility`);
         compatibilityCache.set(version.id, request);
@@ -1892,9 +1910,9 @@ function bindTrainingModelForm(form, { current, templateRun = null } = {}) {
     if (!live() || epoch !== compatibilityEpoch) return;
     const warnings = [...(compatibility.warnings || [])], dataIssue = trainingDataIssue(version);
     if (dataIssue) warnings.unshift(dataIssue);
-    if (!compatibility.compatible) warnings.push(compatibility.reason || "当前数据版本与所选训练任务不兼容。");
-    if (info.available === false) warnings.push(info.reason || "该任务当前不可训练。");
-    query("#training-compatibility").innerHTML = warnings.length ? `${icon("warning")}<span>${warnings.map(escapeHtml).join(" ")}${dataIssue ? ` <a href="#/projects/${state.project.id}/versions" id="training-fix-version">去数据版本页</a>` : ""}</span>` : `${icon("check")}<span>${escapeHtml(info.name)}与当前数据版本兼容。</span>`;
+    if (!compatibility.compatible) warnings.push(compatibility.reason || t("当前数据版本与所选训练任务不兼容。"));
+    if (info.available === false) warnings.push(info.reason || t("该任务当前不可训练。"));
+    query("#training-compatibility").innerHTML = warnings.length ? `${icon("warning")}<span>${warnings.map(escapeHtml).join(" ")}${dataIssue ? ` <a href="#/projects/${state.project.id}/versions" id="training-fix-version">${t("去数据版本页")}</a>` : ""}</span>` : `${icon("check")}<span>${t("{0}与当前数据版本兼容。", [escapeHtml(info.name)])}</span>`;
     query("#training-fix-version")?.addEventListener("click", closeModal);
     ready = Boolean(version && taskAvailable(task) && !trainingModelIssue(model, pretrainedInput.checked) && !configurationIssue && compatibility.compatible && !dataIssue);
     submit.disabled = !ready || uploadBusy;
@@ -1920,19 +1938,19 @@ function bindTrainingModelForm(form, { current, templateRun = null } = {}) {
   form.querySelectorAll('input[name="train-device"]').forEach(input => input.onchange = () => { if (live()) updateTrainingSubmitSummary(form); });
   const uploadButton = query("#train-upload-button"), fileInput = query("#train-checkpoint-file");
   if (uploadButton && fileInput && isAdmin()) {
-    fileInput.onchange = () => { if (!live() || uploadBusy) return; importedFilename = ""; importedSha256 = ""; uploadButton.textContent = "上传并选择"; feedback(""); };
+    fileInput.onchange = () => { if (!live() || uploadBusy) return; importedFilename = ""; importedSha256 = ""; uploadButton.textContent = t("上传并选择"); feedback(""); };
     uploadButton.onclick = async () => {
       if (!live() || !isAdmin() || uploadBusy) return;
       const file = fileInput.files?.[0];
       if (!importedFilename) {
-        if (!file) return feedback("请选择 .pt 模型文件", true);
-        if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}\.pt$/.test(file.name)) return feedback("请使用英文字母、数字、点、横线或下划线命名 .pt 模型文件。", true);
-        if (!file.size || file.size > 2 * 1024 ** 3) return feedback(file.size ? "模型文件不能超过 2 GiB" : "模型文件为空", true);
+        if (!file) return feedback(t("请选择 .pt 模型文件"), true);
+        if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}\.pt$/.test(file.name)) return feedback(t("请使用英文字母、数字、点、横线或下划线命名 .pt 模型文件。"), true);
+        if (!file.size || file.size > 2 * 1024 ** 3) return feedback(file.size ? t("模型文件不能超过 2 GiB") : t("模型文件为空"), true);
       }
       uploadBusy = true; uploadButton.disabled = true; fileInput.disabled = true; submit.disabled = true;
       uploadController = new AbortController();
-      uploadButton.textContent = importedFilename ? "检查模型中…" : "上传中…";
-      feedback(importedFilename ? "正在检查已上传的模型…" : "正在上传模型，训练设置会保留。上传完成后将检查任务类型。");
+      uploadButton.textContent = importedFilename ? t("检查模型中…") : t("上传中…");
+      feedback(importedFilename ? t("正在检查已上传的模型…") : t("正在上传模型，训练设置会保留。上传完成后将检查任务类型。"));
       try {
         if (!importedFilename) {
           const body = new FormData(); body.append("file", file);
@@ -1940,7 +1958,7 @@ function bindTrainingModelForm(form, { current, templateRun = null } = {}) {
           if (!live()) return;
           importedFilename = imported.filename; importedSha256 = imported.sha256 || "";
         }
-        feedback("权重已上传，正在检查是否适用于当前训练任务…");
+        feedback(t("权重已上传，正在检查是否适用于当前训练任务…"));
         const catalog = await api("/api/training/catalog", { cache: "no-store", signal: uploadController.signal });
         if (!live()) return;
         state.trainingCatalog = normalizeTrainingCatalog(catalog, state.training?.availability);
@@ -1949,25 +1967,25 @@ function bindTrainingModelForm(form, { current, templateRun = null } = {}) {
           const available = taskAvailable(input.value), label = input.closest("label"), info = trainingTaskInfo(input.value);
           input.disabled = !available; label?.classList.toggle("unavailable", !available);
           const description = label?.querySelector("small");
-          if (description) description.textContent = available ? `${taskModels(input.value, true).length} 个兼容模型 · ${info.schema || info.description}` : info.reason || "当前标注结构不支持";
+          if (description) description.textContent = available ? t("{0} 个兼容模型 · {1}", [taskModels(input.value, true).length, info.schema || info.description]) : info.reason || t("当前标注结构不支持");
         });
         const imported = state.trainingCatalog.models.find(model => model.model_arch === importedFilename);
-        if (!imported) feedback("权重已上传，但模型目录尚未识别到它。可重新检查，或联系管理员检查文件。", true);
-        else if (!importedSha256) feedback("权重已上传，但缺少文件校验信息，暂未切换模型。请联系管理员检查导入结果。", true);
-        else if (imported.sha256 !== importedSha256) feedback("权重已上传，但当前名称被其他目录中的权重占用，已保留原模型选择。请重命名文件后重新上传。", true);
-        else if (!imported.loadable) feedback(`权重已上传，但无法加载：${imported.reason || "请确认文件为兼容的 Ultralytics .pt 权重。"}`, true);
-        else if (!trainingModelSupports(imported, selectedTask())) feedback(`权重已上传，识别为${trainingTaskInfo(imported.task).name}模型，与当前${trainingTaskInfo(selectedTask()).name}任务不兼容。已保留原模型选择。`, true);
-        else if (trainingModelIssue(imported, pretrainedInput.checked)) feedback(`权重已上传：${trainingModelIssue(imported, pretrainedInput.checked)}已保留原模型选择。`, true);
+        if (!imported) feedback(t("权重已上传，但模型目录尚未识别到它。可重新检查，或联系管理员检查文件。"), true);
+        else if (!importedSha256) feedback(t("权重已上传，但缺少文件校验信息，暂未切换模型。请联系管理员检查导入结果。"), true);
+        else if (imported.sha256 !== importedSha256) feedback(t("权重已上传，但当前名称被其他目录中的权重占用，已保留原模型选择。请重命名文件后重新上传。"), true);
+        else if (!imported.loadable) feedback(t("权重已上传，但无法加载：{0}", [imported.reason || t("请确认文件为兼容的 Ultralytics .pt 权重。")]), true);
+        else if (!trainingModelSupports(imported, selectedTask())) feedback(t("权重已上传，识别为{0}模型，与当前{1}任务不兼容。已保留原模型选择。", [trainingTaskInfo(imported.task).name, trainingTaskInfo(selectedTask()).name]), true);
+        else if (trainingModelIssue(imported, pretrainedInput.checked)) feedback(t("权重已上传：{0}已保留原模型选择。", [trainingModelIssue(imported, pretrainedInput.checked)]), true);
         else {
           selectedModelId = String(imported.id); importedFilename = ""; importedSha256 = ""; fileInput.value = "";
-          feedback(`已上传并选择 ${imported.name}，其他训练设置已保留。`);
+          feedback(t("已上传并选择 {0}，其他训练设置已保留。", [imported.name]));
         }
       } catch (error) {
-        if (live()) feedback(importedFilename ? `权重已上传，但检查失败：${error.message}可点击“重新检查”。` : error.message, true);
+        if (live()) feedback(importedFilename ? t("权重已上传，但检查失败：{0}可点击“重新检查”。", [error.message]) : error.message, true);
       } finally {
         if (live()) {
           uploadBusy = false; uploadController = null; uploadButton.disabled = false; fileInput.disabled = false;
-          uploadButton.textContent = importedFilename ? "重新检查" : "上传并选择";
+          uploadButton.textContent = importedFilename ? t("重新检查") : t("上传并选择");
           await update({ rebuildModels: true });
         }
       }
@@ -1977,13 +1995,13 @@ function bindTrainingModelForm(form, { current, templateRun = null } = {}) {
   return {
     live,
     validate() {
-      if (!live()) throw new Error("训练窗口已过期，请重新打开后再试");
-      if (uploadBusy) throw new Error("模型仍在上传或检查，请稍候");
+      if (!live()) throw new Error(t("训练窗口已过期，请重新打开后再试"));
+      if (uploadBusy) throw new Error(t("模型仍在上传或检查，请稍候"));
       const model = selectedModel(), pretrained = pretrainedInput.checked, issue = trainingModelIssue(model, pretrained);
       if (issue) throw new Error(issue);
       const configurationIssue = trainingModelConfigurationIssue(model, query("#train-imgsz").value);
       if (configurationIssue) throw new Error(configurationIssue);
-      if (!ready) throw new Error("请等待数据兼容性检查完成，并解决上方提示后再训练");
+      if (!ready) throw new Error(t("请等待数据兼容性检查完成，并解决上方提示后再训练"));
       return { model, pretrained, task: selectedTask() };
     },
     dispose() { disposed = true; ++compatibilityEpoch; uploadController?.abort(); },
@@ -1992,26 +2010,26 @@ function bindTrainingModelForm(form, { current, templateRun = null } = {}) {
 
 
 function validateTrainingPayload(payload) {
-  if (!Number.isInteger(payload.version_id) || payload.version_id < 1) throw new Error("请选择有效的数据版本");
-  if (!payload.task || !taskAvailable(payload.task)) throw new Error("所选训练任务当前不可用");
-  if (!Number.isInteger(payload.epochs) || payload.epochs < 1 || payload.epochs > 10000) throw new Error("训练轮数必须是 1–10000 之间的整数");
-  if (!Number.isInteger(payload.image_size) || payload.image_size < 32 || payload.image_size > 4096) throw new Error("图像尺寸必须在 32–4096 之间");
-  if (!Number.isInteger(payload.batch_size) || payload.batch_size === 0 || payload.batch_size < -1 || payload.batch_size > 4096) throw new Error("每批图片数必须为 -1（自动）或 1–4096 之间的整数，请在高级训练设置中修改");
-  if (!Number.isInteger(payload.workers) || payload.workers < 0 || payload.workers > 64) throw new Error("数据读取进程数必须在 0–64 之间，请在高级训练设置中修改");
-  if (!Number.isFinite(payload.lr0) || payload.lr0 <= 0 || payload.lr0 > 1) throw new Error("初始学习率必须大于 0 且不超过 1");
-  if (!Number.isFinite(payload.weight_decay) || payload.weight_decay < 0 || payload.weight_decay > 1) throw new Error("权重衰减必须在 0–1 之间，请在高级训练设置中修改");
-  if (!Number.isInteger(payload.save_period) || payload.save_period === 0 || payload.save_period < -1) throw new Error("保存周期必须为 -1 或正整数");
-  if (payload.freeze !== null && (!Number.isInteger(payload.freeze) || payload.freeze < 0 || payload.freeze > 1000)) throw new Error("冻结层数必须在 0–1000 之间");
-  if (!Number.isInteger(payload.close_mosaic) || payload.close_mosaic < 0 || payload.close_mosaic > 10000) throw new Error("Mosaic 关闭周期必须在 0–10000 之间");
-  if (!Number.isInteger(payload.max_retries) || payload.max_retries < 0 || payload.max_retries > 10) throw new Error("最多允许重试次数必须在 0–10 之间");
-  if (payload.resource_profile === "performance" && payload.device === "cpu") throw new Error("吞吐优先策略不能与 CPU 设备组合");
-  if (payload.resource_profile === "performance" && payload.device === "auto" && !state.trainingResources?.cuda_available) throw new Error("吞吐优先策略需要可用的 CUDA GPU");
+  if (!Number.isInteger(payload.version_id) || payload.version_id < 1) throw new Error(t("请选择有效的数据版本"));
+  if (!payload.task || !taskAvailable(payload.task)) throw new Error(t("所选训练任务当前不可用"));
+  if (!Number.isInteger(payload.epochs) || payload.epochs < 1 || payload.epochs > 10000) throw new Error(t("训练轮数必须是 1–10000 之间的整数"));
+  if (!Number.isInteger(payload.image_size) || payload.image_size < 32 || payload.image_size > 4096) throw new Error(t("图像尺寸必须在 32–4096 之间"));
+  if (!Number.isInteger(payload.batch_size) || payload.batch_size === 0 || payload.batch_size < -1 || payload.batch_size > 4096) throw new Error(t("每批图片数必须为 -1（自动）或 1–4096 之间的整数，请在高级训练设置中修改"));
+  if (!Number.isInteger(payload.workers) || payload.workers < 0 || payload.workers > 64) throw new Error(t("数据读取进程数必须在 0–64 之间，请在高级训练设置中修改"));
+  if (!Number.isFinite(payload.lr0) || payload.lr0 <= 0 || payload.lr0 > 1) throw new Error(t("初始学习率必须大于 0 且不超过 1"));
+  if (!Number.isFinite(payload.weight_decay) || payload.weight_decay < 0 || payload.weight_decay > 1) throw new Error(t("权重衰减必须在 0–1 之间，请在高级训练设置中修改"));
+  if (!Number.isInteger(payload.save_period) || payload.save_period === 0 || payload.save_period < -1) throw new Error(t("保存周期必须为 -1 或正整数"));
+  if (payload.freeze !== null && (!Number.isInteger(payload.freeze) || payload.freeze < 0 || payload.freeze > 1000)) throw new Error(t("冻结层数必须在 0–1000 之间"));
+  if (!Number.isInteger(payload.close_mosaic) || payload.close_mosaic < 0 || payload.close_mosaic > 10000) throw new Error(t("Mosaic 关闭周期必须在 0–10000 之间"));
+  if (!Number.isInteger(payload.max_retries) || payload.max_retries < 0 || payload.max_retries > 10) throw new Error(t("最多允许重试次数必须在 0–10 之间"));
+  if (payload.resource_profile === "performance" && payload.device === "cpu") throw new Error(t("吞吐优先策略不能与 CPU 设备组合"));
+  if (payload.resource_profile === "performance" && payload.device === "auto" && !state.trainingResources?.cuda_available) throw new Error(t("吞吐优先策略需要可用的 CUDA GPU"));
 }
 
 function trainingModelPickerCard(model, selected, pretrained = true) {
-  const size = model.parameters || model.parameter_count ? `${formatCompactNumber(model.parameters || model.parameter_count)} 参数` : model.size_bytes ? formatBytes(model.size_bytes) : "大小未知";
+  const size = model.parameters || model.parameter_count ? t("{0} 参数", [formatCompactNumber(model.parameters || model.parameter_count)]) : model.size_bytes ? formatBytes(model.size_bytes) : t("大小未知");
   const issue = trainingModelIssue(model, pretrained);
-  return `<label class="training-model-option ${issue ? "unavailable" : ""}"><input type="radio" name="train-model" value="${escapeHtml(model.id)}" ${selected ? "checked" : ""} ${issue ? "disabled" : ""}/><div><div><strong>${escapeHtml(model.name)}</strong>${model.recommended ? `<span>推荐</span>` : ""}</div><p>${escapeHtml(model.family)} · ${escapeHtml(size)}</p><small>${escapeHtml(issue || trainingInitializationLabel(model, pretrained))}</small></div></label>`;
+  return `<label class="training-model-option ${issue ? "unavailable" : ""}"><input type="radio" name="train-model" value="${escapeHtml(model.id)}" ${selected ? "checked" : ""} ${issue ? "disabled" : ""}/><div><div><strong>${escapeHtml(model.name)}</strong>${model.recommended ? `<span>${t("推荐")}</span>` : ""}</div><p>${escapeHtml(model.family)} · ${escapeHtml(size)}</p><small>${escapeHtml(issue || trainingInitializationLabel(model, pretrained))}</small></div></label>`;
 }
 
 function applyModelDefaults(model, scope = document) {
@@ -2033,44 +2051,56 @@ function updateTrainingSubmitSummary(scope = document) {
   const epochs = scope.querySelector("#train-epochs")?.value;
   const batch = scope.querySelector("#train-batch")?.value;
   const imageSize = scope.querySelector("#train-imgsz")?.value;
-  const deviceLabel = device === "auto" ? "自动选择计算设备" : (state.trainingResources?.devices || []).find(item => item.id === device)?.name || (device === "cpu" ? "处理器（CPU，训练通常较慢）" : device);
-  node.innerHTML = `${icon(scope.querySelector("#modal-submit")?.disabled ? "warning" : "check")}<span><strong>${escapeHtml(trainingTaskInfo(task).name)} · ${escapeHtml(model?.name || "尚无可用模型")}</strong><small>${escapeHtml(trainingInitializationLabel(model, pretrained))}</small><small>训练 ${escapeHtml(String(epochs || "—"))} 轮，图片尺寸 ${escapeHtml(String(imageSize || "—"))} 像素；${Number(batch) === -1 ? "每批数量自动选择" : `每批 ${escapeHtml(String(batch || "—"))} 张`}。${escapeHtml(deviceLabel)}</small></span>`;
+  const deviceLabel = device === "auto" ? t("自动选择计算设备") : (state.trainingResources?.devices || []).find(item => item.id === device)?.name || (device === "cpu" ? t("处理器（CPU，训练通常较慢）") : device);
+  node.innerHTML = `${icon(scope.querySelector("#modal-submit")?.disabled ? "warning" : "check")}<span><strong>${escapeHtml(trainingTaskInfo(task).name)} · ${escapeHtml(model?.name || t("尚无可用模型"))}</strong><small>${escapeHtml(trainingInitializationLabel(model, pretrained))}</small><small>${t("训练 {0} 轮，图片尺寸 {1} 像素；{2}。{3}", [escapeHtml(String(epochs || "—")), escapeHtml(String(imageSize || "—")), Number(batch) === -1 ? t("每批数量自动选择") : t("每批 {0} 张", [escapeHtml(String(batch || "—"))]), escapeHtml(deviceLabel)])}</small></span>`;
+}
+
+function openTrainingDeployment(conversionId) {
+  if (!isAdmin()) return notify(t("设备部署由系统管理员操作。"), "error");
+  const project = state.project, run = monitoredTrainingRun();
+  const conversion = run?.conversions?.find(item => Number(item.id) === conversionId);
+  if (state.currentSection !== "train" || !project || Number(run?.project_id) !== Number(project.id)) return;
+  if (project.archived_at) return notify(t("请先恢复项目，再部署模型。"), "error");
+  if (!conversion || conversion.status !== "completed" || !conversion.artifact?.available || conversion.format !== "rknn" || conversion.settings?.rknn?.deployment_profile !== "recamera_system") {
+    return notify(t("请先完成 reCamera Pro 系统模型转换，再部署到设备。"), "error");
+  }
+  void openProjectDeployment({ project, run, conversion }).catch(error => notify(error.message, "error"));
 }
 
 function openConversionModal(trainingId) {
-  if (!canReview()) return notify("模型转换由审核员或管理员操作。", "error");
+  if (!canReview()) return notify(t("模型转换由项目所有者或协作者操作。"), "error");
   const current = trainingContextGuard();
   const projectId = state.project.id;
   const run = trainingRunById(trainingId);
-  if (!run || run.status !== "completed" || !run.artifact?.available) return notify("请先完成训练，生成可用模型后再转换。", "error");
+  if (!run || run.status !== "completed" || !run.artifact?.available) return notify(t("请先完成训练，生成可用模型后再转换。"), "error");
   let form = null;
-  openModal({ title: "转换并导出模型", subtitle: `为“${run.name || `训练 ${trainingId}`}”选择部署格式。原始模型仍会保留。`, wide: true, body: `<div id="conversion-options-content"><p role="status"><span class="spinner"></span>正在读取转换环境与校准数据…</p>${conversionFormatCards(state.trainingCatalog?.conversion_formats, escapeHtml)}<p class="hint">配置加载完成后才能提交，避免使用过期的环境或数据状态。</p></div>`, submitText: "开始转换", onReady: () => {
+  openModal({ title: t("转换并导出模型"), subtitle: t("为“{0}”选择部署格式。原始模型仍会保留。", [run.name || t("训练 {0}", [trainingId])]), wide: true, body: `<div id="conversion-options-content"><p role="status"><span class="spinner"></span>${t("正在读取转换环境与校准数据…")}</p>${conversionFormatCards(state.trainingCatalog?.conversion_formats, escapeHtml)}<p class="hint">${t("配置加载完成后才能提交，避免使用过期的环境或数据状态。")}</p></div>`, submitText: t("开始转换"), onReady: () => {
     const container = document.querySelector("#conversion-options-content");
     const submit = document.querySelector("#modal-submit");
     submit.disabled = true;
     const load = async () => {
       if (!current() || !container.isConnected) return;
       form = null; submit.disabled = true;
-      container.innerHTML = `<p role="status"><span class="spinner"></span>正在读取转换环境与校准数据…</p>${conversionFormatCards(state.trainingCatalog?.conversion_formats, escapeHtml)}`;
+      container.innerHTML = `<p role="status"><span class="spinner"></span>${t("正在读取转换环境与校准数据…")}</p>${conversionFormatCards(state.trainingCatalog?.conversion_formats, escapeHtml)}`;
       try {
         const [options, resources] = await Promise.all([api(`/api/training-runs/${trainingId}/conversion-options`), api("/api/training/resources")]);
         if (!current() || !container.isConnected) return;
         form = mountConversionForm(container, { run, options, resources: normalizeTrainingResources(resources), escapeHtml, onValidityChange: valid => { if (submit.isConnected) submit.disabled = !valid; } });
       } catch (error) {
         if (!current() || !container.isConnected) return;
-        container.innerHTML = `${conversionFormatCards(state.trainingCatalog?.conversion_formats, escapeHtml)}<div class="conversion-validation" role="alert"><p>转换选项加载失败：${escapeHtml(error.message)}</p><p>请重新加载；当前尚未提交转换任务。</p><button class="btn ghost" id="retry-conversion-options">重新加载</button></div>`;
+        container.innerHTML = `${conversionFormatCards(state.trainingCatalog?.conversion_formats, escapeHtml)}<div class="conversion-validation" role="alert"><p>${t("转换选项加载失败：{0}", [escapeHtml(error.message)])}</p><p>${t("请重新加载；当前尚未提交转换任务。")}</p><button class="btn ghost" id="retry-conversion-options">${t("重新加载")}</button></div>`;
         container.querySelector("#retry-conversion-options").onclick = load;
       }
     };
     void load();
   }, onSubmit: async () => {
     if (!current()) return;
-    if (!form) throw new Error("请等待转换配置加载完成后再提交。");
+    if (!form) throw new Error(t("请等待转换配置加载完成后再提交。"));
     const payload = form.payload();
     await api(`/api/training-runs/${trainingId}/conversions`, jsonOptions("POST", payload));
     if (!current()) return;
     setSectionTab(state.session, projectId, "train", "conversions");
-    closeModal(); notify(`${conversionFormatName(payload.format)} 转换已加入队列。完成后可在这次训练的转换记录中下载。`);
+    closeModal(); notify(t("{0} 转换已加入队列。完成后可在这次训练的转换记录中下载。", [conversionFormatName(payload.format)]));
     await refreshPipelineData(); startPipelinePolling();
   } });
 }
@@ -2083,21 +2113,21 @@ function availableConversionFormats() { return conversionFormatEntries().filter(
 function formatDescription(format) { return conversionFormatDescription(format); }
 
 function confirmCancelTraining(id) {
-  if (!canReview()) return notify("请由审核员或管理员取消训练。", "error");
+  if (!canReview()) return notify(t("请由项目所有者或协作者取消训练。"), "error");
   const run = trainingRunById(id);
-  openModal({ title: "取消这次训练？", subtitle: run?.name || "训练任务", body: `<div class="modal-warning">${icon("warning")}取消后，本次训练将停止，可能无法获得完整模型。已有数据版本和训练记录会保留，需要时可重新训练。停止需要一点时间。</div>`, submitText: "确认取消训练", onSubmit: async () => { await cancelTraining(id); closeModal(); } });
+  openModal({ title: t("取消这次训练？"), subtitle: run?.name || t("训练任务"), body: `<div class="modal-warning">${t("{0}取消后，本次训练将停止，可能无法获得完整模型。已有数据版本和训练记录会保留，需要时可重新训练。停止需要一点时间。", [icon("warning")])}</div>`, submitText: t("确认取消训练"), onSubmit: async () => { await cancelTraining(id); closeModal(); } });
 }
 
 async function cancelTraining(id) {
-  try { await api(`/api/training-runs/${id}/cancel`, { method: "POST" }); notify("已请求取消训练，请等待状态变为“已取消”。"); await refreshPipelineData(); }
+  try { await api(`/api/training-runs/${id}/cancel`, { method: "POST" }); notify(t("已请求取消训练，请等待状态变为“已取消”。")); await refreshPipelineData(); }
   catch (error) { notify(error.message, "error"); throw error; }
 }
 
 function confirmRetryTraining(id) {
-  if (!canReview()) return notify("请由审核员或管理员重试训练。", "error");
+  if (!canReview()) return notify(t("请由项目所有者或协作者重试训练。"), "error");
   const current = trainingContextGuard();
   const run = trainingRunById(id);
-  openModal({ title: "按原配置重新训练？", subtitle: "将重新开始一次训练，使用相同的数据、模型和参数；原来的记录会保留。", body: `<div class="retry-summary"><strong>${escapeHtml(run?.name || `训练 ${id}`)}</strong><p>${run?.error ? "请先确认失败原因已解决。如果需要减小图片尺寸等参数，请关闭此窗口，选择“修改配置再训练”。" : "本次将从头训练，不会从上次停止的位置继续。"}</p>${run?.error ? `<details class="pipeline-details"><summary>上次失败原因</summary><pre>${escapeHtml(run.error)}</pre></details>` : ""}</div>`, submitText: "按原配置重试", onSubmit: async () => { const retried = await api(`/api/training-runs/${id}/retry`, { method: "POST" }); if (!current()) return; closeModal(); notify("已重新加入训练队列，右侧显示这次新训练。"); await revealNewTraining(retried.id); } });
+  openModal({ title: t("按原配置重新训练？"), subtitle: t("将重新开始一次训练，使用相同的数据、模型和参数；原来的记录会保留。"), body: `<div class="retry-summary"><strong>${escapeHtml(run?.name || t("训练 {0}", [id]))}</strong><p>${run?.error ? t("请先确认失败原因已解决。如果需要减小图片尺寸等参数，请关闭此窗口，选择“修改配置再训练”。") : t("本次将从头训练，不会从上次停止的位置继续。")}</p>${run?.error ? `<details class="pipeline-details"><summary>${t("上次失败原因")}</summary><pre>${escapeHtml(run.error)}</pre></details>` : ""}</div>`, submitText: t("按原配置重试"), onSubmit: async () => { const retried = await api(`/api/training-runs/${id}/retry`, { method: "POST" }); if (!current()) return; closeModal(); notify(t("已重新加入训练队列，右侧显示这次新训练。")); await revealNewTraining(retried.id); } });
 }
 
 async function revealNewTraining(id) {
@@ -2107,32 +2137,32 @@ async function revealNewTraining(id) {
 }
 
 function confirmCancelConversion(id) {
-  if (!canReview()) return notify("请由审核员或管理员取消转换。", "error");
+  if (!canReview()) return notify(t("请由项目所有者或协作者取消转换。"), "error");
   const current = trainingContextGuard();
-  openModal({ title: "取消这次模型转换？", subtitle: "取消后，本次将不再生成完整的转换文件。", body: `<p>原始训练模型和已有下载文件不受影响。需要时可以再次开始转换。</p>`, submitText: "确认取消转换", onSubmit: async () => { await api(`/api/conversions/${id}/cancel`, { method: "POST" }); if (!current()) return; closeModal(); notify("已请求取消转换，请等待状态变为“已取消”。"); await refreshPipelineData(); } });
+  openModal({ title: t("取消这次模型转换？"), subtitle: t("取消后，本次将不再生成完整的转换文件。"), body: `<p>${t("原始训练模型和已有下载文件不受影响。需要时可以再次开始转换。")}</p>`, submitText: t("确认取消转换"), onSubmit: async () => { await api(`/api/conversions/${id}/cancel`, { method: "POST" }); if (!current()) return; closeModal(); notify(t("已请求取消转换，请等待状态变为“已取消”。")); await refreshPipelineData(); } });
 }
 
-async function cancelConversion(id) { try { await api(`/api/conversions/${id}/cancel`, { method: "POST" }); notify("已请求取消转换"); await refreshPipelineData(); } catch (error) { notify(error.message, "error"); } }
+async function cancelConversion(id) { try { await api(`/api/conversions/${id}/cancel`, { method: "POST" }); notify(t("已请求取消转换")); await refreshPipelineData(); } catch (error) { notify(error.message, "error"); } }
 async function retryConversion(id, button) {
-  if (!canReview()) return notify("请由审核员或管理员重试转换。", "error");
+  if (!canReview()) return notify(t("请由项目所有者或协作者重试转换。"), "error");
   const current = trainingContextGuard(), label = button?.innerHTML;
-  if (button) { button.disabled = true; button.innerHTML = '<span class="spinner"></span>正在提交…'; }
-  try { await api(`/api/conversions/${id}/retry`, { method: "POST" }); if (!current()) return; notify("已按原设置重新加入转换队列。"); await refreshPipelineData(); startPipelinePolling(); }
+  if (button) { button.disabled = true; button.innerHTML = `<span class="spinner"></span>${t("正在提交…")}`; }
+  try { await api(`/api/conversions/${id}/retry`, { method: "POST" }); if (!current()) return; notify(t("已按原设置重新加入转换队列。")); await refreshPipelineData(); startPipelinePolling(); }
   catch (error) { if (current()) notify(error.message, "error"); }
   finally { if (button?.isConnected) { button.disabled = false; button.innerHTML = label; } }
 }
 
 function openConversionLogModal(id) {
-  openModal({ title: "转换详细日志", subtitle: "供排查失败原因使用。可以把相关错误信息提供给管理员。", wide: true, body: `<div class="run-log-console loading" id="conversion-log-modal"><span class="spinner"></span>正在加载转换日志…</div>`, submitText: "关闭", onReady: async () => {
+  openModal({ title: t("转换详细日志"), subtitle: t("供排查失败原因使用。可以把相关错误信息提供给管理员。"), wide: true, body: `<div class="run-log-console loading" id="conversion-log-modal"><span class="spinner"></span>${t("正在加载转换日志…")}</div>`, submitText: t("关闭"), onReady: async () => {
     const node = document.querySelector("#conversion-log-modal");
     try {
       const response = await api(`/api/conversions/${id}/logs?after_id=0&limit=1000`);
       const entries = response?.logs || response?.items || [];
       if (!node?.isConnected) return;
       node.classList.remove("loading");
-      node.innerHTML = entries.length ? entries.map(entry => `<div class="log-line ${escapeHtml(entry.level || "info")}"><time>${escapeHtml(formatLogTime(entry.created_at))}</time><span>${escapeHtml(entry.level || "INFO")}</span><code>${escapeHtml(entry.message || entry.event || "")}</code></div>`).join("") : "当前还没有转换日志";
+      node.innerHTML = entries.length ? entries.map(entry => `<div class="log-line ${escapeHtml(entry.level || "info")}"><time>${escapeHtml(formatLogTime(entry.created_at))}</time><span>${escapeHtml(entry.level || "INFO")}</span><code>${escapeHtml(entry.message || entry.event || "")}</code></div>`).join("") : t("当前还没有转换日志");
     } catch (error) {
-      if (node?.isConnected) { node.classList.add("error"); node.textContent = `日志加载失败：${error.message}`; }
+      if (node?.isConnected) { node.classList.add("error"); node.textContent = t("日志加载失败：{0}", [error.message]); }
     }
   }, onSubmit: async () => closeModal() });
 }
@@ -2168,7 +2198,7 @@ async function loadTrainingMetrics(id, { render = false, force = false } = {}) {
     state.trainingMetricsHistory[id] = { ...response, history: response?.history || [], latest: response?.latest || {}, loading: false, error: "", attemptedAt: pending.attemptedAt, fetchedAt: Date.now() };
   } catch (error) {
     if (!current() || state.trainingMetricsHistory[id] !== pending) return;
-    state.trainingMetricsHistory[id] = { ...previous, attemptedAt: pending.attemptedAt, loading: false, error: `曲线暂时无法更新：${error.message} 请点击“刷新曲线”重试。` };
+    state.trainingMetricsHistory[id] = { ...previous, attemptedAt: pending.attemptedAt, loading: false, error: t("曲线暂时无法更新：{0} 请点击“刷新曲线”重试。", [error.message]) };
   } finally {
     if (state.trainingMetricsHistory[id] === pending) {
       state.trainingMetricsHistory[id] = { ...previous, loading: false, attemptedAt: 0 };
@@ -2196,11 +2226,11 @@ async function loadRunConversions(id, { force = false, render = false, backgroun
     state.selectedTrainingRun._conversionsHydrated = true;
     state.selectedTrainingRun._conversionError = "";
     const finished = state.selectedTrainingRun.conversions.filter(item => ['queued','running'].includes(previousStatuses.get(item.id)) && ['completed','failed','cancelled'].includes(item.status));
-    if (finished.some(item => item.status === 'failed')) notify('模型转换未完成，请查看转换记录中的失败原因。', 'error');
-    else if (finished.some(item => item.status === 'completed')) notify('当前训练的模型转换完成，可以在“模型转换”标签下载。');
-    else if (finished.length) notify('模型转换已取消，已有数据和文件会保留。');
+    if (finished.some(item => item.status === 'failed')) notify(t("模型转换未完成，请查看转换记录中的失败原因。"), 'error');
+    else if (finished.some(item => item.status === 'completed')) notify(t("当前训练的模型转换完成，可以在“转换与部署”标签下载或部署。"));
+    else if (finished.length) notify(t("模型转换已取消，已有数据和文件会保留。"));
   } catch (error) {
-    if (current()) state.selectedTrainingRun._conversionError = `转换记录暂时无法更新：${error.message} 请点击右侧“刷新”重试。`;
+    if (current()) state.selectedTrainingRun._conversionError = t("转换记录暂时无法更新：{0} 请点击右侧“刷新”重试。", [error.message]);
   } finally {
     if (refresh && trainingBackgroundConversions.get(id) === refresh) trainingBackgroundConversions.delete(id);
     if (current()) { state.selectedTrainingRun._conversionsLoading = false; if (render) renderTrainingPage(); }
@@ -2209,15 +2239,15 @@ async function loadRunConversions(id, { force = false, render = false, backgroun
 
 function renderTrainingLogConsole(run) {
   const logState = state.trainingLogs[run.id];
-  if (!logState) return `<div class="run-log-console loading"><span class="spinner"></span>展开后加载持久化训练日志</div>`;
-  if (logState.loading && !logState.items?.length) return `<div class="run-log-console loading"><span class="spinner"></span>正在加载日志…</div>`;
+  if (!logState) return `<div class="run-log-console loading"><span class="spinner"></span>${t("展开后加载持久化训练日志")}</div>`;
+  if (logState.loading && !logState.items?.length) return `<div class="run-log-console loading"><span class="spinner"></span>${t("正在加载日志…")}</div>`;
   if (logState.error && !logState.items?.length) return `<div class="run-log-console error">${escapeHtml(logState.error)}</div>`;
   const entries = logState.items || [];
-  if (!entries.length) return `<div class="run-log-console loading">当前还没有日志输出</div>`;
+  if (!entries.length) return `<div class="run-log-console loading">${t("当前还没有日志输出")}</div>`;
   return `<div class="run-log-console" data-run-log="${run.id}" role="log" aria-live="polite">${entries.map(entry => `<div class="log-line ${escapeHtml(entry.level || entry.stream || "info")}"><time>${escapeHtml(formatLogTime(entry.created_at || entry.timestamp))}</time><span>${escapeHtml(entry.level || entry.stream || "INFO")}</span><code>${escapeHtml(entry.message ?? entry.text ?? String(entry))}</code></div>`).join("")}</div>`;
 }
 
-function formatLogTime(value) { if (!value) return "--:--:--"; const date = new Date(value); return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleTimeString(); }
+function formatLogTime(value) { if (!value) return "--:--:--"; const date = new Date(value); return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleTimeString(getLocale()); }
 
 async function loadTrainingLogs(id, { append = true, render = false, force = false } = {}) {
   const previous = state.trainingLogs[id] || { items: [], cursor: 0 };
@@ -2238,7 +2268,7 @@ async function loadTrainingLogs(id, { append = true, render = false, force = fal
     state.trainingLogs[id] = { items: deduplicated.slice(-1000), cursor: response.next_after_id ?? response.cursor ?? last?.id ?? after, loading: false, error: "", attemptedAt: pending.attemptedAt };
   } catch (error) {
     if (!current() || state.trainingLogs[id] !== pending) return;
-    state.trainingLogs[id] = { ...previous, loading: false, error: `日志暂不可用：${error.message}`, attemptedAt: pending.attemptedAt };
+    state.trainingLogs[id] = { ...previous, loading: false, error: t("日志暂不可用：{0}", [error.message]), attemptedAt: pending.attemptedAt };
   } finally {
     if (state.trainingLogs[id] === pending) state.trainingLogs[id] = { ...previous, loading: false, attemptedAt: 0 };
   }
@@ -2246,10 +2276,10 @@ async function loadTrainingLogs(id, { append = true, render = false, force = fal
 }
 
 function trainingSyncMarkup() {
-  const time = state.pipelineUpdatedAt ? new Date(state.pipelineUpdatedAt).toLocaleTimeString('zh-CN', {hour12:false}) : '';
+  const time = state.pipelineUpdatedAt ? new Date(state.pipelineUpdatedAt).toLocaleTimeString(getLocale(), {hour12:false}) : '';
   return state.pipelineConnectionLost
-    ? `<p id="pipeline-connection-notice" class="training-sync-status warning" role="status">状态更新暂时中断，正在自动重连。当前是上次状态，后台训练可能仍在运行。${time ? `最后更新 ${time}。` : ''}</p>`
-    : `<p class="training-sync-status">${time ? `状态自动更新 · 最近更新 ${time}` : '正在同步训练状态…'}<span>切回此页面会立即同步</span></p>`;
+    ? `<p id="pipeline-connection-notice" class="training-sync-status warning" role="status">${t("状态更新暂时中断，正在自动重连。当前是上次状态，后台训练可能仍在运行。{0}", [time ? t("最后更新 {0}。", [time]) : ''])}</p>`
+    : `<p class="training-sync-status">${time ? t("状态自动更新 · 最近更新 {0}", [time]) : t("正在同步训练状态…")}<span>${t("切回此页面会立即同步")}</span></p>`;
 }
 
 async function refreshTrainingEnvironment() {
@@ -2286,7 +2316,7 @@ async function refreshTrainingEnvironment() {
     const results = await Promise.allSettled([catalogWork, resourcesWork]);
     if (!current()) return;
     state.trainingEnvironmentLoading = false;
-    if (results[0].status === 'rejected' && !state.training.availability?.available) state.training.availability = {...state.training.availability, available:false, reason:'训练环境暂时无法检查。已有记录仍可查看，请点击刷新重试。'};
+    if (results[0].status === 'rejected' && !state.training.availability?.available) state.training.availability = {...state.training.availability, available:false, reason:t("训练环境暂时无法检查。已有记录仍可查看，请点击刷新重试。")};
     renderTrainingPage();
   })();
   try { await request.promise; }
@@ -2298,14 +2328,14 @@ async function refreshTrainingWorkspace() {
   state.pipelineManualRefreshing = true;
   const current = trainingContextGuard();
   const button = document.querySelector('#refresh-training');
-  if (button) { button.disabled = true; button.innerHTML = `<span class="spinner"></span>刷新中`; }
+  if (button) { button.disabled = true; button.innerHTML = `<span class="spinner"></span>${t("刷新中")}`; }
   void refreshTrainingEnvironment();
   try {
     const refreshed = await refreshPipelineData();
     if (!current() || !refreshed) return;
     const selected = monitoredTrainingRun();
     if (selected) void loadTrainingMetrics(selected.id, {force:true, render:true});
-    renderTrainingPage(); startPipelinePolling(); notify('训练状态已刷新，曲线与运行环境正在同步。');
+    renderTrainingPage(); startPipelinePolling(); notify(t("训练状态已刷新，曲线与运行环境正在同步。"));
   } catch (error) { if (current()) notify(error.message, 'error'); }
   finally { if (current()) { state.pipelineManualRefreshing = false; renderTrainingPage(); } }
 }
@@ -2334,12 +2364,12 @@ async function refreshPipelineData(render = true) {
       display();
     }, error => {
       if (!listCurrent()) return;
-      state.trainingPage.error = '记录列表暂时无法更新，保留上次结果，正在自动重试。';
+      state.trainingPage.error = t("记录列表暂时无法更新，保留上次结果，正在自动重试。");
       display(); throw error;
     });
     const detailWork = !selectedId ? Promise.resolve() : pipelineApi(`/api/training-runs/${selectedId}`).then(result => {
       if (!selectionCurrent()) return;
-      if (result?.project_id !== projectId) throw new Error('训练记录不属于当前项目。');
+      if (result?.project_id !== projectId) throw new Error(t("训练记录不属于当前项目。"));
       const previous = monitoredTrainingRun();
       state.selectedTrainingRun = {...result, conversions:previous?.conversions || [], _conversionsHydrated:previous?._conversionsHydrated, _conversionsLoading:previous?._conversionsLoading, _conversionError:previous?._conversionError};
       state.trainingSelectionError = ''; state.trainingSelectionLoading = false; state.pipelineUpdatedAt = Date.now();
@@ -2353,7 +2383,7 @@ async function refreshPipelineData(render = true) {
       if (log && !log.closest('[hidden]')) void loadTrainingLogs(selectedId, {append:true, render:true});
     }, error => {
       if (!selectionCurrent()) return;
-      if (!monitoredTrainingRun()) state.trainingSelectionError = `这次训练的详情暂时无法更新：${error.message}。正在自动重试。`;
+      if (!monitoredTrainingRun()) state.trainingSelectionError = t("这次训练的详情暂时无法更新：{0}。正在自动重试。", [error.message]);
       throw error;
     });
     const results = await Promise.allSettled([listWork, detailWork]);
@@ -2391,9 +2421,9 @@ function startPipelinePolling() {
       if (!current() || !refreshed) return;
       const visible = [...new Map([...state.training.runs, ...(monitoredTrainingRun() ? [monitoredTrainingRun()] : [])].map(run => [run.id, run])).values()];
       const finished = visible.filter(run => ['queued','running','cancelling'].includes(previous.get(run.id)) && ['completed','failed','cancelled'].includes(run.status));
-      if (finished.some(run => run.status === 'failed')) notify('有任务未完成，请查看记录中的失败原因和处理建议。', 'error');
-      else if (finished.some(run => run.status === 'completed')) notify('有训练已完成，从列表选择记录后可以下载模型。');
-      else if (finished.length) notify('任务已取消，已有数据和记录会保留。');
+      if (finished.some(run => run.status === 'failed')) notify(t("有任务未完成，请查看记录中的失败原因和处理建议。"), 'error');
+      else if (finished.some(run => run.status === 'completed')) notify(t("有训练已完成，从列表选择记录后可以下载模型。"));
+      else if (finished.length) notify(t("任务已取消，已有数据和记录会保留。"));
       // Keep a slower idle poll: another member can start work at any time.
     } catch (_) {
       // The persistent status line distinguishes stale data from live progress.
@@ -2406,9 +2436,14 @@ function startPipelinePolling() {
 }
 
 function bindCommonProjectEvents() {
+  document.querySelector("#project-members")?.addEventListener("click", openProjectMembers);
+  if (!canExportProject()) document.querySelectorAll("#data-export, #export-dataset, [data-download-deployment], [data-download-training], [data-download-conversion], [data-download-conversion-manifest], [data-version-export]").forEach(button => { button.disabled = true; button.title = t("未获下载与导出权限"); });
+  if (!canEditProject()) {
+    document.querySelectorAll("#data-upload, #upload-assets, #empty-data-upload, #annotate-selection, #configure-ai-start, #new-ai-job, #ai-annotate, [data-block-claim], [data-block-submit], [data-job-review], [data-cancel-job], [data-retry-job], [data-review-action], [data-review-selection]").forEach(button => { button.disabled = true; button.title = t("此项目为只读分享"); });
+  }
   revealActiveProjectTab();
   bindReviewPage({ state, api, jsonOptions, openModal, closeModal, notify, escapeHtml, renderDataPage, renderWorkBlocksPage, canReview, renderAiPage, renderWorkspace, loadAnnotations, refreshWorkflowState, refreshInspector });
-  bindAssetManagement({ state, api, jsonOptions, openModal, closeModal, notify, escapeHtml, renderDataPage, isAdmin });
+  bindAssetManagement({ state, api, jsonOptions, openModal, closeModal, notify, escapeHtml, renderDataPage, isAdmin: canEditProject });
 }
 
 function revealActiveProjectTab() {
@@ -2421,7 +2456,7 @@ function revealActiveProjectTab() {
 }
 
 async function loadWorkspace(projectId, requestedAssetId = null, routeEpoch = state.selectionEpoch) {
-  const finishLoading = beginWorkspaceLoad(app, { message: "正在加载标注工作区…", fallback: () => workspaceLoadingShell("projects") });
+  const finishLoading = beginWorkspaceLoad(app, { message: t("正在加载标注工作区…"), fallback: () => workspaceLoadingShell("projects") });
   resetProjectInteraction(projectId, "annotate");
   try {
     const projectRequest = api(`/api/projects/${projectId}`);
@@ -2455,7 +2490,7 @@ async function loadWorkspace(projectId, requestedAssetId = null, routeEpoch = st
     state.asset = assets.find(asset => asset.id === requestedAssetId) || assets[0] || null;
     state.annotationsLoadedFor = null;
     state.selectedAssetIds = new Set(); state.assetFilter = "all";
-    if (state.legacyReviewAssetId) { state.readOnly = true; state.readOnlyReason = "历史图片仍可审核。若需修改，请重新打开后由管理员将图片加入任务块。"; }
+    if (state.legacyReviewAssetId) { state.readOnly = true; state.readOnlyReason = t("历史图片仍可审核。若需修改，请重新打开后由管理员将图片加入任务块。"); }
     else if (state.asset) await acquireAssetLock(state.asset.id, routeEpoch);
     if (routeEpoch !== state.selectionEpoch) return;
     renderWorkspace();
@@ -2488,49 +2523,49 @@ function renderWorkspace() {
     <main class="workspace annotation-workspace ${state.queueCollapsed ? "queue-collapsed" : ""} ${state.inspectorCollapsed ? "inspector-collapsed" : ""}">
         <div class="workspace-toolbar manual-workspace-toolbar">
           ${projectCompatibilityMarkup()}
-          ${state.activeWorkBlock ? `<div class="annotation-block-scope"><a href="#/projects/${project.id}/blocks">任务块</a><strong>${escapeHtml(state.activeWorkBlock.name)}</strong><span>仅显示本块 ${state.assets.length} 张图片 · ${escapeHtml(state.activeWorkBlock.owner_name || "尚未领取")}</span><span>${BLOCK_STATUS[state.activeWorkBlock.status] || ""}</span>${!state.activeWorkBlock.is_mine ? `<span>查看模式${canReview() ? "，可审核已提交图片" : "，领取或转交后才能修改"}</span>` : ""}<a href="#/projects/${project.id}/blocks">交回 / 查看进度</a></div>` : ""}
-          ${state.legacyReviewAssetId ? `<div class="annotation-block-scope"><strong>历史图片审核</strong><span>仅显示当前图片；需要重新标注时，请先将图片加入任务块。</span><a href="#/projects/${project.id}/blocks">管理任务块</a></div>` : ""}
+          ${state.activeWorkBlock ? `<div class="annotation-block-scope"><a href="#/projects/${project.id}/blocks">${t("任务块")}</a><strong>${escapeHtml(state.activeWorkBlock.name)}</strong><span>${t("仅显示本块 {0} 张图片 · {1}", [state.assets.length, escapeHtml(accountDisplayName(state.activeWorkBlock.owner_name) || t("尚未领取"))])}</span><span>${BLOCK_STATUS[state.activeWorkBlock.status] || ""}</span>${!state.activeWorkBlock.is_mine ? `<span>${t("查看模式{0}", [canReview() ? t("，可审核已提交图片") : t("，领取或转交后才能修改")])}</span>` : ""}<a href="#/projects/${project.id}/blocks">${t("交回 / 查看进度")}</a></div>` : ""}
+          ${state.legacyReviewAssetId ? `<div class="annotation-block-scope"><strong>${t("历史图片审核")}</strong><span>${t("仅显示当前图片；需要重新标注时，请先将图片加入任务块。")}</span><a href="#/projects/${project.id}/blocks">${t("管理任务块")}</a></div>` : ""}
           <div class="annotation-session-row">
-            <button class="btn ghost panel-toggle" id="toggle-queue" aria-controls="asset-queue" aria-expanded="${!state.queueCollapsed}" aria-label="图片队列" title="展开或收起图片队列">${icon("folder")}<span>图片队列</span></button>
-            <div class="asset-stepper"><button class="tool" id="previous-asset" title="上一张 (A / ←)" aria-label="上一张" ${!filteredAssets.length ? "disabled" : ""}>${icon("arrowLeft")}</button><span title="${escapeHtml(state.asset?.filename || "未选择图片")}">${state.asset ? `${currentIndex < 0 ? "—" : currentIndex + 1} / ${filteredAssets.length}` : "0 / 0"}</span><button class="tool" id="next-asset" title="下一张 (D / →)" aria-label="下一张" ${!filteredAssets.length ? "disabled" : ""}>${icon("arrowRight")}</button></div>
+            <button class="btn ghost panel-toggle" id="toggle-queue" aria-controls="asset-queue" aria-expanded="${!state.queueCollapsed}" aria-label="${ta("图片队列")}" title="${ta("展开或收起图片队列")}">${icon("folder")}<span>${t("图片队列")}</span></button>
+            <div class="asset-stepper"><button class="tool" id="previous-asset" title="${ta("上一张 (A / ←)")}" aria-label="${ta("上一张")}" ${!filteredAssets.length ? "disabled" : ""}>${icon("arrowLeft")}</button><span title="${escapeHtml(state.asset?.filename || t("未选择图片"))}">${state.asset ? `${currentIndex < 0 ? "—" : currentIndex + 1} / ${filteredAssets.length}` : "0 / 0"}</span><button class="tool" id="next-asset" title="${ta("下一张 (D / →)")}" aria-label="${ta("下一张")}" ${!filteredAssets.length ? "disabled" : ""}>${icon("arrowRight")}</button></div>
             <span class="review-badge ${state.asset?.review_status || "draft"}">${reviewStatusName(state.asset?.review_status)}</span>
             <span class="workflow-controls" id="workflow-controls">${workflowControlsMarkup()}</span>
-            <label class="manual-label-picker" for="manual-label"><span>${projectTask() === "classify" ? "图片类别" : "新对象类别"}</span><select id="manual-label" ${canEditCurrentAsset() && project.labels.length && !hasAnnotationDraft() ? "" : "disabled"}><option value="" disabled ${projectTask() === "classify" && !state.annotations.length && !state.pendingAnnotation ? "selected" : ""}>选择类别…</option>${project.labels.map(label => `<option value="${label.id}" ${String(projectTask() === "classify" ? (state.pendingAnnotation?.labelId || state.annotations[0]?.label_id || "") : state.activeLabel?.id) === String(label.id) ? "selected" : ""}>${escapeHtml(label.name)}${label.shortcut ? ` (${escapeHtml(label.shortcut)})` : ""}</option>`).join("")}</select></label>
+            <label class="manual-label-picker" for="manual-label"><span>${projectTask() === "classify" ? t("图片类别") : t("新对象类别")}</span><select id="manual-label" ${canEditCurrentAsset() && project.labels.length && !hasAnnotationDraft() ? "" : "disabled"}><option value="" disabled ${projectTask() === "classify" && !state.annotations.length && !state.pendingAnnotation ? "selected" : ""}>${t("选择类别…")}</option>${project.labels.map(label => `<option value="${label.id}" ${String(projectTask() === "classify" ? (state.pendingAnnotation?.labelId || state.annotations[0]?.label_id || "") : state.activeLabel?.id) === String(label.id) ? "selected" : ""}>${escapeHtml(label.name)}${label.shortcut ? ` (${escapeHtml(label.shortcut)})` : ""}</option>`).join("")}</select></label>
             <div class="annotation-session-actions">
-              <button class="btn ghost" id="toggle-focus" aria-pressed="${state.annotationFocus}" aria-label="${state.annotationFocus ? "退出专注标注" : "专注标注"}" title="${state.annotationFocus ? "恢复导航和侧栏" : "收起导航和侧栏，扩大画布"}">${icon("expand")}<span>${state.annotationFocus ? "退出专注" : "专注标注"}</span></button>
-              <button class="btn ghost panel-toggle" id="toggle-inspector" aria-controls="annotation-inspector" aria-expanded="${!state.inspectorCollapsed}" aria-label="标注详情" title="展开或收起标注详情">${icon("layers")}<span>标注详情</span></button>
-              <details class="annotation-more-actions"><summary class="btn ghost" aria-label="更多标注操作">更多</summary><div><button class="btn ghost" id="save-next" ${state.asset ? "" : "disabled"} title="下一张未提交或未审核图片 (N)">下一张待标注 <kbd>N</kbd></button><button class="btn ghost" data-review-picker ${state.assets.length ? "" : "disabled"}>批量提交与审核</button>${reviewContinuationMarkup(canReview())}<button class="btn ghost" id="export-data" title="快速导出当前工作数据；正式训练建议从数据版本导出">${icon("download")}快速导出</button></div></details>
+              <button class="btn ghost" id="toggle-focus" aria-pressed="${state.annotationFocus}" aria-label="${state.annotationFocus ? ta("退出专注标注") : ta("专注标注")}" title="${state.annotationFocus ? ta("恢复导航和侧栏") : ta("收起导航和侧栏，扩大画布")}">${icon("expand")}<span>${state.annotationFocus ? t("退出专注") : t("专注标注")}</span></button>
+              <button class="btn ghost panel-toggle" id="toggle-inspector" aria-controls="annotation-inspector" aria-expanded="${!state.inspectorCollapsed}" aria-label="${ta("标注详情")}" title="${ta("展开或收起标注详情")}">${icon("layers")}<span>${t("标注详情")}</span></button>
+              <details class="annotation-more-actions"><summary class="btn ghost" aria-label="${ta("更多标注操作")}">${t("更多")}</summary><div><button class="btn ghost" id="save-next" ${state.asset ? "" : "disabled"} title="${ta("下一张未提交或未审核图片 (N)")}">${t("下一张待标注")} <kbd>N</kbd></button><button class="btn ghost" data-review-picker ${state.assets.length ? "" : "disabled"}>${t("批量提交与审核")}</button>${reviewContinuationMarkup(canReview())}<button class="btn ghost" id="export-data" title="${ta("快速导出当前工作数据；正式训练建议从数据版本导出")}">${t("{0}快速导出", [icon("download")])}</button></div></details>
             </div>
           </div>
         </div>
 
       <aside class="workspace-panel asset-panel" id="asset-queue">
-        <div class="panel-header"><span class="panel-title">${state.activeWorkBlockId ? "本块图片" : "图片队列"}</span><span class="counter">${state.activeWorkBlockId ? state.assets.filter(asset => asset.status === "labeled").length : project.labeled_count || 0} / ${state.activeWorkBlockId ? state.assets.length : project.asset_count || 0}</span></div>
-        <div class="asset-filter"><select id="annotation-filter" aria-label="图片队列筛选"><option value="all">全部图片</option><option value="unlabeled" ${state.assetFilter === "unlabeled" ? "selected" : ""}>未标注</option><option value="labeled" ${state.assetFilter === "labeled" ? "selected" : ""}>已标注</option><option value="submitted" ${state.assetFilter === "submitted" ? "selected" : ""}>待审核</option><option value="approved" ${state.assetFilter === "approved" ? "selected" : ""}>已通过</option><option value="rejected" ${state.assetFilter === "rejected" ? "selected" : ""}>已驳回</option></select></div>
-        <div class="asset-list">${filteredAssets.length ? `${visibleAssets.map(assetItem).join("")}${remainingAssets ? `<button class="load-more-assets" id="load-more-assets">再显示 ${Math.min(200, remainingAssets)} 张 <small>剩余 ${remainingAssets.toLocaleString()} 张</small></button>` : ""}` : `<div class="empty-state" style="padding:45px 10px;border:0"><p>当前筛选没有图片</p></div>`}</div>
-        <div class="asset-footer"><button class="btn ghost" id="upload-assets">${icon("upload")}上传数据集</button></div>
+        <div class="panel-header"><span class="panel-title">${state.activeWorkBlockId ? t("本块图片") : t("图片队列")}</span><span class="counter">${state.activeWorkBlockId ? state.assets.filter(asset => asset.status === "labeled").length : project.labeled_count || 0} / ${state.activeWorkBlockId ? state.assets.length : project.asset_count || 0}</span></div>
+        <div class="asset-filter"><select id="annotation-filter" aria-label="${ta("图片队列筛选")}"><option value="all">${t("全部图片")}</option><option value="unlabeled" ${state.assetFilter === "unlabeled" ? "selected" : ""}>${t("未标注")}</option><option value="labeled" ${state.assetFilter === "labeled" ? "selected" : ""}>${t("已标注")}</option><option value="submitted" ${state.assetFilter === "submitted" ? "selected" : ""}>${t("待审核")}</option><option value="approved" ${state.assetFilter === "approved" ? "selected" : ""}>${t("已通过")}</option><option value="rejected" ${state.assetFilter === "rejected" ? "selected" : ""}>${t("已驳回")}</option></select></div>
+        <div class="asset-list">${filteredAssets.length ? `${visibleAssets.map(assetItem).join("")}${remainingAssets ? `<button class="load-more-assets" id="load-more-assets">${t("再显示 {0} 张", [Math.min(200, remainingAssets)])} <small>${t("剩余 {0} 张", [remainingAssets.toLocaleString(getLocale())])}</small></button>` : ""}` : `<div class="empty-state" style="padding:45px 10px;border:0"><p>${t("当前筛选没有图片")}</p></div>`}</div>
+        <div class="asset-footer"><button class="btn ghost" id="upload-assets">${t("{0}上传数据集", [icon("upload")])}</button></div>
       </aside>
       <section class="canvas-panel">
         <div class="workspace-guidance" id="workspace-guidance" ${workspaceGuidanceVisible() ? "" : "hidden"}>${workspaceGuidanceMarkup()}</div>
         <div id="job-activity-slot">${jobActivityMarkup()}</div>
         <div class="annotation-canvas-body">
-          <nav class="annotation-tool-rail" aria-label="标注工具">
-            <button class="btn ghost manual-tool ${state.tool === "select" ? "active" : ""}" data-tool="select" title="选择和调整对象 (V)" aria-pressed="${state.tool === "select"}" aria-keyshortcuts="V">${icon("cursor")}<span>选择</span><kbd>V</kbd></button>
+          <nav class="annotation-tool-rail" aria-label="${ta("标注工具")}">
+            <button class="btn ghost manual-tool ${state.tool === "select" ? "active" : ""}" data-tool="select" title="${ta("选择和调整对象 (V)")}" aria-pressed="${state.tool === "select"}" aria-keyshortcuts="V">${icon("cursor")}<span>${t("选择")}</span><kbd>V</kbd></button>
             ${annotationToolsMarkup(editable && Boolean(project.labels.length))}
-            <button class="btn ghost canvas-hand-tool ${state.tool === "pan" ? "active" : ""}" data-tool="pan" title="移动画布 (H)，或按住空格拖动" aria-pressed="${state.tool === "pan"}" aria-keyshortcuts="H">${icon("hand")}<span>平移</span><kbd>H</kbd></button>
-            <button class="btn ghost" id="ai-annotate" title="运行 AI 标注或 AI 辅助分割">${icon("magic")}<span>AI 标注</span></button>
-            <button class="btn ghost" id="annotation-shortcuts" title="查看标注快捷键 (?)" aria-keyshortcuts="?">${icon("keyboard")}<span>快捷键</span></button>
+            <button class="btn ghost canvas-hand-tool ${state.tool === "pan" ? "active" : ""}" data-tool="pan" title="${ta("移动画布 (H)，或按住空格拖动")}" aria-pressed="${state.tool === "pan"}" aria-keyshortcuts="H">${icon("hand")}<span>${t("平移")}</span><kbd>H</kbd></button>
+            <button class="btn ghost" id="ai-annotate" title="${ta("运行 AI 标注或 AI 辅助分割")}">${icon("magic")}<span>${t("AI 标注")}</span></button>
+            <button class="btn ghost" id="annotation-shortcuts" title="${ta("查看标注快捷键 (?)")}" aria-keyshortcuts="?">${icon("keyboard")}<span>${t("快捷键")}</span></button>
           </nav>
-          <div class="canvas-scroll" id="canvas-scroll" tabindex="0" aria-label="图片画布，可用滚轮缩放，空格或鼠标中键拖动" aria-describedby="canvas-navigation-help">${canvasMarkup()}</div>
+          <div class="canvas-scroll" id="canvas-scroll" tabindex="0" aria-label="${ta("图片画布，可用滚轮缩放，空格或鼠标中键拖动")}" aria-describedby="canvas-navigation-help">${canvasMarkup()}</div>
         </div>
         <div class="annotation-canvas-footer">
-          <div class="canvas-status"><span id="annotation-save-status" role="status">${saveFeedbackText()}</span><span id="canvas-status-hint">${canvasStatusHint()}</span><button id="toggle-annotations" class="canvas-visibility-toggle" title="只改变标注显示，不删除标注" aria-pressed="${state.showAnnotations}">${state.showAnnotations ? "隐藏标注" : "显示标注"}</button></div>
-          <div class="canvas-view-tools"><span id="canvas-navigation-help">滚轮缩放 · 空格 + 拖动移动图片</span><div class="zoom-control" aria-label="图片显示比例"><button id="zoom-out" aria-label="缩小图片" title="缩小图片 (-)" ${state.asset ? "" : "disabled"}>−</button><output id="zoom-value" aria-label="当前图片显示比例">${Math.round(state.zoom * 100)}%</output><button id="zoom-in" aria-label="放大图片" title="放大图片 (+)" ${state.asset ? "" : "disabled"}>+</button><button id="fit-canvas" title="显示整张图片 (F)" ${state.asset ? "" : "disabled"}>适配窗口</button><button id="actual-size-canvas" title="按原始尺寸显示图片，不改变标注位置" ${state.asset ? "" : "disabled"}>100%</button></div></div>
+          <div class="canvas-status"><span id="annotation-save-status" role="status">${saveFeedbackText()}</span><span id="canvas-status-hint">${canvasStatusHint()}</span><button id="toggle-annotations" class="canvas-visibility-toggle" title="${ta("只改变标注显示，不删除标注")}" aria-pressed="${state.showAnnotations}">${state.showAnnotations ? t("隐藏标注") : t("显示标注")}</button></div>
+          <div class="canvas-view-tools"><span id="canvas-navigation-help">${t("滚轮缩放 · 空格 + 拖动移动图片")}</span><div class="zoom-control" aria-label="${ta("图片显示比例")}"><button id="zoom-out" aria-label="${ta("缩小图片")}" title="${ta("缩小图片 (-)")}" ${state.asset ? "" : "disabled"}>−</button><output id="zoom-value" aria-label="${ta("当前图片显示比例")}">${Math.round(state.zoom * 100)}%</output><button id="zoom-in" aria-label="${ta("放大图片")}" title="${ta("放大图片 (+)")}" ${state.asset ? "" : "disabled"}>+</button><button id="fit-canvas" title="${ta("显示整张图片 (F)")}" ${state.asset ? "" : "disabled"}>${t("适配窗口")}</button><button id="actual-size-canvas" title="${ta("按原始尺寸显示图片，不改变标注位置")}" ${state.asset ? "" : "disabled"}>100%</button></div></div>
         </div>
       </section>
       <aside class="workspace-panel inspector" id="annotation-inspector">
         <div class="panel-header">${annotationInspectorHeaderMarkup()}</div>
-        <div class="inspector-tabs"><button data-tab="objects" class="${state.inspectorTab === "objects" ? "active" : ""}">对象</button><button data-tab="review" class="${state.inspectorTab === "review" ? "active" : ""}">审核</button><button data-tab="jobs" class="${state.inspectorTab === "jobs" ? "active" : ""}">任务 ${runningJobCount() ? `(${runningJobCount()})` : ""}</button><button data-tab="audit" class="${state.inspectorTab === "audit" ? "active" : ""}">操作记录</button></div>
+        <div class="inspector-tabs"><button data-tab="objects" class="${state.inspectorTab === "objects" ? "active" : ""}">${t("对象")}</button><button data-tab="review" class="${state.inspectorTab === "review" ? "active" : ""}">${t("审核")}</button><button data-tab="jobs" class="${state.inspectorTab === "jobs" ? "active" : ""}">${t("任务 {0}", [runningJobCount() ? `(${runningJobCount()})` : ""])}</button><button data-tab="audit" class="${state.inspectorTab === "audit" ? "active" : ""}">${t("操作记录")}</button></div>
         <div class="inspector-body">${inspectorMarkup()}</div>
       </aside>
     </main></div>`;
@@ -2542,7 +2577,7 @@ function renderWorkspace() {
 }
 
 function assetItem(asset) {
-  return `<div class="asset-item ${state.asset?.id === asset.id ? "active" : ""}" data-asset-id="${asset.id}"><div class="thumb"><img loading="lazy" decoding="async" src="/api/assets/${asset.id}/thumbnail?size=160" onerror="this.onerror=null;this.src='/api/assets/${asset.id}/image'" />${asset.status === "labeled" ? `<span class="done">${icon("check")}</span>` : ""}</div><div><div class="asset-name">${escapeHtml(asset.filename)}</div><div class="asset-info">${asset.annotation_count} 个对象 · ${asset.width}×${asset.height}</div><span class="review-mini ${asset.review_status}">${reviewStatusName(asset.review_status)}</span>${asset.lock_owner && asset.lock_expires_at > new Date().toISOString() ? `<span class="collaborator-badge">${asset.lock_owner === (state.session?.actor || actorId) ? state.asset?.id === asset.id && state.lockOwned ? "我正在校正" : "我的其他页面正在校正" : `协作中 · ${escapeHtml(asset.lock_owner.split(":")[1] || asset.lock_owner)}`}</span>` : ""}</div></div>`;
+  return `<div class="asset-item ${state.asset?.id === asset.id ? "active" : ""}" data-asset-id="${asset.id}"><div class="thumb"><img loading="lazy" decoding="async" src="/api/assets/${asset.id}/thumbnail?size=160" onerror="this.onerror=null;this.src='/api/assets/${asset.id}/image'" />${asset.status === "labeled" ? `<span class="done">${icon("check")}</span>` : ""}</div><div><div class="asset-name">${escapeHtml(asset.filename)}</div><div class="asset-info">${t("{0} 个对象 · {1}×{2}", [asset.annotation_count, asset.width, asset.height])}</div><span class="review-mini ${asset.review_status}">${reviewStatusName(asset.review_status)}</span>${asset.lock_owner && asset.lock_expires_at > new Date().toISOString() ? `<span class="collaborator-badge">${asset.lock_owner === (state.session?.actor || actorId) ? state.asset?.id === asset.id && state.lockOwned ? t("我正在校正") : t("我的其他页面正在校正") : t("协作中 · {0}", [escapeHtml(asset.lock_owner.split(":")[1] || asset.lock_owner)])}</span>` : ""}</div></div>`;
 }
 
 function refreshAssetQueueItem(assetId) {
@@ -2557,12 +2592,12 @@ function refreshAssetQueueItem(assetId) {
 }
 
 function reviewStatusName(status) {
-  return { draft: "草稿", in_progress: "标注中", submitted: "待审核", approved: "已通过", rejected: "已驳回" }[status] || "未选择";
+  return { draft: t("草稿"), in_progress: t("标注中"), submitted: t("待审核"), approved: t("已通过"), rejected: t("已驳回") }[status] || t("未选择");
 }
 
 function saveFeedbackText() {
-  if (state.savingAnnotation || state.saveFeedback.status === "saving") return "正在保存…";
-  return { idle: "修改后自动保存", saved: "已保存", error: "保存未完成" }[state.saveFeedback.status] || "修改后自动保存";
+  if (state.savingAnnotation || state.saveFeedback.status === "saving") return t("正在保存…");
+  return { idle: t("修改后自动保存"), saved: t("已保存"), error: t("保存未完成") }[state.saveFeedback.status] || t("修改后自动保存");
 }
 
 function setSaveFeedback(status, message = "") {
@@ -2585,20 +2620,20 @@ function refreshWorkspaceGuidance() {
 }
 
 function workspaceGuidanceMarkup() {
-  if (!state.asset) return `<strong>先导入图片</strong><span>导入后可直接手动标注，也可使用 AI 生成初稿。</span>`;
-  if (state.saveFeedback.status === "error") return `<strong class="feedback-error">修改未能确认保存</strong><span>${escapeHtml(state.saveFeedback.message || "请检查网络后重试，离开图片前确认修改已保存。")}</span>${state.pendingAnnotation || state.pendingTaskEdit || state.pendingObjectEdit ? `<button class="mini-action" id="retry-annotation-save" ${state.savingAnnotation ? "disabled" : ""}>重试保存 <kbd>Enter</kbd></button>` : ""}${hasAnnotationDraft() ? `<button class="mini-action" data-cancel-draft>放弃本地草稿</button>` : ""}<button class="mini-action" id="reload-saved-annotations">重新加载已保存结果</button>`;
+  if (!state.asset) return `<strong>${t("先导入图片")}</strong><span>${t("导入后可直接手动标注，也可使用 AI 生成初稿。")}</span>`;
+  if (state.saveFeedback.status === "error") return `<strong class="feedback-error">${t("修改未能确认保存")}</strong><span>${escapeHtml(state.saveFeedback.message || t("请检查网络后重试，离开图片前确认修改已保存。"))}</span>${state.pendingAnnotation || state.pendingTaskEdit || state.pendingObjectEdit ? `<button class="mini-action" id="retry-annotation-save" ${state.savingAnnotation ? "disabled" : ""}>${t("重试保存")} <kbd>Enter</kbd></button>` : ""}${hasAnnotationDraft() ? `<button class="mini-action" data-cancel-draft>${t("放弃本地草稿")}</button>` : ""}<button class="mini-action" id="reload-saved-annotations">${t("重新加载已保存结果")}</button>`;
   const status = state.asset.review_status;
-  if (status === "submitted") return `<strong>等待审核</strong><span>${canReview() ? "检查类别和标注位置，确认无误后点击“审核通过”；有问题可退回修改，原因可选。" : "这张图片已经提交。审核员确认前不能修改；需要修改时可以撤回提交。"}</span>`;
-  if (status === "approved") return `<strong>审核已通过</strong><span>${canReview() ? "可在“数据版本”生成训练数据。如需修改，重新打开后需要再次提交审核。" : "这张图片已通过审核。若发现问题，请联系审核员重新打开。"}</span>`;
-  if (state.readOnly) return `<strong>暂时不能修改</strong><span>${escapeHtml(state.readOnlyReason || "编辑权限暂时不可用，请先处理下一张图片，稍后再回来。")}</span>`;
-  if (!state.project.labels.length) return `<strong>先添加标注类别</strong><span>${isAdmin() ? "在标注详情中添加类别，再开始绘制。" : "请联系管理员为项目添加类别。"}</span>`;
-  if (state.poseDraft) return `<strong>手动添加关键点</strong><span>${escapeHtml(canvasStatusHint())} · Backspace 返回上一个点 · Enter 完成 · Esc 取消</span><button class="mini-action" data-skip-draft-keypoint>跳过此点</button><button class="mini-action" data-finish-draft-keypoints>完成并保存</button><button class="mini-action" data-cancel-draft>取消绘制</button>`;
-  if (state.polygon.length) return `<strong>正在绘制轮廓</strong><span>已添加 ${state.polygon.length / 2} 个顶点，至少需要 3 个。单击继续添加，Enter 完成，Backspace 撤销上一点，Esc 取消。</span><button class="mini-action" data-finish-polygon ${state.polygon.length < 6 || state.savingAnnotation ? "disabled" : ""}>完成轮廓</button><button class="mini-action" data-cancel-draft>取消绘制</button>`;
-  if (state.advancedAnnotationDirty) return `<strong>高级修改尚未应用</strong><span>点击“应用高级修改”保存，或放弃本次输入。</span><button class="mini-action" data-cancel-draft>放弃本地草稿</button>`;
-  if (state.selectionIntent && state.selectedAnnotation && projectTask() !== "classify") return `<strong>正在编辑选中对象</strong><span>修改“对象类别”或按数字键重新分类；按 Delete / ⌫ 删除选中标注。选择绘制工具或取消选中后可继续标注新对象。</span>`;
-  if (status === "rejected") return `<strong>请按反馈修改</strong><span>${escapeHtml(state.asset.review_reason || "请重新检查图片，修正漏标、类别或边界等问题。")} 修改后请再次提交审核。</span>`;
-  const instruction = { detect: "选择类别，点击“矩形框”或按 R，在物体周围拖动框选。", segment: "选择类别，点击“多边形”或按 P，沿边缘逐点点击，按 Enter 完成。", pose: "选择类别，点击“关键点”或按 K，先拖动框选对象，再按顺序放置点。", classify: "在上方“图片类别”或右侧类别列表中选择，也可按类别对应的数字键。", mixed: "选择类别后，按 R 画框或按 P 逐点画轮廓。" }[projectTask()];
-  return state.annotations.length ? `<strong>可以继续手动标注</strong><span>${escapeHtml(instruction)} 完成的标注自动保存，检查后提交审核。</span>` : `<strong>从零开始手动标注</strong><span>${escapeHtml(instruction)} 完成后自动保存。</span><button class="mini-action" data-start-manual>开始手动标注</button>`;
+  if (status === "submitted") return `<strong>${t("等待审核")}</strong><span>${canReview() ? t("检查类别和标注位置，确认无误后点击“审核通过”；有问题可退回修改，原因可选。") : t("这张图片已经提交。审核员确认前不能修改；需要修改时可以撤回提交。")}</span>`;
+  if (status === "approved") return `<strong>${t("审核已通过")}</strong><span>${canReview() ? t("可在“数据版本”生成训练数据。如需修改，重新打开后需要再次提交审核。") : t("这张图片已通过审核。若发现问题，请联系审核员重新打开。")}</span>`;
+  if (state.readOnly) return `<strong>${t("暂时不能修改")}</strong><span>${escapeHtml(state.readOnlyReason || t("编辑权限暂时不可用，请先处理下一张图片，稍后再回来。"))}</span>`;
+  if (!state.project.labels.length) return `<strong>${t("先添加标注类别")}</strong><span>${canEditProject() ? t("在标注详情中添加类别，再开始绘制。") : t("请联系项目所有者添加类别。")}</span>`;
+  if (state.poseDraft) return `<strong>${t("手动添加关键点")}</strong><span>${t("{0} · Backspace 返回上一个点 · Enter 完成 · Esc 取消", [escapeHtml(canvasStatusHint())])}</span><button class="mini-action" data-skip-draft-keypoint>${t("跳过此点")}</button><button class="mini-action" data-finish-draft-keypoints>${t("完成并保存")}</button><button class="mini-action" data-cancel-draft>${t("取消绘制")}</button>`;
+  if (state.polygon.length) return `<strong>${t("正在绘制轮廓")}</strong><span>${t("已添加 {0} 个顶点，至少需要 3 个。单击继续添加，Enter 完成，Backspace 撤销上一点，Esc 取消。", [state.polygon.length / 2])}</span><button class="mini-action" data-finish-polygon ${state.polygon.length < 6 || state.savingAnnotation ? "disabled" : ""}>${t("完成轮廓")}</button><button class="mini-action" data-cancel-draft>${t("取消绘制")}</button>`;
+  if (state.advancedAnnotationDirty) return `<strong>${t("高级修改尚未应用")}</strong><span>${t("点击“应用高级修改”保存，或放弃本次输入。")}</span><button class="mini-action" data-cancel-draft>${t("放弃本地草稿")}</button>`;
+  if (state.selectionIntent && state.selectedAnnotation && projectTask() !== "classify") return `<strong>${t("正在编辑选中对象")}</strong><span>${t("修改“对象类别”或按数字键重新分类；按 Delete / ⌫ 删除选中标注。选择绘制工具或取消选中后可继续标注新对象。")}</span>`;
+  if (status === "rejected") return `<strong>${t("请按反馈修改")}</strong><span>${t("{0} 修改后请再次提交审核。", [escapeHtml(state.asset.review_reason || t("请重新检查图片，修正漏标、类别或边界等问题。"))])}</span>`;
+  const instruction = { detect: t("选择类别，点击“矩形框”或按 R，在物体周围拖动框选。"), segment: t("选择类别，点击“多边形”或按 P，沿边缘逐点点击，按 Enter 完成。"), pose: t("选择类别，点击“关键点”或按 K，先拖动框选对象，再按顺序放置点。"), classify: t("在上方“图片类别”或右侧类别列表中选择，也可按类别对应的数字键。"), mixed: t("选择类别后，按 R 画框或按 P 逐点画轮廓。") }[projectTask()];
+  return state.annotations.length ? `<strong>${t("可以继续手动标注")}</strong><span>${t("{0} 完成的标注自动保存，检查后提交审核。", [escapeHtml(instruction)])}</span>` : `<strong>${t("从零开始手动标注")}</strong><span>${t("{0} 完成后自动保存。", [escapeHtml(instruction)])}</span><button class="mini-action" data-start-manual>${t("开始手动标注")}</button>`;
 }
 
 function workflowControlsMarkup() {
@@ -2606,20 +2641,20 @@ function workflowControlsMarkup() {
   const status = state.asset.review_status;
   const busy = state.workflowBusy || state.savingAnnotation;
   const ownBlock = !state.activeWorkBlock || state.activeWorkBlock.is_mine;
-  if (status === "approved" && state.activeWorkBlock?.status === "completed") return `<span class="hint">本块已完成${isAdmin() ? "，如需修改请到任务块重新打开" : "，只读"}</span>`;
+  if (status === "approved" && state.activeWorkBlock?.status === "completed") return `<span class="hint">${t("本块已完成{0}", [canEditProject() ? t("，如需修改请到任务块重新打开") : t("，只读")])}</span>`;
   if (["draft", "in_progress", "rejected"].includes(status)) {
     const emptyAllowed = projectTask() !== "classify";
-    const reason = state.saveFeedback.status === "error" ? "请先重试保存或重新加载结果" : hasAnnotationDraft() ? "请先完成当前草稿" : !ownBlock ? "仅任务负责人可提交" : !state.annotations.length && !(emptyAllowed && state.asset.negative_confirmed) ? emptyAllowed ? "请标注目标，或确认无目标" : "请先选择图片类别" : !state.lockOwned ? "当前图片暂不可编辑" : "";
-    const emptyControl = emptyAllowed && !state.annotations.length && !state.asset.negative_confirmed && ownBlock ? `<button class="btn ghost workflow-action" data-action="confirm_empty" ${busy || !canEditCurrentAsset() || hasAnnotationDraft() || state.saveFeedback.status === "error" ? "disabled" : ""}>确认无目标</button>` : !state.annotations.length && state.asset.negative_confirmed ? `<span class="hint">已确认无目标</span>` : "";
-    return `${emptyControl}<button class="btn ghost workflow-action" data-action="submit" ${busy || reason ? "disabled" : ""}>${state.workflowBusy ? "正在提交…" : "提交审核"}</button>${reason ? `<span class="workflow-reason">${reason}</span>` : ""}`;
+    const reason = state.saveFeedback.status === "error" ? t("请先重试保存或重新加载结果") : hasAnnotationDraft() ? t("请先完成当前草稿") : !ownBlock ? t("仅任务负责人可提交") : !state.annotations.length && !(emptyAllowed && state.asset.negative_confirmed) ? emptyAllowed ? t("请标注目标，或确认无目标") : t("请先选择图片类别") : !state.lockOwned ? t("当前图片暂不可编辑") : "";
+    const emptyControl = emptyAllowed && !state.annotations.length && !state.asset.negative_confirmed && ownBlock ? `<button class="btn ghost workflow-action" data-action="confirm_empty" ${busy || !canEditCurrentAsset() || hasAnnotationDraft() || state.saveFeedback.status === "error" ? "disabled" : ""}>${t("确认无目标")}</button>` : !state.annotations.length && state.asset.negative_confirmed ? `<span class="hint">${t("已确认无目标")}</span>` : "";
+    return `${emptyControl}<button class="btn ghost workflow-action" data-action="submit" ${busy || reason ? "disabled" : ""}>${state.workflowBusy ? t("正在提交…") : t("提交审核")}</button>${reason ? `<span class="workflow-reason">${reason}</span>` : ""}`;
   }
-  if (status === "submitted" && !canReview()) return ownBlock ? `<button class="btn ghost workflow-action" data-action="reopen" ${busy ? "disabled" : ""}>撤回并修改</button>` : `<span class="hint">等待审核，只读</span>`;
+  if (status === "submitted" && !canReview()) return ownBlock ? `<button class="btn ghost workflow-action" data-action="reopen" ${busy ? "disabled" : ""}>${t("撤回并修改")}</button>` : `<span class="hint">${t("等待审核，只读")}</span>`;
   if (status === "submitted") {
     const reviewDisabled = busy || state.annotationsLoadedFor !== state.asset.id;
-    return `<button class="btn primary workflow-action" data-action="approve" title="审核通过并自动进入下一张待审核图片（Y）" ${reviewDisabled ? "disabled" : ""}>审核通过 <kbd>Y</kbd></button><button class="btn danger workflow-action" data-action="reject" title="退回修改，原因可选（X）" ${reviewDisabled ? "disabled" : ""}>退回修改 <kbd>X</kbd></button><button class="btn ghost workflow-action" data-action="reopen" ${busy ? "disabled" : ""}>撤回审核</button>`;
+    return `<button class="btn primary workflow-action" data-action="approve" title="${ta("审核通过并自动进入下一张待审核图片（Y）")}" ${reviewDisabled ? "disabled" : ""}>${t("审核通过")} <kbd>Y</kbd></button><button class="btn danger workflow-action" data-action="reject" title="${ta("退回修改，原因可选（X）")}" ${reviewDisabled ? "disabled" : ""}>${t("退回修改")} <kbd>X</kbd></button><button class="btn ghost workflow-action" data-action="reopen" ${busy ? "disabled" : ""}>${t("撤回审核")}</button>`;
   }
-  if (status === "approved" && !canReview()) return `<span class="hint">已通过审核，只读</span>`;
-  if (status === "approved") return `<button class="btn ghost workflow-action" data-action="reopen" ${busy ? "disabled" : ""}>重新打开修改</button>`;
+  if (status === "approved" && !canReview()) return `<span class="hint">${t("已通过审核，只读")}</span>`;
+  if (status === "approved") return `<button class="btn ghost workflow-action" data-action="reopen" ${busy ? "disabled" : ""}>${t("重新打开修改")}</button>`;
   return "";
 }
 
@@ -2640,10 +2675,10 @@ function refreshWorkflowState() {
 }
 
 function canvasMarkup() {
-  if (!state.asset) return `<div class="canvas-empty"><span class="card-icon">${icon("image")}</span><strong>上传图片开始标注</strong><p>支持 JPG、PNG、WEBP、BMP 和 ZIP 数据集</p><button class="btn primary" id="empty-upload">${icon("upload")}上传数据</button></div>`;
+  if (!state.asset) return `<div class="canvas-empty"><span class="card-icon">${icon("image")}</span><strong>${t("上传图片开始标注")}</strong><p>${t("支持 JPG、PNG、WEBP、BMP 和 ZIP 数据集")}</p><button class="btn primary" id="empty-upload">${t("{0}上传数据", [icon("upload")])}</button></div>`;
   const asset = state.asset;
   return `<div class="canvas-stage"><div class="canvas-frame" data-asset-id="${asset.id}">
-    <svg id="annotation-canvas" class="canvas-svg tool-${state.tool}" viewBox="0 0 ${asset.width} ${asset.height}" xmlns="http://www.w3.org/2000/svg" aria-label="${escapeHtml(asset.filename)} 的图片和标注">
+    <svg id="annotation-canvas" class="canvas-svg tool-${state.tool}" viewBox="0 0 ${asset.width} ${asset.height}" xmlns="http://www.w3.org/2000/svg" aria-label="${ta("{0} 的图片和标注", [escapeHtml(asset.filename)])}">
       <image href="/api/assets/${asset.id}/image" x="0" y="0" width="${asset.width}" height="${asset.height}" />
       <g id="shape-layer">${shapesMarkup()}</g><g id="draft-layer"></g>
     </svg></div></div>`;
@@ -2680,11 +2715,12 @@ function shapesMarkup() {
     }
     if (item.shape_type === "keypoints") handles += keypointShapesMarkup(item, isSelected);
     if (isSelected) selectedHandles = handles;
-    return `${shape}<g class="label-chip" data-annotation-id="${item.id}" role="button" tabindex="0" aria-label="选择 ${escapeHtml(item.label_name)} 对象"><title>点击选择对象，右键可修改类别和边界</title><rect x="${x}" y="${Math.max(0, y - chipHeight)}" width="${width}" height="${chipHeight}" rx="${3 * screenScale}" fill="${color}"/><text x="${x + 7 * screenScale}" y="${Math.max(15 * screenScale, y - 7 * screenScale)}" font-size="${fontSize}" font-family="sans-serif" fill="#07100d">${escapeHtml(item.label_name)}</text></g>${isSelected ? "" : handles}`;
+    return `${shape}<g class="label-chip" data-annotation-id="${item.id}" role="button" tabindex="0" aria-label="${ta("选择 {0} 对象", [escapeHtml(item.label_name)])}"><title>${t("点击选择对象，右键可修改类别和边界")}</title><rect x="${x}" y="${Math.max(0, y - chipHeight)}" width="${width}" height="${chipHeight}" rx="${3 * screenScale}" fill="${color}"/><text x="${x + 7 * screenScale}" y="${Math.max(15 * screenScale, y - 7 * screenScale)}" font-size="${fontSize}" font-family="sans-serif" fill="#07100d">${escapeHtml(item.label_name)}</text></g>${isSelected ? "" : handles}`;
   }).join("") + `<g class="selected-shape-handles">${selectedHandles}</g>`;
 }
 
 function canEditCurrentAsset() {
+  if (!canEditProject()) return false;
   return Boolean(
     state.asset && state.lockOwned && !state.readOnly && !state.savingAnnotation && !state.workflowBusy
     && !state.legacyReviewAssetId && (!state.activeWorkBlock || state.activeWorkBlock.is_mine)
@@ -2704,24 +2740,24 @@ function annotationContextGuard() {
 }
 
 function canvasStatusHint() {
-  if (state.pan) return "正在移动图片，松开鼠标结束；标注位置不会改变";
-  if (state.tool === "pan") return "拖动图片查看细节 · 滚轮缩放 · V 返回标注校正";
-  if (state.savingAnnotation) return "正在保存标注修改，请稍候…";
-  if (state.asset?.review_status === "submitted") return canReview() ? "请检查结果，再通过或退回修改" : "已提交，等待审核员确认";
-  if (state.asset?.review_status === "approved") return "审核已通过；需要修改时请先重新打开";
-  if (state.readOnly) return state.readOnlyReason || "暂不可编辑，请先处理下一张";
-  if (state.keypointPlacement != null) return "在画布点击定位选中的关键点";
-  if (state.poseDraft) return `请定位：${state.project.keypoint_schema.names[state.poseDraft.nextIndex] || "保存对象"}`;
-  if (state.tool === "keypoints") return "先拖动框选对象，再按名称顺序点击关键点";
-  if (projectTask() === "classify") return "选择图片类别或按数字键 · 自动保存 · A / D 切换图片";
-  if (projectTask() === "pose") return "拖动关键点校正 · K 补充对象 · Delete / ⌫ 删除";
-  if (state.savingAnnotation) return "正在保存标注修改…";
-  if (state.shapeEdit) return state.shapeEdit.handleIndex == null ? "正在移动对象，松开鼠标保存" : "正在调整边界点，松开鼠标保存";
-  if (state.tool === "rectangle") return "十字线辅助定位 · 左键拖动绘制 · 右键选择已有对象";
-  if (state.tool === "polygon") return `单击添加顶点（已有 ${state.polygon.length / 2} 个） · 点击起点/双击/Enter 完成 · Backspace 撤销顶点`;
-  if (["positive", "negative"].includes(state.tool)) return `已添加 ${state.assistPoints.length} 个交互提示点 · Esc 清空`;
-  if (state.selectedAnnotation && state.selectionIntent && canEditCurrentAsset()) return "数字键改类别 · Delete / ⌫ 删除 · Esc 取消选中";
-  return "点击类别标签或按 V 选择对象，再修改或删除 · ? 查看快捷键";
+  if (state.pan) return t("正在移动图片，松开鼠标结束；标注位置不会改变");
+  if (state.tool === "pan") return t("拖动图片查看细节 · 滚轮缩放 · V 返回标注校正");
+  if (state.savingAnnotation) return t("正在保存标注修改，请稍候…");
+  if (state.asset?.review_status === "submitted") return canReview() ? t("请检查结果，再通过或退回修改") : t("已提交，等待审核员确认");
+  if (state.asset?.review_status === "approved") return t("审核已通过；需要修改时请先重新打开");
+  if (state.readOnly) return state.readOnlyReason || t("暂不可编辑，请先处理下一张");
+  if (state.keypointPlacement != null) return t("在画布点击定位选中的关键点");
+  if (state.poseDraft) return t("请定位：{0}", [state.project.keypoint_schema.names[state.poseDraft.nextIndex] || t("保存对象")]);
+  if (state.tool === "keypoints") return t("先拖动框选对象，再按名称顺序点击关键点");
+  if (projectTask() === "classify") return t("选择图片类别或按数字键 · 自动保存 · A / D 切换图片");
+  if (projectTask() === "pose") return t("拖动关键点校正 · K 补充对象 · Delete / ⌫ 删除");
+  if (state.savingAnnotation) return t("正在保存标注修改…");
+  if (state.shapeEdit) return state.shapeEdit.handleIndex == null ? t("正在移动对象，松开鼠标保存") : t("正在调整边界点，松开鼠标保存");
+  if (state.tool === "rectangle") return t("十字线辅助定位 · 左键拖动绘制 · 右键选择已有对象");
+  if (state.tool === "polygon") return t("单击添加顶点（已有 {0} 个） · 点击起点/双击/Enter 完成 · Backspace 撤销顶点", [state.polygon.length / 2]);
+  if (["positive", "negative"].includes(state.tool)) return t("已添加 {0} 个交互提示点 · Esc 清空", [state.assistPoints.length]);
+  if (state.selectedAnnotation && state.selectionIntent && canEditCurrentAsset()) return t("数字键改类别 · Delete / ⌫ 删除 · Esc 取消选中");
+  return t("点击类别标签或按 V 选择对象，再修改或删除 · ? 查看快捷键");
 }
 
 function inspectorMarkup() {
@@ -2731,9 +2767,9 @@ function inspectorMarkup() {
   const selected = state.selectedAnnotation;
   const editingSelected = state.selectionIntent && selected && projectTask() !== "classify";
   const pendingLabel = state.pendingObjectEdit && state.pendingObjectEdit.annotationId === selected?.id ? state.pendingObjectEdit.labelId : null;
-  return `${editingSelected ? "" : taskInspectorMarkup()}<section class="inspector-section"><h3>${editingSelected ? "修改选中对象类别" : projectTask() === "classify" ? "选择图片类别" : "选择新对象类别"}</h3>${state.project.labels.map((label) => `<div class="label-row ${(editingSelected ? (pendingLabel || selected.label_id) : state.activeLabel?.id) === label.id ? "active" : ""}" data-label-id="${label.id}" role="button" tabindex="0" aria-label="选择类别 ${escapeHtml(label.name)}"><span class="swatch" style="background:${label.color}"></span><span>${escapeHtml(label.name)}</span>${label.shortcut ? `<span class="shortcut">${escapeHtml(label.shortcut)}</span>` : ""}${isAdmin() && state.project.labels.length > 1 ? `<button class="label-delete" data-delete-label="${label.id}" title="删除类别">×</button>` : ""}</div>`).join("")}${isAdmin() ? `<button class="btn ghost inline-add" id="add-label">${icon("plus")}添加类别</button>` : `<p class="hint">需要新类别？请联系管理员添加。</p>`}</section>
-  <section class="inspector-section"><h3>当前图片 · ${state.annotations.length} 个对象</h3>${state.annotations.length ? state.annotations.map((item, index) => `<div class="annotation-row ${selected?.id === item.id ? "active" : ""}" data-annotation-id="${item.id}" role="button" tabindex="0" aria-label="选择对象 ${index + 1} ${escapeHtml(item.label_name)}"><span class="swatch" style="background:${item.label_color}"></span><span>${index + 1}. ${escapeHtml(item.label_name)}</span><span class="source-pill ${item.source}">${item.human_modified ? "已校正" : item.source === "manual" ? "人工" : item.source === "auto" ? "AI" : "辅助"}</span></div>`).join("") : `<p class="hint">还没有标注。选择画布左侧的工具即可开始；也可以使用 AI 标注。</p>`}</section>
-  ${selected ? `<section class="inspector-section"><h3>对象属性</h3>${pendingLabel ? `<p class="manual-draft-error" role="status">类别尚未保存：${escapeHtml(state.project.labels.find(label => label.id === pendingLabel)?.name || "所选类别")}。请重试保存或重新加载核对。</p>` : ""}${canEditCurrentAsset() && selected.shape_type !== "classification" ? `<div class="direct-edit-hint">可在画布中直接拖动对象，或拖动白色控制点调整边界。</div>` : ""}<details class="technical-details"><summary>查看标注来源与置信度</summary><p class="hint">置信度表示 AI 对结果的把握程度，仍需人工检查。</p><div class="property-grid"><div class="property"><small>来源</small><strong>${selected.model_id ? escapeHtml(selected.model_id) : "人工"}</strong></div><div class="property"><small>置信度</small><strong>${selected.confidence == null ? "—" : `${Math.round(selected.confidence * 100)}%`}</strong></div></div></details><div class="field compact"><label>标签（选择后自动保存）</label><select id="annotation-label" ${canEditCurrentAsset() && !hasAnnotationDraft() ? "" : "disabled"}>${state.project.labels.map(label => `<option value="${label.id}" ${label.id === (pendingLabel || selected.label_id) ? "selected" : ""}>${escapeHtml(label.name)}</option>`).join("")}</select></div>${keypointInspectorMarkup(selected)}${structuredAttributesMarkup(selected)}<details class="advanced-coordinates advanced-settings"><summary>高级：精确坐标与自定义属性</summary><div class="field compact" ${selected.shape_type === "classification" ? "hidden" : ""}><label>坐标（像素，逗号分隔）</label><textarea id="annotation-points" rows="3">${escapeHtml(state.advancedDraft?.annotationId === selected.id ? state.advancedDraft.points : selected.points.join(", "))}</textarea></div><div class="field compact"><label>属性 JSON</label><textarea id="annotation-attributes" rows="4">${escapeHtml(state.advancedDraft?.annotationId === selected.id ? state.advancedDraft.attributes : JSON.stringify(selected.attributes || {}, null, 2))}</textarea></div><button class="btn primary" id="save-annotation" ${canEditCurrentAsset() ? "" : "disabled"}>应用高级修改</button></details></section>` : ""}`;
+  return `${editingSelected ? "" : taskInspectorMarkup()}<section class="inspector-section"><h3>${editingSelected ? t("修改选中对象类别") : projectTask() === "classify" ? t("选择图片类别") : t("选择新对象类别")}</h3>${state.project.labels.map((label) => `<div class="label-row ${(editingSelected ? (pendingLabel || selected.label_id) : state.activeLabel?.id) === label.id ? "active" : ""}" data-label-id="${label.id}" role="button" tabindex="0" aria-label="${ta("选择类别 {0}", [escapeHtml(label.name)])}"><span class="swatch" style="background:${label.color}"></span><span>${escapeHtml(label.name)}</span>${label.shortcut ? `<span class="shortcut">${escapeHtml(label.shortcut)}</span>` : ""}${canEditProject() && state.project.labels.length > 1 ? `<button class="label-delete" data-delete-label="${label.id}" title="${ta("删除类别")}">×</button>` : ""}</div>`).join("")}${canEditProject() ? `<button class="btn ghost inline-add" id="add-label">${t("{0}添加类别", [icon("plus")])}</button>` : `<p class="hint">${t("需要新类别？请联系管理员添加。")}</p>`}</section>
+  <section class="inspector-section"><h3>${t("当前图片 · {0} 个对象", [state.annotations.length])}</h3>${state.annotations.length ? state.annotations.map((item, index) => `<div class="annotation-row ${selected?.id === item.id ? "active" : ""}" data-annotation-id="${item.id}" role="button" tabindex="0" aria-label="${ta("选择对象 {0} {1}", [index + 1, escapeHtml(item.label_name)])}"><span class="swatch" style="background:${item.label_color}"></span><span>${index + 1}. ${escapeHtml(item.label_name)}</span><span class="source-pill ${item.source}">${item.human_modified ? t("已校正") : item.source === "manual" ? t("人工") : item.source === "auto" ? "AI" : t("辅助")}</span></div>`).join("") : `<p class="hint">${t("还没有标注。选择画布左侧的工具即可开始；也可以使用 AI 标注。")}</p>`}</section>
+  ${selected ? `<section class="inspector-section"><h3>${t("对象属性")}</h3>${pendingLabel ? `<p class="manual-draft-error" role="status">${t("类别尚未保存：{0}。请重试保存或重新加载核对。", [escapeHtml(state.project.labels.find(label => label.id === pendingLabel)?.name || t("所选类别"))])}</p>` : ""}${canEditCurrentAsset() && selected.shape_type !== "classification" ? `<div class="direct-edit-hint">${t("可在画布中直接拖动对象，或拖动白色控制点调整边界。")}</div>` : ""}<details class="technical-details"><summary>${t("查看标注来源与置信度")}</summary><p class="hint">${t("置信度表示 AI 对结果的把握程度，仍需人工检查。")}</p><div class="property-grid"><div class="property"><small>${t("来源")}</small><strong>${selected.model_id ? escapeHtml(selected.model_id) : t("人工")}</strong></div><div class="property"><small>${t("置信度")}</small><strong>${selected.confidence == null ? "—" : `${Math.round(selected.confidence * 100)}%`}</strong></div></div></details><div class="field compact"><label>${t("标签（选择后自动保存）")}</label><select id="annotation-label" ${canEditCurrentAsset() && !hasAnnotationDraft() ? "" : "disabled"}>${state.project.labels.map(label => `<option value="${label.id}" ${label.id === (pendingLabel || selected.label_id) ? "selected" : ""}>${escapeHtml(label.name)}</option>`).join("")}</select></div>${keypointInspectorMarkup(selected)}${structuredAttributesMarkup(selected)}<details class="advanced-coordinates advanced-settings"><summary>${t("高级：精确坐标与自定义属性")}</summary><div class="field compact" ${selected.shape_type === "classification" ? "hidden" : ""}><label>${t("坐标（像素，逗号分隔）")}</label><textarea id="annotation-points" rows="3">${escapeHtml(state.advancedDraft?.annotationId === selected.id ? state.advancedDraft.points : selected.points.join(", "))}</textarea></div><div class="field compact"><label>${t("属性 JSON")}</label><textarea id="annotation-attributes" rows="4">${escapeHtml(state.advancedDraft?.annotationId === selected.id ? state.advancedDraft.attributes : JSON.stringify(selected.attributes || {}, null, 2))}</textarea></div><button class="btn primary" id="save-annotation" ${canEditCurrentAsset() ? "" : "disabled"}>${t("应用高级修改")}</button></details></section>` : ""}`;
 }
 
 function structuredAttributesMarkup(annotation) {
@@ -2741,7 +2777,7 @@ function structuredAttributesMarkup(annotation) {
   const properties = label?.attributes_schema?.properties || {};
   const entries = Object.entries(properties);
   if (!entries.length) return "";
-  return `<div class="structured-attributes"><h4>结构化属性</h4>${entries.map(([name, rule]) => {
+  return `<div class="structured-attributes"><h4>${t("结构化属性")}</h4>${entries.map(([name, rule]) => {
     const value = annotation.attributes?.[name] ?? rule.default ?? "";
     if (rule.enum) return `<label><span>${escapeHtml(name)}</span><select data-attribute-name="${escapeHtml(name)}" data-attribute-type="${escapeHtml(rule.type || "string")}" ${canEditCurrentAsset() ? "" : "disabled"}>${rule.enum.map(option => `<option value="${escapeHtml(JSON.stringify(option))}" ${option === value ? "selected" : ""}>${escapeHtml(String(option))}</option>`).join("")}</select></label>`;
     if (rule.type === "boolean") return `<label class="attribute-boolean"><input type="checkbox" data-attribute-name="${escapeHtml(name)}" data-attribute-type="boolean" ${value ? "checked" : ""} ${canEditCurrentAsset() ? "" : "disabled"}/><span>${escapeHtml(name)}</span></label>`;
@@ -2750,24 +2786,24 @@ function structuredAttributesMarkup(annotation) {
 }
 
 function reviewMarkup() {
-  if (!state.asset) return `<section class="inspector-section"><p class="hint">选择图片后查看审核信息。</p></section>`;
+  if (!state.asset) return `<section class="inspector-section"><p class="hint">${t("选择图片后查看审核信息。")}</p></section>`;
   const reason = state.asset.review_reason;
-  return `<section class="inspector-section"><h3>当前审核状态</h3><div class="review-summary"><span class="review-badge ${state.asset.review_status}">${reviewStatusName(state.asset.review_status)}</span><strong>${state.annotations.length} 个对象</strong></div>${reason ? `<div class="review-reason"><strong>最近反馈</strong><p>${escapeHtml(reason)}</p></div>` : `<p class="hint">当前没有审核反馈。</p>`}${workflowControlsMarkup()}</section><section class="inspector-section"><h3>审核历史</h3>${state.reviewEvents.length ? state.reviewEvents.map(event => `<div class="review-event"><span class="status-dot"></span><div><strong>${reviewStatusName(event.from_status)} → ${reviewStatusName(event.to_status)}</strong>${event.reason ? `<p>${escapeHtml(event.reason)}</p>` : ""}<small>${escapeHtml(event.actor)} · ${new Date(event.created_at).toLocaleString()}</small></div></div>`).join("") : `<p class="hint">暂无审核状态变更。</p>`}</section>`;
+  return `<section class="inspector-section"><h3>${t("当前审核状态")}</h3><div class="review-summary"><span class="review-badge ${state.asset.review_status}">${reviewStatusName(state.asset.review_status)}</span><strong>${t("{0} 个对象", [state.annotations.length])}</strong></div>${reason ? `<div class="review-reason"><strong>${t("最近反馈")}</strong><p>${escapeHtml(reason)}</p></div>` : `<p class="hint">${t("当前没有审核反馈。")}</p>`}${workflowControlsMarkup()}</section><section class="inspector-section"><h3>${t("审核历史")}</h3>${state.reviewEvents.length ? state.reviewEvents.map(event => `<div class="review-event"><span class="status-dot"></span><div><strong>${reviewStatusName(event.from_status)} → ${reviewStatusName(event.to_status)}</strong>${event.reason ? `<p>${escapeHtml(event.reason)}</p>` : ""}<small>${escapeHtml(event.actor)} · ${new Date(event.created_at).toLocaleString(getLocale())}</small></div></div>`).join("") : `<p class="hint">${t("暂无审核状态变更。")}</p>`}</section>`;
 }
 
 function auditMarkup() {
-  const actionNames = { create: "创建", update: "更新", delete: "删除", upload: "上传", enqueue: "创建任务", complete: "任务完成", retry: "任务重试", fail: "任务失败", submit: "提交审核", approve: "审核通过", reject: "审核驳回", reopen: "重新打开", cancel: "取消任务" };
-  return `<section class="inspector-section"><h3>最近审计事件</h3>${state.auditLogs.length ? state.auditLogs.map(row => `<div class="audit-row"><div><strong>${escapeHtml(actionNames[row.action] || row.action)}</strong><span>${escapeHtml(row.resource_type)} #${escapeHtml(row.resource_id)}</span></div><small>${escapeHtml(row.actor)} · ${new Date(row.created_at).toLocaleString()}</small></div>`).join("") : `<p class="hint">当前项目暂无审计事件。</p>`}</section>`;
+  const actionNames = { create: t("创建"), update: t("更新"), delete: t("删除"), upload: t("上传"), enqueue: t("创建任务"), complete: t("任务完成"), retry: t("任务重试"), fail: t("任务失败"), submit: t("提交审核"), approve: t("审核通过"), reject: t("审核驳回"), reopen: t("重新打开"), cancel: t("取消任务") };
+  return `<section class="inspector-section"><h3>${t("最近审计事件")}</h3>${state.auditLogs.length ? state.auditLogs.map(row => `<div class="audit-row"><div><strong>${escapeHtml(actionNames[row.action] || row.action)}</strong><span>${escapeHtml(row.resource_type)} #${escapeHtml(row.resource_id)}</span></div><small>${escapeHtml(row.actor)} · ${new Date(row.created_at).toLocaleString(getLocale())}</small></div>`).join("") : `<p class="hint">${t("当前项目暂无审计事件。")}</p>`}</section>`;
 }
 
 function jobsMarkup() {
-  return `<section class="inspector-section"><h3>AI 标注任务</h3>${state.jobs.length ? state.jobs.map((job) => {
+  return `<section class="inspector-section"><h3>${t("AI 标注任务")}</h3>${state.jobs.length ? state.jobs.map((job) => {
     const progress = job.total ? Math.round(job.processed / job.total * 100) : 0;
     const model = state.models.find(m => m.id === job.model_id);
-    const statusName = { queued: "排队中", running: "运行中", completed: "已完成", failed: "失败", cancelled: "已取消" }[job.status] || job.status;
+    const statusName = { queued: t("排队中"), running: t("运行中"), completed: t("已完成"), failed: t("失败"), cancelled: t("已取消") }[job.status] || job.status;
     const targets = job.settings?.target_labels || [];
-    return `<div class="job-row"><div class="job-head"><strong>${escapeHtml(model?.name || job.model_id)}</strong><span class="job-status ${job.status}">${statusName}</span></div>${targets.length ? `<div class="job-targets">目标：${targets.map(escapeHtml).join("、")}</div>` : ""}<div class="card-meta" style="padding:0;border:0"><span>${job.processed}/${job.total || "?"} 图片 · ${job.created_count} 标注</span><span>${progress}%</span></div><div class="progress-mini" style="width:100%;margin-top:7px"><span style="width:${progress}%"></span></div>${job.progress_message ? `<div class="hint">${escapeHtml(job.progress_message)}</div>` : ""}${job.error ? `<div class="job-error">${escapeHtml(job.error)}</div>` : ""}<div class="job-actions">${["queued", "running"].includes(job.status) ? `<button class="mini-action" data-cancel-job="${job.id}">取消</button>` : ""}${["failed", "cancelled"].includes(job.status) ? `<button class="mini-action" data-retry-job="${job.id}">重试</button>` : ""}</div></div>`;
-  }).join("") : `<p class="hint">还没有任务。点击画布左侧的“AI 标注”选择模型并创建任务。</p>`}</section>`;
+    return `<div class="job-row"><div class="job-head"><strong>${escapeHtml(model?.name || job.model_id)}</strong><span class="job-status ${job.status}">${statusName}</span></div>${targets.length ? `<div class="job-targets">${t("目标：{0}", [targets.map(escapeHtml).join(t("、"))])}</div>` : ""}<div class="card-meta" style="padding:0;border:0"><span>${t("{0}/{1} 图片 · {2} 标注", [job.processed, job.total || "?", job.created_count])}</span><span>${progress}%</span></div><div class="progress-mini" style="width:100%;margin-top:7px"><span style="width:${progress}%"></span></div>${job.progress_message ? `<div class="hint">${escapeHtml(job.progress_message)}</div>` : ""}${job.error ? `<div class="job-error">${escapeHtml(job.error)}</div>` : ""}<div class="job-actions">${["queued", "running"].includes(job.status) ? `<button class="mini-action" data-cancel-job="${job.id}">${t("取消")}</button>` : ""}${["failed", "cancelled"].includes(job.status) ? `<button class="mini-action" data-retry-job="${job.id}">${t("重试")}</button>` : ""}</div></div>`;
+  }).join("") : `<p class="hint">${t("还没有任务。点击画布左侧的“AI 标注”选择模型并创建任务。")}</p>`}</section>`;
 }
 
 function jobActivityMarkup() {
@@ -2775,11 +2811,11 @@ function jobActivityMarkup() {
   if (!job) return "";
   const progress = job.total ? Math.round(job.processed / job.total * 100) : 0;
   const queuedWithoutWorker = job.status === "queued" && state.health?.annotation_workers?.status !== "online";
-  const title = queuedWithoutWorker ? "等待标注服务就绪" : job.status === "queued" ? "AI 标注任务已排队" : "AI 正在标注";
+  const title = queuedWithoutWorker ? t("等待标注服务就绪") : job.status === "queued" ? t("AI 标注任务已排队") : t("AI 正在标注");
   const message = queuedWithoutWorker
-    ? "任务已保存。请联系管理员启动标注服务，服务就绪后将继续处理。"
-    : job.progress_message || "正在准备模型服务";
-  return `<div class="job-activity ${job.status}"><span class="job-activity-icon">${icon("magic")}</span><div class="job-activity-copy"><strong>${title}</strong><span>${escapeHtml(message)} · ${job.processed}/${job.total || "?"} 张图片 · ${job.created_count} 个标注</span></div><div class="job-activity-progress"><span>${progress}%</span><div class="progress-mini"><span style="width:${progress}%"></span></div></div><button class="mini-action" id="open-job-inspector">查看任务</button></div>`;
+    ? t("任务已保存。请联系管理员启动标注服务，服务就绪后将继续处理。")
+    : job.progress_message || t("正在准备模型服务");
+  return `<div class="job-activity ${job.status}"><span class="job-activity-icon">${icon("magic")}</span><div class="job-activity-copy"><strong>${title}</strong><span>${t("{0} · {1}/{2} 张图片 · {3} 个标注", [escapeHtml(message), job.processed, job.total || "?", job.created_count])}</span></div><div class="job-activity-progress"><span>${progress}%</span><div class="progress-mini"><span style="width:${progress}%"></span></div></div><button class="mini-action" id="open-job-inspector">${t("查看任务")}</button></div>`;
 }
 
 function refreshJobActivity() {
@@ -2790,7 +2826,7 @@ function refreshJobActivity() {
     renderWorkspace();
   });
   const jobsTab = document.querySelector('[data-tab="jobs"]');
-  if (jobsTab) jobsTab.textContent = `任务 ${runningJobCount() ? `(${runningJobCount()})` : ""}`;
+  if (jobsTab) jobsTab.textContent = t("任务 {0}", [runningJobCount() ? `(${runningJobCount()})` : ""]);
 }
 
 function bindWorkspaceEvents() {
@@ -2845,7 +2881,7 @@ function bindWorkspaceEvents() {
   document.querySelector("#actual-size-canvas")?.addEventListener("click", () => setCanvasZoom(1));
   document.querySelector("#zoom-in")?.addEventListener("click", () => setCanvasZoom(state.zoom * 1.25));
   document.querySelector("#zoom-out")?.addEventListener("click", () => setCanvasZoom(state.zoom / 1.25));
-  document.querySelector("#toggle-annotations")?.addEventListener("click", () => { state.showAnnotations = !state.showAnnotations; refreshShapes(); const button = document.querySelector("#toggle-annotations"); if (button) { button.textContent = state.showAnnotations ? "隐藏标注" : "显示标注"; button.setAttribute("aria-pressed", String(state.showAnnotations)); } });
+  document.querySelector("#toggle-annotations")?.addEventListener("click", () => { state.showAnnotations = !state.showAnnotations; refreshShapes(); const button = document.querySelector("#toggle-annotations"); if (button) { button.textContent = state.showAnnotations ? t("隐藏标注") : t("显示标注"); button.setAttribute("aria-pressed", String(state.showAnnotations)); } });
   document.querySelector("#previous-asset")?.addEventListener("click", () => navigateAsset(-1));
   document.querySelector("#next-asset")?.addEventListener("click", () => navigateAsset(1));
   document.querySelector("#save-next")?.addEventListener("click", () => navigateAsset(1, true));
@@ -3029,9 +3065,9 @@ function applyAnnotationLayout() {
   const focus = document.querySelector("#toggle-focus");
   if (focus) {
     focus.setAttribute("aria-pressed", String(state.annotationFocus));
-    focus.setAttribute("aria-label", state.annotationFocus ? "退出专注标注" : "专注标注");
-    focus.title = state.annotationFocus ? "恢复导航和侧栏" : "收起导航和侧栏，扩大画布";
-    focus.querySelector("span").textContent = state.annotationFocus ? "退出专注" : "专注标注";
+    focus.setAttribute("aria-label", state.annotationFocus ? t("退出专注标注") : t("专注标注"));
+    focus.title = state.annotationFocus ? t("恢复导航和侧栏") : t("收起导航和侧栏，扩大画布");
+    focus.querySelector("span").textContent = state.annotationFocus ? t("退出专注") : t("专注标注");
   }
   document.querySelector("#canvas-scroll")?.focus({ preventScroll: true });
 }
@@ -3070,7 +3106,7 @@ async function navigateAsset(offset, skipReviewed = false) {
     if (candidates.has(state.assets[index].id)) { await selectAsset(state.assets[index].id); return; }
     index += offset;
   }
-  notify(offset > 0 ? "当前筛选已到最后一张" : "当前筛选已到第一张");
+  notify(offset > 0 ? t("当前筛选已到最后一张") : t("当前筛选已到第一张"));
 }
 
 function bindCanvasEvents() {
@@ -3117,11 +3153,11 @@ function svgPoint(event) {
 function onCanvasPointerDown(event) {
   if (event.button !== 0 || event.isPrimary === false || state.pan || isCanvasPanGesture(event) || annotationOverlayOpen()) return;
   if (state.savingAnnotation || state.workflowBusy) return;
-  if ((state.pendingAnnotation && !state.poseDraft) || state.pendingTaskEdit || state.pendingObjectEdit || state.advancedAnnotationDirty) return notify("请先保存当前修改，或取消未保存草稿。", "warning");
+  if ((state.pendingAnnotation && !state.poseDraft) || state.pendingTaskEdit || state.pendingObjectEdit || state.advancedAnnotationDirty) return notify(t("请先保存当前修改，或取消未保存草稿。"), "warning");
   event.preventDefault();
   document.querySelector("#canvas-scroll")?.focus({ preventScroll: true });
-  if (!state.activeLabel) return notify("请先选择标签", "error");
-  if (["rectangle", "polygon", "keypoints", "positive", "negative"].includes(state.tool) && (state.readOnly || !state.lockOwned || ["submitted", "approved"].includes(state.asset?.review_status))) return notify("当前图片不可编辑", "error");
+  if (!state.activeLabel) return notify(t("请先选择标签"), "error");
+  if (["rectangle", "polygon", "keypoints", "positive", "negative"].includes(state.tool) && (state.readOnly || !state.lockOwned || ["submitted", "approved"].includes(state.asset?.review_status))) return notify(t("当前图片不可编辑"), "error");
   const point = svgPoint(event);
   if (canEditCurrentAsset() && poseCanvasClick(point)) return;
   if (state.tool === "select") { clearObjectSelection(); return; }
@@ -3186,7 +3222,7 @@ function startShapeEdit(event, annotationId, handleIndex) {
   const annotation = state.annotations.find(item => item.id === annotationId);
   if (!annotation) return;
   if (state.savingAnnotation || state.workflowBusy) return;
-  if (hasAnnotationDraft()) return notify("请先完成或取消当前草稿，再调整对象。", "warning");
+  if (hasAnnotationDraft()) return notify(t("请先完成或取消当前草稿，再调整对象。"), "warning");
   state.selectedAnnotation = annotation; state.selectionIntent = true;
   document.querySelector("#canvas-scroll")?.focus({ preventScroll: true });
   if (!canEditCurrentAsset()) { refreshShapes(); refreshInspector(); return; }
@@ -3266,7 +3302,7 @@ async function finishShapeEdit(event) {
   } catch (error) {
     if (!current()) return;
     annotation.points = edit.original; annotation.keypoints = edit.originalKeypoints; state.selectedAnnotation = annotation;
-    setSaveFeedback("error", `${error.message} 本次修改未确认保存，请检查后重试。`);
+    setSaveFeedback("error", t("{0} 本次修改未确认保存，请检查后重试。", [error.message]));
   } finally {
     if (current()) { state.savingAnnotation = false; refreshShapes(); refreshInspector(); refreshCanvasStatus(); refreshWorkflowState(); }
   }
@@ -3320,7 +3356,7 @@ function drawDraft(cursor = null) {
 
 async function finishPolygon() {
   if (state.savingAnnotation || state.workflowBusy) return;
-  if (state.polygon.length < 6) return notify("至少添加 3 个顶点后再完成轮廓。", "warning");
+  if (state.polygon.length < 6) return notify(t("至少添加 3 个顶点后再完成轮廓。"), "warning");
   const points = state.polygon, current = annotationContextGuard();
   const saved = await saveAnnotation("polygon", [...points]);
   if (saved && current() && state.polygon === points) { state.polygon = []; drawDraft(); refreshWorkflowState(); }
@@ -3337,15 +3373,15 @@ function cancelDrawing(clearPrompts = false) {
   state.poseDraft = null; state.keypointPlacement = null; state.drawing = null; state.polygon = [];
   state.pendingAnnotation = null; state.pendingObjectEdit = null; state.advancedAnnotationDirty = false; state.advancedDraft = null;
   discardTaskSaveDraft();
-  if (failedDraft) setSaveFeedback("error", "本地草稿已放弃。请重新加载服务器结果，核对已保存的内容后继续。");
+  if (failedDraft) setSaveFeedback("error", t("本地草稿已放弃。请重新加载服务器结果，核对已保存的内容后继续。"));
   if (clearPrompts) state.assistPoints = [];
   drawDraft(); refreshInspector(); refreshWorkflowState();
 }
 
 async function saveAnnotation(shapeType, points, keypoints = [], labelId = null) {
-  if (!canEditCurrentAsset()) { notify("当前图片暂不可编辑，请先确认编辑权限或等待保存完成。", "warning"); return null; }
+  if (!canEditCurrentAsset()) { notify(t("当前图片暂不可编辑，请先确认编辑权限或等待保存完成。"), "warning"); return null; }
   const label = state.project.labels.find(item => item.id === (labelId || state.activeLabel?.id));
-  if (!label) { notify("请先选择标注类别。", "warning"); return null; }
+  if (!label) { notify(t("请先选择标注类别。"), "warning"); return null; }
   const current = annotationContextGuard(), assetId = state.asset.id;
   const pending = { ...(state.pendingAnnotation || { shapeType, labelId: label.id, attributes: defaultAttributes(label), expectedRevision: state.asset.revision }),
     points: [...points], keypoints: keypoints.map(item => ({...item})) };
@@ -3363,7 +3399,7 @@ async function saveAnnotation(shapeType, points, keypoints = [], labelId = null)
     refreshAssetQueueItem(assetId); setSaveFeedback("saved");
     return annotation;
   } catch (error) {
-    if (current()) { state.pendingAnnotation = pending; setSaveFeedback("error", `${error.message} 草稿已保留，可重试保存；若提示版本变化，请重新加载已保存结果核对。`); }
+    if (current()) { state.pendingAnnotation = pending; setSaveFeedback("error", t("{0} 草稿已保留，可重试保存；若提示版本变化，请重新加载已保存结果核对。", [error.message])); }
     return null;
   } finally {
     if (current()) { state.savingAnnotation = false; refreshShapes(); refreshInspector(); refreshCanvasStatus(); refreshWorkflowState(); }
@@ -3403,8 +3439,8 @@ function preloadNearbyAssets(assetId) {
 async function selectAsset(assetId, { duringWorkflow = false } = {}) {
   if (state.asset?.id === assetId) return;
   if (!state.assets.some(asset => asset.id === assetId)) return;
-  if (state.savingAnnotation || (state.workflowBusy && !duringWorkflow)) return notify("正在保存或更新审核状态，请稍候。", "warning");
-  if (hasAnnotationDraft()) return notify("当前还有未完成的标注，请先完成或按 Esc 取消，再切换图片。", "warning");
+  if (state.savingAnnotation || (state.workflowBusy && !duringWorkflow)) return notify(t("正在保存或更新审核状态，请稍候。"), "warning");
+  if (hasAnnotationDraft()) return notify(t("当前还有未完成的标注，请先完成或按 Esc 取消，再切换图片。"), "warning");
   const selectionEpoch = ++state.selectionEpoch;
   const previousAssetId = state.asset?.id;
   cancelShapeEdit();
@@ -3423,7 +3459,8 @@ async function selectAsset(assetId, { duringWorkflow = false } = {}) {
 
 async function acquireAssetLock(assetId, selectionEpoch = state.selectionEpoch, quiet = false) {
   clearInterval(state.lockTimer); state.lockTimer = null; state.lockOwned = false; state.readOnly = false; state.readOnlyReason = "";
-  if (state.legacyReviewAssetId) { state.readOnly = true; state.readOnlyReason = "请由管理员将这张历史图片加入任务块后再修改。"; return false; }
+  if (!canEditProject()) { state.readOnly = true; state.readOnlyReason = t("此项目为只读分享"); return false; }
+  if (state.legacyReviewAssetId) { state.readOnly = true; state.readOnlyReason = t("请由管理员将这张历史图片加入任务块后再修改。"); return false; }
   try {
     const lock = await api(`/api/assets/${assetId}/lock`, { method: "POST" });
     if (selectionEpoch !== state.selectionEpoch || state.asset?.id !== assetId) {
@@ -3436,13 +3473,13 @@ async function acquireAssetLock(assetId, selectionEpoch = state.selectionEpoch, 
     state.lockTimer = setInterval(async () => {
       if (!state.lockOwned || state.workflowBusy || state.asset?.id !== assetId || selectionEpoch !== state.selectionEpoch) return;
       try { await api(`/api/assets/${assetId}/lock`, { method: "POST" }); }
-      catch (error) { if (selectionEpoch !== state.selectionEpoch || state.asset?.id !== assetId) return; state.lockOwned = false; state.readOnly = true; state.readOnlyReason = `未能保持编辑权限：${error.message}`; renderWorkspace(); }
+      catch (error) { if (selectionEpoch !== state.selectionEpoch || state.asset?.id !== assetId) return; state.lockOwned = false; state.readOnly = true; state.readOnlyReason = t("未能保持编辑权限：{0}", [error.message]); renderWorkspace(); }
     }, 45000);
     return true;
   } catch (error) {
     if (selectionEpoch !== state.selectionEpoch || state.asset?.id !== assetId) return false;
     state.readOnly = true; state.readOnlyReason = error.message;
-    if (!quiet && !["submitted", "approved"].includes(state.asset?.review_status)) notify(`${error.message}，当前仅供查看。`, "warning");
+    if (!quiet && !["submitted", "approved"].includes(state.asset?.review_status)) notify(t("{0}，当前仅供查看。", [error.message]), "warning");
     return false;
   }
 }
@@ -3469,19 +3506,19 @@ function annotationToDelete() {
 }
 
 function annotationDeleteDisabledReason() {
-  if (!state.asset) return "请先选择图片";
-  if (state.savingAnnotation || state.workflowBusy) return "正在保存或更新审核状态，请稍候";
-  if (hasAnnotationDraft()) return "请先完成当前修改，或按 Esc 取消草稿";
+  if (!state.asset) return t("请先选择图片");
+  if (state.savingAnnotation || state.workflowBusy) return t("正在保存或更新审核状态，请稍候");
+  if (hasAnnotationDraft()) return t("请先完成当前修改，或按 Esc 取消草稿");
   if (!canEditCurrentAsset()) return ["submitted", "approved"].includes(state.asset.review_status)
-    ? "请先撤回提交或重新打开图片，再删除标注"
-    : state.readOnlyReason || "当前图片不可编辑";
-  if (!annotationToDelete()) return projectTask() === "classify" ? "这张图片尚未分类" : "先按 V 选择标注，或点击标注上的类别标签";
+    ? t("请先撤回提交或重新打开图片，再删除标注")
+    : state.readOnlyReason || t("当前图片不可编辑");
+  if (!annotationToDelete()) return projectTask() === "classify" ? t("这张图片尚未分类") : t("先按 V 选择标注，或点击标注上的类别标签");
   return "";
 }
 
 function annotationInspectorHeaderMarkup() {
   const selected = state.selectedAnnotation;
-  return `<span class="panel-title">标注详情</span><div class="inspector-object-actions">${selected && selected.shape_type !== "classification" ? `<button class="mini-action" id="selected-object-menu" title="选中对象的更多操作" ${hasAnnotationDraft() || state.savingAnnotation || state.workflowBusy ? "disabled" : ""}>更多</button>` : ""}${annotationToDelete() ? annotationDeleteButtonMarkup("delete-annotation") : ""}</div>`;
+  return `<span class="panel-title">${t("标注详情")}</span><div class="inspector-object-actions">${selected && selected.shape_type !== "classification" ? `<button class="mini-action" id="selected-object-menu" title="${ta("选中对象的更多操作")}" ${hasAnnotationDraft() || state.savingAnnotation || state.workflowBusy ? "disabled" : ""}>${t("更多")}</button>` : ""}${annotationToDelete() ? annotationDeleteButtonMarkup("delete-annotation") : ""}</div>`;
 }
 
 function bindInspectorObjectActions() {
@@ -3494,8 +3531,8 @@ function bindInspectorObjectActions() {
 
 function annotationDeleteButtonMarkup(id) {
   const reason = annotationDeleteDisabledReason();
-  const label = projectTask() === "classify" ? "清除类别" : "删除";
-  return `<button id="${id}" class="mini-action danger annotation-delete-action" data-delete-selected aria-keyshortcuts="Delete Backspace" title="${escapeHtml(reason || "删除当前标注，保留图片 (Delete / Backspace)")}" ${reason ? "disabled" : ""}>${icon("trash")}<span>${label}</span></button>`;
+  const label = projectTask() === "classify" ? t("清除类别") : t("删除");
+  return `<button id="${id}" class="mini-action danger annotation-delete-action" data-delete-selected aria-keyshortcuts="Delete Backspace" title="${escapeHtml(reason || t("删除当前标注，保留图片 (Delete / Backspace)"))}" ${reason ? "disabled" : ""}>${icon("trash")}<span>${label}</span></button>`;
 }
 
 function refreshAnnotationDeleteControls() {
@@ -3504,13 +3541,13 @@ function refreshAnnotationDeleteControls() {
   const reason = annotationDeleteDisabledReason();
   document.querySelectorAll("[data-delete-selected]").forEach(button => {
     button.disabled = Boolean(reason);
-    button.title = reason || "删除当前标注，保留图片 (Delete / Backspace)";
+    button.title = reason || t("删除当前标注，保留图片 (Delete / Backspace)");
     button.onclick = deleteSelectedAnnotation;
   });
 }
 
 function selectAnnotation(id) {
-  if (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft()) { notify("请先完成或取消当前修改，再选择其他对象。", "warning"); return false; }
+  if (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft()) { notify(t("请先完成或取消当前修改，再选择其他对象。"), "warning"); return false; }
   const selected = state.annotations.find(item => item.id === id);
   if (!selected) return false;
   state.selectedAnnotation = selected; state.selectionIntent = true; state.inspectorTab = "objects";
@@ -3545,7 +3582,7 @@ function continueManualDrawing() {
 }
 
 async function chooseNewAnnotationLabel(labelId) {
-  if (hasAnnotationDraft() || state.savingAnnotation || state.workflowBusy) { notify("请先完成或取消当前修改，再选择新对象类别。", "warning"); refreshInspector(); return; }
+  if (hasAnnotationDraft() || state.savingAnnotation || state.workflowBusy) { notify(t("请先完成或取消当前修改，再选择新对象类别。"), "warning"); refreshInspector(); return; }
   if (projectTask() !== "classify") { state.selectionIntent = false; state.selectedAnnotation = null; refreshShapes(); }
   await chooseTaskLabel(labelId); refreshCanvasStatus();
 }
@@ -3557,7 +3594,7 @@ async function chooseWorkspaceLabel(labelId) {
 
 async function changeObjectLabel(annotationId, labelId) {
   if (!canEditCurrentAsset() || hasAnnotationDraft()) {
-    notify(hasAnnotationDraft() ? "请先保存或取消当前修改，再更改对象类别。" : "当前图片不可编辑。", "warning"); refreshInspector(); return false;
+    notify(hasAnnotationDraft() ? t("请先保存或取消当前修改，再更改对象类别。") : t("当前图片不可编辑。"), "warning"); refreshInspector(); return false;
   }
   const annotation = state.annotations.find(item => item.id === annotationId), label = state.project.labels.find(item => item.id === labelId);
   if (!annotation || !label) return false;
@@ -3584,7 +3621,7 @@ async function persistObjectLabel(pending) {
   } catch (error) {
     if (pending.current() && state.pendingObjectEdit === pending) {
       pending.error = error.message;
-      setSaveFeedback("error", `类别修改未确认保存，已保留待保存的选择。可重试保存；若提示版本变化，请重新加载结果核对。${error.message}`);
+      setSaveFeedback("error", t("类别修改未确认保存，已保留待保存的选择。可重试保存；若提示版本变化，请重新加载结果核对。{0}", [error.message]));
       notify(error.message, "error");
     }
     return false;
@@ -3599,18 +3636,18 @@ function copyObject(id) {
   const annotation = state.annotations.find(item => item.id === id);
   if (!annotation || hasAnnotationDraft() || state.savingAnnotation || state.workflowBusy) return false;
   state.copiedAnnotation = { ...JSON.parse(JSON.stringify(annotation)), _copiedProjectId: state.project.id };
-  notify("已复制对象，可用 Ctrl / ⌘ + V 在本项目的可编辑图片上粘贴。");
+  notify(t("已复制对象，可用 Ctrl / ⌘ + V 在本项目的可编辑图片上粘贴。"));
   return true;
 }
 
 function openObjectMenu(annotations, selectedId, clientX, clientY) {
   if (annotationOverlayOpen() || state.pan || state.savingAnnotation || state.workflowBusy) return;
-  if (hasAnnotationDraft()) return notify("请先完成或取消当前草稿，再操作已有对象。", "warning");
+  if (hasAnnotationDraft()) return notify(t("请先完成或取消当前草稿，再操作已有对象。"), "warning");
   const targets = annotations.filter(Boolean);
   if (!targets.length) return;
   annotationMenuContext = { current: annotationContextGuard(), versions: new Map(targets.map(item => [item.id, item.version])) };
   annotationMenu?.open({ annotations: targets, selectedId, clientX, clientY,
-    readOnlyReason: canEditCurrentAsset() ? "" : state.readOnlyReason || "当前图片只读，可查看或复制对象。修改前需重新打开或获得编辑权限。" });
+    readOnlyReason: canEditCurrentAsset() ? "" : state.readOnlyReason || t("当前图片只读，可查看或复制对象。修改前需重新打开或获得编辑权限。") });
   canvasGuides?.refresh();
 }
 
@@ -3619,8 +3656,8 @@ function onCanvasContextMenu(event) {
   event.preventDefault(); event.stopPropagation();
   if (state.pan || state.savingAnnotation || state.workflowBusy || annotationOverlayOpen()) return;
   if (state.tool === "polygon" && state.polygon.length && !state.pendingAnnotation) { undoPolygonPoint(); return; }
-  if (hasAnnotationDraft()) return notify("请先完成或取消当前草稿，再操作已有对象。", "warning");
-  if (!state.showAnnotations) return notify("标注已隐藏，请先点击“显示标注”。", "warning");
+  if (hasAnnotationDraft()) return notify(t("请先完成或取消当前草稿，再操作已有对象。"), "warning");
+  if (!state.showAnnotations) return notify(t("标注已隐藏，请先点击“显示标注”。"), "warning");
   const svg = document.querySelector("#annotation-canvas"), matrix = svg?.getScreenCTM();
   if (!matrix || !state.asset) return;
   const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
@@ -3671,10 +3708,10 @@ function bindJobActionButtons() {
 function setTool(tool) {
   if (tool !== "pan" && !taskAllowsTool(tool)) return;
   if (state.savingAnnotation || state.workflowBusy) return;
-  if (["rectangle", "polygon", "keypoints", "positive", "negative"].includes(tool) && !canEditCurrentAsset()) return notify("当前图片不可编辑，请先按页面提示恢复编辑。", "warning");
+  if (["rectangle", "polygon", "keypoints", "positive", "negative"].includes(tool) && !canEditCurrentAsset()) return notify(t("当前图片不可编辑，请先按页面提示恢复编辑。"), "warning");
   const draftTool = state.poseDraft ? "keypoints" : state.polygon.length ? "polygon" : state.drawing ? "rectangle" : null;
   if (hasAnnotationDraft()) {
-    if (tool !== "pan" && tool !== draftTool && tool !== state.tool) return notify("请先完成当前标注，或按 Esc 取消草稿后再切换工具。", "warning");
+    if (tool !== "pan" && tool !== draftTool && tool !== state.tool) return notify(t("请先完成当前标注，或按 Esc 取消草稿后再切换工具。"), "warning");
     state.tool = tool; renderWorkspace(); return;
   }
   if (["rectangle", "polygon", "keypoints"].includes(tool)) state.lastDrawingTool = tool;
@@ -3689,13 +3726,13 @@ function startManualAnnotation() {
 
 async function updateWorkflow(action) {
   if (!state.asset || state.workflowBusy || state.savingAnnotation) return;
-  if (["approve", "reject"].includes(action) && state.annotationsLoadedFor !== state.asset.id) return notify("标注结果尚未加载完成，请稍候；若加载失败，请刷新页面后重试。", "warning");
-  if (hasAnnotationDraft()) return notify("请先完成或取消当前草稿，再更新审核状态。", "warning");
-  if (action === "submit" && state.saveFeedback.status === "error") return notify("修改尚未确认保存，请先重试保存或重新加载已保存结果。", "error");
+  if (["approve", "reject"].includes(action) && state.annotationsLoadedFor !== state.asset.id) return notify(t("标注结果尚未加载完成，请稍候；若加载失败，请刷新页面后重试。"), "warning");
+  if (hasAnnotationDraft()) return notify(t("请先完成或取消当前草稿，再更新审核状态。"), "warning");
+  if (action === "submit" && state.saveFeedback.status === "error") return notify(t("修改尚未确认保存，请先重试保存或重新加载已保存结果。"), "error");
   if (action === "confirm_empty") {
     const assetId = state.asset.id, revision = state.asset.revision;
-    openModal({ title: "确认图片中没有待标注目标", subtitle: "请检查整张图片。AI 没有检出目标，不等于图片中没有目标。", body: `<p>确认“${escapeHtml(state.asset.filename)}”中没有本项目需要标注的目标。确认后仍需提交审核。</p>`, submitText: "确认无目标", onSubmit: async () => {
-      if (state.asset?.id !== assetId || state.asset.revision !== revision) throw new Error("图片已更新，请关闭窗口并重新检查。");
+    openModal({ title: t("确认图片中没有待标注目标"), subtitle: t("请检查整张图片。AI 没有检出目标，不等于图片中没有目标。"), body: `<p>${t("确认“{0}”中没有本项目需要标注的目标。确认后仍需提交审核。", [escapeHtml(state.asset.filename)])}</p>`, submitText: t("确认无目标"), onSubmit: async () => {
+      if (state.asset?.id !== assetId || state.asset.revision !== revision) throw new Error(t("图片已更新，请关闭窗口并重新检查。"));
       await performWorkflow("confirm_empty", ""); closeModal();
     } });
     return;
@@ -3703,10 +3740,10 @@ async function updateWorkflow(action) {
   if (action === "reject") {
     const assetId = state.asset.id, revision = state.asset.revision;
     const epoch = state.selectionEpoch, projectId = state.project.id, session = state.session;
-    openModal({ title: "退回图片修改", subtitle: "可以补充修改要求，也可以直接退回。标注员修改后重新提交审核。", body: `<div class="field"><label for="reject-reason">修改要求（可选）</label><textarea id="reject-reason" placeholder="可留空，或说明漏标、类别错误等需要修改的地方。" autofocus></textarea></div>`, submitText: "退回修改", onSubmit: async () => {
+    openModal({ title: t("退回图片修改"), subtitle: t("可以补充修改要求，也可以直接退回。标注员修改后重新提交审核。"), body: `<div class="field"><label for="reject-reason">${t("修改要求（可选）")}</label><textarea id="reject-reason" placeholder="${ta("可留空，或说明漏标、类别错误等需要修改的地方。")}" autofocus></textarea></div>`, submitText: t("退回修改"), onSubmit: async () => {
       if (!state.authReady || state.session !== session || state.currentSection !== "annotate"
           || state.selectionEpoch !== epoch || state.project?.id !== projectId
-          || state.asset?.id !== assetId || state.asset.revision !== revision) throw new Error("页面或图片已更新，请关闭窗口并重新检查。");
+          || state.asset?.id !== assetId || state.asset.revision !== revision) throw new Error(t("页面或图片已更新，请关闭窗口并重新检查。"));
       const reason = document.querySelector("#reject-reason").value.trim();
       await performWorkflow(action, reason); closeModal();
     } });
@@ -3735,12 +3772,12 @@ async function performWorkflow(action, reason) {
       state.tool = "select"; await releaseCurrentLock(assetId);
       if (!isCurrent()) return;
     }
-    if (action === "reject") { state.handedOffAssetId = assetId; state.readOnly = true; state.readOnlyReason = "已交给标注员修改，你可以继续审核下一张图片。"; }
+    if (action === "reject") { state.handedOffAssetId = assetId; state.readOnly = true; state.readOnlyReason = t("已交给标注员修改，你可以继续审核下一张图片。"); }
     if (action === "reopen" && !state.lockOwned) {
       await acquireAssetLock(assetId, selectionEpoch);
       if (!isCurrent()) return;
     }
-    notify({ submit: "已提交，等待审核员确认。可以继续检查下一张。", approve: "审核已通过，可用于生成训练数据版本。", reject: "已退回修改，标注员可以看到你的反馈。", reopen: "已恢复为可修改状态，完成修改后请再次提交审核。", start: "已开始标注", confirm_empty: "已确认无目标，请提交审核。" }[action] || "状态已更新");
+    notify({ submit: t("已提交，等待审核员确认。可以继续检查下一张。"), approve: t("审核已通过，可用于生成训练数据版本。"), reject: t("已退回修改，标注员可以看到你的反馈。"), reopen: t("已恢复为可修改状态，完成修改后请再次提交审核。"), start: t("已开始标注"), confirm_empty: t("已确认无目标，请提交审核。") }[action] || t("状态已更新"));
     try {
       const events = await api(`/api/assets/${assetId}/review-events`);
       if (isCurrent()) state.reviewEvents = events;
@@ -3761,7 +3798,7 @@ async function performWorkflow(action, reason) {
       let assets;
       try { assets = await api(`/api/projects/${projectId}/assets`); }
       catch (error) {
-        if (isCurrent()) notify(`审核结果已保存，待审核队列刷新失败：${error.message}`, "warning");
+        if (isCurrent()) notify(t("审核结果已保存，待审核队列刷新失败：{0}", [error.message]), "warning");
         return;
       }
       if (!isCurrent()) return;
@@ -3776,8 +3813,8 @@ async function performWorkflow(action, reason) {
         await selectAsset(next.id, { duringWorkflow: true });
       } else {
         notify(assets.some(asset => asset.review_status === "submitted")
-          ? "其余待审核图片正在由其他成员或页面处理，已返回列表。"
-          : "当前队列已审核完毕，审核结果已保存。");
+          ? t("其余待审核图片正在由其他成员或页面处理，已返回列表。")
+          : t("当前队列已审核完毕，审核结果已保存。"));
         reviewFinishedURL = `#/projects/${projectId}/${state.activeWorkBlockId ? "blocks" : "data?status=submitted"}`;
       }
     }
@@ -3793,7 +3830,7 @@ async function performWorkflow(action, reason) {
 async function deleteSelectedAnnotation() {
   const annotation = annotationToDelete();
   if (!annotation || !canEditCurrentAsset()) return;
-  if (hasAnnotationDraft()) return notify("请先完成或取消当前草稿，再删除对象。", "warning");
+  if (hasAnnotationDraft()) return notify(t("请先完成或取消当前草稿，再删除对象。"), "warning");
   const assetId = state.asset.id, current = annotationContextGuard();
   let deleted = false;
   state.savingAnnotation = true; setSaveFeedback("saving"); refreshWorkflowState();
@@ -3807,9 +3844,9 @@ async function deleteSelectedAnnotation() {
     Object.assign(asset, updates); Object.assign(state.asset, updates);
     state.project.labeled_count = state.assets.filter(item => item.status === "labeled").length;
     refreshAssetQueueItem(assetId); setSaveFeedback("saved"); deleted = true;
-    notify(annotation.shape_type === "classification" ? "已清除图片类别，可以重新选择类别。" : `已删除“${annotation.label_name}”标注，图片保留。`);
+    notify(annotation.shape_type === "classification" ? t("已清除图片类别，可以重新选择类别。") : t("已删除“{0}”标注，图片保留。", [annotation.label_name]));
   } catch (error) {
-    if (current()) { setSaveFeedback("error", `删除未确认完成，请重新加载结果核对。${error.message}`); notify(`删除未完成：${error.message}`, "error"); }
+    if (current()) { setSaveFeedback("error", t("删除未确认完成，请重新加载结果核对。{0}", [error.message])); notify(t("删除未完成：{0}", [error.message]), "error"); }
   }
   finally {
     if (current()) {
@@ -3821,14 +3858,14 @@ async function deleteSelectedAnnotation() {
 
 async function saveSelectedAnnotation() {
   if (!state.selectedAnnotation || !canEditCurrentAsset()) return;
-  if (state.pendingObjectEdit || state.pendingAnnotation || state.pendingTaskEdit || state.drawing || state.polygon.length || state.poseDraft || state.shapeEdit || state.keypointPlacement != null) return notify("请先完成或取消当前修改，再应用高级属性。", "warning");
+  if (state.pendingObjectEdit || state.pendingAnnotation || state.pendingTaskEdit || state.drawing || state.polygon.length || state.poseDraft || state.shapeEdit || state.keypointPlacement != null) return notify(t("请先完成或取消当前修改，再应用高级属性。"), "warning");
   const annotation = state.selectedAnnotation, current = annotationContextGuard();
   state.savingAnnotation = true; setSaveFeedback("saving");
   let saved = false;
   try {
     const attributes = JSON.parse(document.querySelector("#annotation-attributes").value || "{}");
     const points = document.querySelector("#annotation-points").value.trim() ? document.querySelector("#annotation-points").value.split(",").map(value => Number(value.trim())) : [];
-    if (points.some(value => !Number.isFinite(value))) throw new Error("坐标必须是以逗号分隔的数值");
+    if (points.some(value => !Number.isFinite(value))) throw new Error(t("坐标必须是以逗号分隔的数值"));
     const updated = await api(`/api/annotations/${annotation.id}`, jsonOptions("PATCH", { expected_version: annotation.version, label_id: Number(document.querySelector("#annotation-label").value), points, attributes }));
     if (!current()) return;
     const index = state.annotations.findIndex(item => item.id === updated.id);
@@ -3836,7 +3873,7 @@ async function saveSelectedAnnotation() {
     state.selectedAnnotation = updated; state.asset.revision = updated.asset_revision; state.asset.review_status = "draft"; state.asset.negative_confirmed = false;
     state.advancedAnnotationDirty = false; state.advancedDraft = null;
     saved = true; setSaveFeedback("saved");
-  } catch (error) { if (current()) setSaveFeedback("error", error instanceof SyntaxError ? "高级属性格式不正确，请修正后点击“应用高级修改”。" : error.message); }
+  } catch (error) { if (current()) setSaveFeedback("error", error instanceof SyntaxError ? t("高级属性格式不正确，请修正后点击“应用高级修改”。") : error.message); }
   finally {
     if (current()) { state.savingAnnotation = false; if (saved) renderWorkspace(); else { refreshCanvasStatus(); refreshWorkflowState(); } }
   }
@@ -3869,14 +3906,14 @@ function uploadAssetBatch(projectId, batch, onProgress) {
     request.setRequestHeader("X-MDP-Client", "browser");
     request.upload.onprogress = (event) => onProgress(event.loaded, event.lengthComputable ? event.total : batch.bytes, event.loaded >= event.total);
     request.upload.onload = () => onProgress(batch.bytes, batch.bytes, true);
-    request.onerror = () => reject(new Error("上传连接中断，请重试"));
+    request.onerror = () => reject(new Error(t("上传连接中断，请重试")));
     request.onload = () => {
       let body = null;
       try { body = JSON.parse(request.responseText || "null"); } catch (_) { /* use fallback */ }
       if (request.status >= 200 && request.status < 300) return resolve(body);
       const detail = typeof body?.detail === "string" ? body.detail : body?.detail?.message;
-      if (request.status === 401) { state.authReady = false; renderLoginScreen(detail || "请重新登录"); }
-      reject(new Error(detail || `上传失败 (${request.status || "网络错误"})`));
+      if (request.status === 401) { state.authReady = false; renderLoginScreen(detail || t("请重新登录")); }
+      reject(new Error(detail || t("上传失败 ({0})", [request.status || t("网络错误")])));
     };
     request.send(form);
   });
@@ -3932,12 +3969,13 @@ async function uploadFilesInBatches(projectId, files, onProgress) {
 }
 
 function openUploadModal() {
-  if (state.currentSection === "annotate" && (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft())) return notify("请先完成或取消当前标注，再导入图片。", "warning");
+  if (!canEditProject()) return notify(t("当前项目未授予这项操作权限"), "error");
+  if (state.currentSection === "annotate" && (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft())) return notify(t("请先完成或取消当前标注，再导入图片。"), "warning");
   let files = []; let uploading = false; let complete = false; let totalCreated = 0; let totalDuplicates = 0; let nextSection = "ai";
-  openModal({ title: "导入图片", subtitle: "选择图片、图片文件夹或 ZIP。同一项目中的重复图片会自动跳过。", body: `
-    <div class="dropzone" id="dropzone"><span class="card-icon">${icon("upload")}</span><p>把图片或 ZIP 拖放到这里</p><small>支持 JPG、PNG、WEBP、BMP 和 ZIP 压缩包</small><div class="dataset-picker-actions"><button type="button" class="btn primary" id="pick-files">选择图片或 ZIP</button><button type="button" class="btn ghost" id="pick-folder">选择图片文件夹</button></div><input id="asset-files" type="file" accept="image/jpeg,image/png,image/webp,image/bmp,.zip" multiple hidden /><input id="asset-folder" type="file" accept="image/jpeg,image/png,image/webp,image/bmp" webkitdirectory multiple hidden /><div class="file-summary" id="file-summary"></div></div>
-    <div class="upload-progress" id="upload-progress" hidden><div><span id="upload-progress-label">准备上传</span><strong id="upload-progress-percent">0%</strong></div><div class="progress-mini"><span id="upload-progress-bar" style="width:0%"></span></div><small id="upload-progress-detail"></small></div>`,
-    submitText: "开始上传", onReady: () => {
+  openModal({ title: t("导入图片"), subtitle: t("选择图片、图片文件夹或 ZIP。同一项目中的重复图片会自动跳过。"), body: `
+    <div class="dropzone" id="dropzone"><span class="card-icon">${icon("upload")}</span><p>${t("把图片或 ZIP 拖放到这里")}</p><small>${t("支持 JPG、PNG、WEBP、BMP 和 ZIP 压缩包")}</small><div class="dataset-picker-actions"><button type="button" class="btn primary" id="pick-files">${t("选择图片或 ZIP")}</button><button type="button" class="btn ghost" id="pick-folder">${t("选择图片文件夹")}</button></div><input id="asset-files" type="file" accept="image/jpeg,image/png,image/webp,image/bmp,.zip" multiple hidden /><input id="asset-folder" type="file" accept="image/jpeg,image/png,image/webp,image/bmp" webkitdirectory multiple hidden /><div class="file-summary" id="file-summary"></div></div>
+    <div class="upload-progress" id="upload-progress" hidden><div><span id="upload-progress-label">${t("准备上传")}</span><strong id="upload-progress-percent">0%</strong></div><div class="progress-mini"><span id="upload-progress-bar" style="width:0%"></span></div><small id="upload-progress-detail"></small></div>`,
+    submitText: t("开始上传"), onReady: () => {
       const input = document.querySelector("#asset-files"); const folder = document.querySelector("#asset-folder"); const zone = document.querySelector("#dropzone");
       const update = (list) => {
         if (uploading) return;
@@ -3946,8 +3984,8 @@ function openUploadModal() {
         files = selected.filter(file => supported.has(file.type) || /\.(jpe?g|png|webp|bmp|zip)$/i.test(file.name));
         const skipped = selected.length - files.length;
         const bytes = files.reduce((sum, file) => sum + file.size, 0);
-        const examples = files.slice(0, 3).map(file => escapeHtml(file.webkitRelativePath || file.name)).join("、");
-        document.querySelector("#file-summary").innerHTML = files.length ? `<strong>已选择 ${files.length.toLocaleString()} 个文件 · ${formatBytes(bytes)}</strong><small>${examples}${files.length > 3 ? ` 等 ${files.length.toLocaleString()} 个` : ""}${skipped ? ` · 已忽略 ${skipped} 个不支持文件` : ""}</small>` : selected.length ? `<strong class="feedback-error">没有可导入的文件</strong><small>已忽略 ${skipped} 个不支持的文件。请选择 JPG、PNG、WEBP、BMP 图片或 ZIP 压缩包。</small>` : "";
+        const examples = files.slice(0, 3).map(file => escapeHtml(file.webkitRelativePath || file.name)).join(t("、"));
+        document.querySelector("#file-summary").innerHTML = files.length ? `<strong>${t("已选择 {0} 个文件 · {1}", [files.length.toLocaleString(getLocale()), formatBytes(bytes)])}</strong><small>${examples}${files.length > 3 ? t(" 等 {0} 个", [files.length.toLocaleString(getLocale())]) : ""}${skipped ? t(" · 已忽略 {0} 个不支持文件", [skipped]) : ""}</small>` : selected.length ? `<strong class="feedback-error">${t("没有可导入的文件")}</strong><small>${t("已忽略 {0} 个不支持的文件。请选择 JPG、PNG、WEBP、BMP 图片或 ZIP 压缩包。", [skipped])}</small>` : "";
         document.querySelector("#modal-submit").disabled = !files.length;
       };
       document.querySelector("#modal-submit").disabled = true;
@@ -3959,7 +3997,7 @@ function openUploadModal() {
       zone.ondrop = (event) => { event.preventDefault(); zone.classList.remove("drag"); update(event.dataTransfer.files); };
     }, onSubmit: async () => {
       if (complete) { closeModal(); location.hash = `#/projects/${state.project.id}/${nextSection}`; return; }
-      if (!files.length) throw new Error("请选择图片或 ZIP 文件");
+      if (!files.length) throw new Error(t("请选择图片或 ZIP 文件"));
       uploading = true;
       const progressNode = document.querySelector("#upload-progress");
       progressNode.hidden = false;
@@ -3968,8 +4006,8 @@ function openUploadModal() {
         const percent = Math.min(progress.percent, 100);
         document.querySelector("#upload-progress-percent").textContent = `${percent}%`;
         document.querySelector("#upload-progress-bar").style.width = `${percent}%`;
-        document.querySelector("#upload-progress-label").textContent = progress.validating ? "正在检查并保存图片，请稍候…" : "正在上传，请保持此页面打开…";
-        document.querySelector("#upload-progress-detail").textContent = `已处理 ${progress.completedFiles.toLocaleString()} / ${progress.totalFiles.toLocaleString()} 个文件${progress.failedBatches ? "，有文件需要重试" : ""}`;
+        document.querySelector("#upload-progress-label").textContent = progress.validating ? t("正在检查并保存图片，请稍候…") : t("正在上传，请保持此页面打开…");
+        document.querySelector("#upload-progress-detail").textContent = t("已处理 {0} / {1} 个文件{2}", [progress.completedFiles.toLocaleString(getLocale()), progress.totalFiles.toLocaleString(getLocale()), progress.failedBatches ? t("，有文件需要重试") : ""]);
       };
       try {
         const { results, errors } = await uploadFilesInBatches(state.project.id, files, updateProgress);
@@ -3981,16 +4019,16 @@ function openUploadModal() {
         if (errors.length) {
           files = errors.flatMap(item => item.batch.files);
           const firstError = errors[0].error.message;
-          document.querySelector("#file-summary").textContent = `待重试 ${files.length.toLocaleString()} 个文件`;
-          document.querySelector("#modal-submit").textContent = "重试未完成文件";
-          throw new Error(`本次新增 ${totalCreated} 张图片，跳过 ${totalDuplicates} 张重复图片。还有 ${files.length} 个文件未处理完成：${firstError} 已成功导入的图片会保留。`);
+          document.querySelector("#file-summary").textContent = t("待重试 {0} 个文件", [files.length.toLocaleString(getLocale())]);
+          document.querySelector("#modal-submit").textContent = t("重试未完成文件");
+          throw new Error(t("本次新增 {0} 张图片，跳过 {1} 张重复图片。还有 {2} 个文件未处理完成：{3} 已成功导入的图片会保留。", [totalCreated, totalDuplicates, files.length, firstError]));
         }
         if (!assetIds.length) await reloadAfterUpload();
         complete = true;
         nextSection = state.assets.some(asset => asset.status === "unlabeled" && !["submitted", "approved"].includes(asset.review_status)) ? "ai" : "data";
-        document.querySelector(".modal-body").innerHTML = `<div class="upload-complete" role="status"><span class="card-icon">${icon("check")}</span><h3>${totalCreated ? "图片已导入" : "这些图片已经在项目中"}</h3><p>新增 <strong>${totalCreated}</strong> 张图片，跳过 <strong>${totalDuplicates}</strong> 张重复图片。</p><p class="hint">${nextSection === "ai" ? "下一步：运行 AI 标注。完成后检查结果，再提交审核。" : "可以查看已有图片和标注，继续校正或审核。"}</p></div>`;
-        document.querySelector("#modal-submit").textContent = nextSection === "ai" ? "开始 AI 标注" : "查看图片";
-        document.querySelector("#modal-cancel").textContent = "关闭";
+        document.querySelector(".modal-body").innerHTML = `<div class="upload-complete" role="status"><span class="card-icon">${icon("check")}</span><h3>${totalCreated ? t("图片已导入") : t("这些图片已经在项目中")}</h3><p>${t("新增")} <strong>${totalCreated}</strong> ${t("张图片，跳过")} <strong>${totalDuplicates}</strong> ${t("张重复图片。")}</p><p class="hint">${nextSection === "ai" ? t("下一步：运行 AI 标注。完成后检查结果，再提交审核。") : t("可以查看已有图片和标注，继续校正或审核。")}</p></div>`;
+        document.querySelector("#modal-submit").textContent = nextSection === "ai" ? t("开始 AI 标注") : t("查看图片");
+        document.querySelector("#modal-cancel").textContent = t("关闭");
       } finally {
         uploading = false;
         ["#modal-close", "#modal-cancel", "#pick-files", "#pick-folder"].forEach(selector => { const node = document.querySelector(selector); if (node) node.disabled = false; });
@@ -4053,38 +4091,38 @@ function defaultAttributes(label) {
 function bindLabelDeleteButtons() {
   document.querySelectorAll("[data-delete-label]").forEach((button) => button.onclick = async (event) => {
     event.stopPropagation();
-    if (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft()) return notify("请先完成或取消当前标注，再维护类别。", "warning");
+    if (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft()) return notify(t("请先完成或取消当前标注，再维护类别。"), "warning");
     const labelId = Number(button.dataset.deleteLabel);
     const label = state.project.labels.find(item => item.id === labelId);
-    if (!label || !window.confirm(`确定删除类别 ${label.name}？`)) return;
+    if (!label || !window.confirm(t("确定删除类别 {0}？", [label.name]))) return;
     try {
       await api(`/api/labels/${labelId}`, { method: "DELETE" });
       state.project.labels = state.project.labels.filter(item => item.id !== labelId);
       if (state.activeLabel?.id === labelId) state.activeLabel = state.project.labels[0] || null;
-      notify("标签类别已删除");
+      notify(t("标签类别已删除"));
       renderWorkspace();
     } catch (error) { notify(error.message, "error"); }
   });
 }
 
 function openLabelModal() {
-  if (!isAdmin()) return notify("请由管理员维护标签类别", "error");
-  if (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft()) return notify("请先完成或取消当前标注，再维护类别。", "warning");
+  if (!canEditProject()) return notify(t("需要项目协作权限才能维护标签类别"), "error");
+  if (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft()) return notify(t("请先完成或取消当前标注，再维护类别。"), "warning");
   const palette = ["#22c55e", "#38bdf8", "#f97316", "#a78bfa", "#f43f5e", "#facc15"];
   const color = palette[state.project.labels.length % palette.length];
-  openModal({ title: "添加标签类别", subtitle: "模型输出的类别名必须与标签名称一致。", body: `
-    <div class="field"><label>标签名称</label><input type="text" id="label-name" placeholder="例如：person" maxlength="80" /></div>
-    <div class="field"><label>显示颜色</label><div class="color-line"><input type="color" id="label-color" value="${color}" /><input type="text" id="label-color-text" value="${color}" /></div></div>
-    <div class="field"><label for="label-shortcut">类别数字键（可选）</label><input type="text" id="label-shortcut" maxlength="1" inputmode="numeric" pattern="[0-9]" placeholder="0–9，例如：2" /><div class="hint">使用本项目尚未分配的数字。留空时可通过点击选择类别。</div></div><details class="technical-details" id="label-advanced"><summary>高级属性校验（可留空）</summary><div class="field"><label>属性规则 JSON</label><textarea id="label-schema" placeholder='{"type":"object","properties":{"occluded":{"type":"boolean","default":false}},"required":["occluded"]}'></textarea><div class="hint">只有需要额外记录遮挡等属性时才配置。支持 properties、required、enum、type 和 additionalProperties。</div></div></details>`, submitText: "添加标签",
+  openModal({ title: t("添加标签类别"), subtitle: t("模型输出的类别名必须与标签名称一致。"), body: `
+    <div class="field"><label>${t("标签名称")}</label><input type="text" id="label-name" placeholder="${ta("例如：person")}" maxlength="80" /></div>
+    <div class="field"><label>${t("显示颜色")}</label><div class="color-line"><input type="color" id="label-color" value="${color}" /><input type="text" id="label-color-text" value="${color}" /></div></div>
+    <div class="field"><label for="label-shortcut">${t("类别数字键（可选）")}</label><input type="text" id="label-shortcut" maxlength="1" inputmode="numeric" pattern="[0-9]" placeholder="${ta("0–9，例如：2")}" /><div class="hint">${t("使用本项目尚未分配的数字。留空时可通过点击选择类别。")}</div></div><details class="technical-details" id="label-advanced"><summary>${t("高级属性校验（可留空）")}</summary><div class="field"><label>${t("属性规则 JSON")}</label><textarea id="label-schema" placeholder='{"type":"object","properties":{"occluded":{"type":"boolean","default":false}},"required":["occluded"]}'></textarea><div class="hint">${t("只有需要额外记录遮挡等属性时才配置。支持 properties、required、enum、type 和 additionalProperties。")}</div></div></details>`, submitText: t("添加标签"),
     onReady: () => { const picker = document.querySelector("#label-color"); const text = document.querySelector("#label-color-text"); picker.oninput = () => text.value = picker.value; text.oninput = () => { if (/^#[\da-f]{6}$/i.test(text.value)) picker.value = text.value; }; },
     onSubmit: async () => {
-      const name = document.querySelector("#label-name").value.trim(); if (!name) throw new Error("请输入标签名称");
+      const name = document.querySelector("#label-name").value.trim(); if (!name) throw new Error(t("请输入标签名称"));
       const shortcut = document.querySelector("#label-shortcut").value.trim();
-      if (shortcut && !/^[0-9]$/.test(shortcut)) throw new Error("类别快捷键请填写 0–9 中的一个数字，或留空。");
-      if (shortcut && state.project.labels.some(label => String(label.shortcut) === shortcut)) throw new Error("这个数字已分配给其他类别，请换一个数字或留空。");
+      if (shortcut && !/^[0-9]$/.test(shortcut)) throw new Error(t("类别快捷键请填写 0–9 中的一个数字，或留空。"));
+      if (shortcut && state.project.labels.some(label => String(label.shortcut) === shortcut)) throw new Error(t("这个数字已分配给其他类别，请换一个数字或留空。"));
       let attributes_schema = {};
       try { attributes_schema = JSON.parse(document.querySelector("#label-schema").value.trim() || "{}"); }
-      catch (_) { document.querySelector("#label-advanced").open = true; throw new Error("高级属性规则格式不正确，请检查 JSON；不需要额外属性时可清空。"); }
+      catch (_) { document.querySelector("#label-advanced").open = true; throw new Error(t("高级属性规则格式不正确，请检查 JSON；不需要额外属性时可清空。")); }
       const label = await api(`/api/projects/${state.project.id}/labels`, jsonOptions("POST", { name, color: document.querySelector("#label-color-text").value, shortcut, attributes_schema }));
       state.project.labels.push(label); state.activeLabel = label; closeModal(); renderWorkspace();
     },
@@ -4094,10 +4132,10 @@ function openLabelModal() {
 function aiPromptConfig(model) {
   if (model?.provider_type === "local_yolo") {
     return {
-      label: "项目类别（自动读取）",
+      label: t("项目类别（自动读取）"),
       value: state.project.labels.map(label => label.name).join(", "),
-      placeholder: "请先设置项目类别",
-      hint: "此模型只能识别它已训练过的类别，文字说明不会增加识别能力。请确认项目类别与模型一致；需要调整时请联系管理员。",
+      placeholder: t("请先设置项目类别"),
+      hint: t("此模型只能识别它已训练过的类别，文字说明不会增加识别能力。请确认项目类别与模型一致；需要调整时请联系管理员。"),
       readOnly: true,
     };
   }
@@ -4105,17 +4143,17 @@ function aiPromptConfig(model) {
     const sam3 = model.provider_type === "local_sam3";
     const segmentation = sam3 && projectTask() !== "detect";
     return {
-      label: `${segmentation ? "分割" : "检测"}目标类别（英文，逗号分隔）`,
+      label: t("{0}目标类别（英文，逗号分隔）", [segmentation ? t("分割") : t("检测")]),
       value: state.project.labels.map(label => label.name).join(", "),
       placeholder: "person, helmet, cup",
-      hint: `${sam3 ? "SAM 3" : "Grounding DINO"} 会逐个查找这些目标。${sam3 ? segmentation ? "结果为多边形轮廓。" : "结果为矩形框。" : ""}${isAdmin() ? "预览可尝试新类别，启动正式标注时才会加入项目。" : "请使用项目已有类别；新类别需由管理员添加。"}`,
+      hint: t("{0} 会逐个查找这些目标。{1}{2}", [sam3 ? "SAM 3" : "Grounding DINO", sam3 ? segmentation ? t("结果为多边形轮廓。") : t("结果为矩形框。") : "", canEditProject() ? t("预览可尝试新类别，启动正式标注时才会加入项目。") : t("请使用项目已有类别；新类别需由管理员添加。")]),
     };
   }
   return {
-    label: "自然语言标注要求",
-    value: projectTask() === "classify" ? `请从以下类别中选择最适合整张图片的一个类别：${state.project.labels.map(label => label.name).join("、")}。每张图片只输出一个类别。` : `标注图像中所有属于以下类别的目标：${state.project.labels.map(label => label.name).join("、")}。尽量完整，不确定的目标不要输出。`,
-    placeholder: projectTask() === "classify" ? "例如：根据外观判断整张图片为合格或不合格。" : "例如：找出画面中的所有人员和安全帽。",
-    hint: `可用标签：${state.project.labels.map(label => label.name).join("、")}。模型只能使用当前项目标签保存结果。`,
+    label: t("自然语言标注要求"),
+    value: projectTask() === "classify" ? t("请从以下类别中选择最适合整张图片的一个类别：{0}。每张图片只输出一个类别。", [state.project.labels.map(label => label.name).join(t("、"))]) : t("标注图像中所有属于以下类别的目标：{0}。尽量完整，不确定的目标不要输出。", [state.project.labels.map(label => label.name).join(t("、"))]),
+    placeholder: projectTask() === "classify" ? t("例如：根据外观判断整张图片为合格或不合格。") : t("例如：找出画面中的所有人员和安全帽。"),
+    hint: t("可用标签：{0}。模型只能使用当前项目标签保存结果。", [state.project.labels.map(label => label.name).join(t("、"))]),
   };
 }
 
@@ -4131,10 +4169,11 @@ function parseTargetLabels(value) {
 }
 
 function openAiModal(preselectedAssetIds = null) {
-  if (state.currentSection === "annotate" && (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft())) return notify("请先完成或取消当前手动标注，再创建 AI 标注任务。", "warning");
+  if (!canEditProject()) return notify(t("当前项目未授予这项操作权限"), "error");
+  if (state.currentSection === "annotate" && (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft())) return notify(t("请先完成或取消当前手动标注，再创建 AI 标注任务。"), "warning");
   if (!Array.isArray(preselectedAssetIds)) preselectedAssetIds = null;
   const matchingModels = state.models.filter(modelFitsProject).sort((a, b) => Number(b.configured && b.enabled) - Number(a.configured && a.enabled));
-  if (!state.assets.length) return notify("请先上传图片", "error");
+  if (!state.assets.length) return notify(t("请先上传图片"), "error");
   const projectId = state.project.id, projectName = state.project.name, selectionEpoch = state.selectionEpoch, session = state.session, section = state.currentSection;
   const contextCurrent = () => state.project?.id === projectId && state.selectionEpoch === selectionEpoch && state.session === session && state.currentSection === section;
   let sourceModal, preview, preparation;
@@ -4150,7 +4189,7 @@ function openAiModal(preselectedAssetIds = null) {
   const initialConfidence = Number.isFinite(Number(savedConfig.confidence_threshold)) ? Math.max(0, Math.min(100, Math.round(Number(savedConfig.confidence_threshold) * 100))) : 35;
   const defaultScope = explicitSelection.length ? "selected" : state.asset ? "current" : "unlabeled";
   const scopedToBlock = section === "annotate" && Boolean(state.activeWorkBlockId);
-  const skipLabels = { unknown: "任务块信息未加载，请刷新", completed: "任务块已完成", foreign: "由其他成员负责", released: "已交回且进入人工流程，需先领取", block_reviewed: "任务块内待审核或已通过", reviewed: "待审核或已通过" };
+  const skipLabels = { unknown: t("任务块信息未加载，请刷新"), completed: t("任务块已完成"), foreign: t("由其他成员负责"), released: t("已交回且进入人工流程，需先领取"), block_reviewed: t("任务块内待审核或已通过"), reviewed: t("待审核或已通过") };
   const evaluateAssets = (assets, includeReviewed = false) => {
     const blocks = new Map((state.workBlocks?.blocks || []).map(block => [Number(block.id), block]));
     if (state.activeWorkBlock && (!state.activeWorkBlock.project_id || state.activeWorkBlock.project_id === projectId)) blocks.set(Number(state.activeWorkBlock.id), state.activeWorkBlock);
@@ -4191,29 +4230,29 @@ function openAiModal(preselectedAssetIds = null) {
   const scopeProblem = ({ previewOnly = false } = {}) => {
     const model = matchingModels.find(item => item.id === selectedModel);
     const scope = document.querySelector('input[name="scope"]:checked')?.value;
-    if (!model?.configured || !model.enabled) return model ? modelPreparationStatus(model) : isAdmin() ? "尚无可用模型，请先到“标注模型”完成配置。" : "尚无可用模型，请联系管理员配置。";
-    if (!(previewOnly ? previewAssets() : eligibleAssets()).length) return previewOnly ? "当前范围没有可预览图片。已提交或已通过的图片默认跳过。" : "当前范围没有可处理图片。请选择其他范围，或领取尚未完成的任务块。";
+    if (!model?.configured || !model.enabled) return model ? modelPreparationStatus(model) : isAdmin() ? t("尚无可用模型，请先到“标注模型”完成配置。") : t("尚无可用模型，请联系管理员配置。");
+    if (!(previewOnly ? previewAssets() : eligibleAssets()).length) return previewOnly ? t("当前范围没有可预览图片。已提交或已通过的图片默认跳过。") : t("当前范围没有可处理图片。请选择其他范围，或领取尚未完成的任务块。");
     const interactive = ["interactive_segmentation", "local_sam2"].includes(model.provider_type);
-    if ((!model.modes.includes("auto") || interactive) && scope !== "current") return "此模型需要在单张图片上提供位置提示。请先打开图片，或选择支持批量标注的模型。";
-    if (interactive && !state.assistPoints.length && !state.selectedAnnotation) return "请先返回画布：用“+”标记要保留的位置，或画一个粗框并选中，然后再运行 AI。";
+    if ((!model.modes.includes("auto") || interactive) && scope !== "current") return t("此模型需要在单张图片上提供位置提示。请先打开图片，或选择支持批量标注的模型。");
+    if (interactive && !state.assistPoints.length && !state.selectedAnnotation) return t("请先返回画布：用“+”标记要保留的位置，或画一个粗框并选中，然后再运行 AI。");
     return "";
   };
   const readAiPayload = ({ previewOnly = false } = {}) => {
       const problem = scopeProblem({ previewOnly }); if (problem) throw new Error(problem);
-      const prompt = document.querySelector("#ai-prompt").value.trim(); if (!prompt) throw new Error("请输入标注要求");
+      const prompt = document.querySelector("#ai-prompt").value.trim(); if (!prompt) throw new Error(t("请输入标注要求"));
       const scope = document.querySelector('input[name="scope"]:checked').value;
       const model = matchingModels.find(item => item.id === selectedModel);
-      if (!model?.configured) throw new Error("请选择已配置的模型服务");
+      if (!model?.configured) throw new Error(t("请选择已配置的模型服务"));
       const conceptModel = ["local_grounding_dino", "local_sam3"].includes(model.provider_type);
       const targetLabels = conceptModel ? parseTargetLabels(prompt) : null;
-      if (conceptModel && !targetLabels.length) throw new Error("请至少填写一个目标类别");
+      if (conceptModel && !targetLabels.length) throw new Error(t("请至少填写一个目标类别"));
       const scopedAssetIds = (previewOnly ? previewAssets() : eligibleAssets()).map(asset => asset.id);
-      if (Array.isArray(scopedAssetIds) && !scopedAssetIds.length) throw new Error("所选范围内没有可处理的图片");
+      if (Array.isArray(scopedAssetIds) && !scopedAssetIds.length) throw new Error(t("所选范围内没有可处理的图片"));
       let mode = scope === "current" && model.modes.includes("assist") ? "assist" : "auto";
-      if (!model.modes.includes(mode)) throw new Error(`${model.name} 不支持当前处理范围所需的${mode === "auto" ? "全自动" : "半自动"}模式`);
+      if (!model.modes.includes(mode)) throw new Error(t("{0} 不支持当前处理范围所需的{1}模式", [model.name, mode === "auto" ? t("全自动") : t("半自动")]));
       const interactive = ["interactive_segmentation", "local_sam2"].includes(model.provider_type);
-      if (interactive && scope !== "current") throw new Error("交互式分割一次只能处理当前图片");
-      if (interactive && !state.assistPoints.length && !state.selectedAnnotation) throw new Error("请先用正点/负点工具添加提示，或选中一个人工粗框");
+      if (interactive && scope !== "current") throw new Error(t("交互式分割一次只能处理当前图片"));
+      if (interactive && !state.assistPoints.length && !state.selectedAnnotation) throw new Error(t("请先用正点/负点工具添加提示，或选中一个人工粗框"));
       const hints = scope === "current" && mode === "assist" && state.assistPoints.length ? { points: state.assistPoints, label: state.activeLabel?.name } : null;
       return { model_id: selectedModel, prompt, target_labels: targetLabels, mode, asset_ids: scopedAssetIds, hint_annotation_id: interactive && state.selectedAnnotation ? state.selectedAnnotation.id : null, hints, replace_existing_auto: sourceModal.querySelector("#replace-auto").checked, confidence_threshold: Number(sourceModal.querySelector("#confidence").value) / 100, include_reviewed: includeReviewed() };
   };
@@ -4226,15 +4265,15 @@ function openAiModal(preselectedAssetIds = null) {
     const { eligible, skipped, ownedCount } = eligibility();
     const reviewed = eligible.filter(asset => ["submitted", "approved"].includes(asset.review_status)).length;
     const problem = scopeProblem();
-    const skippedSummary = skipped.size ? `已跳过 ${[...skipped].map(([reason, count]) => `${count} 张（${skipLabels[reason]}）`).join("、")}。` : "";
-    const summary = `${problem}${skippedSummary}${ownedCount ? `其中 ${ownedCount} 张来自你负责的任务块。` : ""}人工绘制和人工校正的标注始终保留。${reviewed ? `${reviewed} 张未分块图片的审核状态会重置，需要重新提交审核。` : "完成后请检查结果，再提交审核。"}`;
-    document.querySelector("#ai-scope-summary").innerHTML = `<strong>${problem ? "暂时无法启动" : `将处理 ${eligible.length} 张图片`}</strong><span>${escapeHtml(summary)}</span>`;
+    const skippedSummary = skipped.size ? t("已跳过 {0}。", [[...skipped].map(([reason, count]) => t("{0} 张（{1}）", [count, skipLabels[reason]])).join(t("、"))]) : "";
+    const summary = t("{0}{1}{2}人工绘制和人工校正的标注始终保留。{3}", [problem, skippedSummary, ownedCount ? t("其中 {0} 张来自你负责的任务块。", [ownedCount]) : "", reviewed ? t("{0} 张未分块图片的审核状态会重置，需要重新提交审核。", [reviewed]) : t("完成后请检查结果，再提交审核。")]);
+    document.querySelector("#ai-scope-summary").innerHTML = `<strong>${problem ? t("暂时无法启动") : t("将处理 {0} 张图片", [eligible.length])}</strong><span>${escapeHtml(summary)}</span>`;
     const submit = sourceModal.querySelector("#modal-submit");
     submit.disabled = Boolean(problem || previewState.busy);
-    submit.textContent = `${previewState.hasFreshResult ? "按预览参数标注" : "启动标注"} ${eligible.length} 张`;
+    submit.textContent = t("{0} {1} 张", [previewState.hasFreshResult ? t("按预览参数标注") : t("启动标注"), eligible.length]);
     const feedback = sourceModal.querySelector("#ai-batch-preview-state");
-    if (feedback) feedback.textContent = previewState.busy ? "正在只读预览，不会保存标注。" : previewState.hasFreshResult ? `当前参数已预览。正式标注只处理上述 ${eligible.length} 张可处理图片。` : previewState.stale ? "参数或样本已修改，建议重新预览效果。" : "预览不保存标注；受保护图片仅供预览，正式标注会跳过。";
-    document.querySelector("#ai-model-name").textContent = model?.name || "尚未配置";
+    if (feedback) feedback.textContent = previewState.busy ? t("正在只读预览，不会保存标注。") : previewState.hasFreshResult ? t("当前参数已预览。正式标注只处理上述 {0} 张可处理图片。", [eligible.length]) : previewState.stale ? t("参数或样本已修改，建议重新预览效果。") : t("预览不保存标注；受保护图片仅供预览，正式标注会跳过。");
+    document.querySelector("#ai-model-name").textContent = model?.name || t("尚未配置");
   };
   const parametersChanged = () => { updateScopeSummary(); preview?.refresh(); };
   const mountSelectedPreparation = ({ download = false, refresh = false } = {}) => {
@@ -4254,7 +4293,7 @@ function openAiModal(preselectedAssetIds = null) {
         card.disabled = !annotationModelSelectable(updated, canPrepareAnnotationModels());
         card.classList.toggle("unavailable", card.disabled);
         const hint = card.querySelector(".ai-model-download-hint");
-        if (hint) hint.textContent = updated.preparation?.mode === "manual" ? "手动准备文件，按下方说明重新检查。" : updated.preparation?.installed ? "权重已就绪" : `${modelDownloadSize(updated.preparation?.size_bytes)} · 选择后后台下载`;
+        if (hint) hint.textContent = updated.preparation?.mode === "manual" ? t("手动准备文件，按下方说明重新检查。") : updated.preparation?.installed ? t("权重已就绪") : t("{0} · 选择后后台下载", [modelDownloadSize(updated.preparation?.size_bytes)]);
       }
       updateScopeSummary();
       if (Boolean(previous.configured) !== Boolean(updated.configured) || previous.enabled !== updated.enabled) preview?.refresh();
@@ -4262,18 +4301,18 @@ function openAiModal(preselectedAssetIds = null) {
     if (download) void preparation.prepare();
     else if (refresh) void preparation.refresh();
   };
-  openModal({ title: "AI 标注 · 预览与批量运行", subtitle: "先用样本查看效果，调整参数后再处理整批图片。预览不会保存或覆盖现有标注。", wide: true, body: `
-    <div class="ai-preview-layout"><section class="ai-parameter-panel" aria-label="AI 标注参数">
-    <details class="advanced-settings ai-model-selector" id="ai-model-selector" ${selectedModel ? "" : "open"}><summary>标注模型：<span id="ai-model-name">${escapeHtml(matchingModels.find(model => model.id === selectedModel)?.name || "尚未配置")}</span> <small>更换模型</small></summary><p class="hint">不同模型擅长的内容不同。建议先用少量图片试标，确认结果后再处理整批图片。</p><div class="model-grid" id="model-grid">${matchingModels.map(model => `<button type="button" class="model-card ${model.id === selectedModel ? "selected" : ""} ${annotationModelSelectable(model, canPrepareAnnotationModels()) ? "" : "unavailable"}" data-model-id="${escapeHtml(model.id)}" aria-pressed="${model.id === selectedModel}" ${annotationModelSelectable(model, canPrepareAnnotationModels()) ? "" : "disabled"}><span class="badge">${annotationModelBadge(model)}</span><h3>${escapeHtml(model.name)}</h3><p>${escapeHtml(model.description)}</p><div class="capabilities">${model.modes.map(mode => `<span>${mode === "auto" ? "全自动" : "半自动"}</span>`).join("")}${model.capabilities.map(c => `<span>${escapeHtml(c)}</span>`).join("")}</div>${model.preparation ? `<small class="ai-model-download-hint">${model.preparation.mode === "manual" ? "需手动准备文件，选择后查看目录与要求。" : model.preparation.mode === "download" && !model.preparation.installed ? `${modelDownloadSize(model.preparation.size_bytes)} · 选择后后台下载` : ""}</small>` : ""}</button>`).join("")}</div>${selectedModel ? "" : `<div class="job-error">${isAdmin() ? '尚无可用模型，请先到“标注模型”配置。' : '尚无可用模型，请联系管理员。'}</div>`}</details>
+  openModal({ title: t("AI 标注 · 预览与批量运行"), subtitle: t("先用样本查看效果，调整参数后再处理整批图片。预览不会保存或覆盖现有标注。"), wide: true, body: `
+    <div class="ai-preview-layout"><section class="ai-parameter-panel" aria-label="${ta("AI 标注参数")}">
+    <details class="advanced-settings ai-model-selector" id="ai-model-selector" ${selectedModel ? "" : "open"}><summary>${t("标注模型：")}<span id="ai-model-name">${escapeHtml(matchingModels.find(model => model.id === selectedModel)?.name || t("尚未配置"))}</span> <small>${t("更换模型")}</small></summary><p class="hint">${t("不同模型擅长的内容不同。建议先用少量图片试标，确认结果后再处理整批图片。")}</p><div class="model-grid" id="model-grid">${matchingModels.map(model => `<button type="button" class="model-card ${model.id === selectedModel ? "selected" : ""} ${annotationModelSelectable(model, canPrepareAnnotationModels()) ? "" : "unavailable"}" data-model-id="${escapeHtml(model.id)}" aria-pressed="${model.id === selectedModel}" ${annotationModelSelectable(model, canPrepareAnnotationModels()) ? "" : "disabled"}><span class="badge">${annotationModelBadge(model)}</span><h3>${escapeHtml(model.name)}</h3><p>${escapeHtml(model.description)}</p><div class="capabilities">${model.modes.map(mode => `<span>${mode === "auto" ? t("全自动") : t("半自动")}</span>`).join("")}${model.capabilities.map(c => `<span>${escapeHtml(c)}</span>`).join("")}</div>${model.preparation ? `<small class="ai-model-download-hint">${model.preparation.mode === "manual" ? t("需手动准备文件，选择后查看目录与要求。") : model.preparation.mode === "download" && !model.preparation.installed ? t("{0} · 选择后后台下载", [modelDownloadSize(model.preparation.size_bytes)]) : ""}</small>` : ""}</button>`).join("")}</div>${selectedModel ? "" : `<div class="job-error">${isAdmin() ? t("尚无可用模型，请先到“标注模型”配置。") : t("尚无可用模型，请联系管理员。")}</div>`}</details>
     <div id="ai-model-preparation" class="ai-model-preparation" hidden></div>
     <div class="field"><label id="ai-prompt-label" for="ai-prompt">${escapeHtml(initialPrompt.label)}</label><textarea id="ai-prompt" ${initialPrompt.readOnly ? "readonly" : ""} placeholder="${escapeHtml(initialPrompt.placeholder)}">${escapeHtml(initialPrompt.value)}</textarea><div class="hint" id="ai-prompt-hint">${escapeHtml(initialPrompt.hint)}</div></div>
-    <div class="field"><label for="confidence">最低置信度</label><div class="range-line"><input id="confidence" type="range" min="0" max="100" step="1" value="${initialConfidence}" aria-describedby="ai-confidence-hint" /><span class="range-value" id="confidence-value">${initialConfidence}%</span></div><div class="hint" id="ai-confidence-hint">调低可发现更多目标，但可能增加误检；调高更严格，但可能漏标。调整后点击“预览效果”比较结果。</div></div>
-    <div class="field"><label>处理范围${scopedToBlock ? ` · ${escapeHtml(state.activeWorkBlock?.name || "当前任务块")}` : ""}</label><div class="scope-grid"><label class="scope-option"><input type="radio" name="scope" value="current" ${defaultScope === "current" ? "checked" : ""} ${state.asset ? "" : "disabled"}/><span><strong>当前图片</strong><small>${state.asset ? escapeHtml(state.asset.filename) : "未打开图片"}</small></span></label><label class="scope-option"><input type="radio" name="scope" value="selected" ${defaultScope === "selected" ? "checked" : ""} ${explicitSelection.length ? "" : "disabled"}/><span><strong>已选图片</strong><small>${explicitSelection.length} 张</small></span></label><label class="scope-option"><input type="radio" name="scope" value="unlabeled" ${defaultScope === "unlabeled" ? "checked" : ""}/><span><strong>${scopedToBlock ? "本块未标注" : "所有未标注"}</strong><small>${eligibleUnlabeled} 张可处理</small></span></label><label class="scope-option"><input type="radio" name="scope" value="all" ${defaultScope === "all" ? "checked" : ""}/><span><strong>${scopedToBlock ? "本块全部图片" : "全部数据"}</strong><small>${state.assets.length} 张（受保护图片会跳过）</small></span></label></div></div>
+    <div class="field"><label for="confidence">${t("最低置信度")}</label><div class="range-line"><input id="confidence" type="range" min="0" max="100" step="1" value="${initialConfidence}" aria-describedby="ai-confidence-hint" /><span class="range-value" id="confidence-value">${initialConfidence}%</span></div><div class="hint" id="ai-confidence-hint">${t("调低可发现更多目标，但可能增加误检；调高更严格，但可能漏标。调整后点击“预览效果”比较结果。")}</div></div>
+    <div class="field"><label>${t("处理范围{0}", [scopedToBlock ? ` · ${escapeHtml(state.activeWorkBlock?.name || t("当前任务块"))}` : ""])}</label><div class="scope-grid"><label class="scope-option"><input type="radio" name="scope" value="current" ${defaultScope === "current" ? "checked" : ""} ${state.asset ? "" : "disabled"}/><span><strong>${t("当前图片")}</strong><small>${state.asset ? escapeHtml(state.asset.filename) : t("未打开图片")}</small></span></label><label class="scope-option"><input type="radio" name="scope" value="selected" ${defaultScope === "selected" ? "checked" : ""} ${explicitSelection.length ? "" : "disabled"}/><span><strong>${t("已选图片")}</strong><small>${t("{0} 张", [explicitSelection.length])}</small></span></label><label class="scope-option"><input type="radio" name="scope" value="unlabeled" ${defaultScope === "unlabeled" ? "checked" : ""}/><span><strong>${scopedToBlock ? t("本块未标注") : t("所有未标注")}</strong><small>${t("{0} 张可处理", [eligibleUnlabeled])}</small></span></label><label class="scope-option"><input type="radio" name="scope" value="all" ${defaultScope === "all" ? "checked" : ""}/><span><strong>${scopedToBlock ? t("本块全部图片") : t("全部数据")}</strong><small>${t("{0} 张（受保护图片会跳过）", [state.assets.length])}</small></span></label></div></div>
     <div class="ai-scope-summary" id="ai-scope-summary" role="status" aria-live="polite"></div>
 
-    <details class="advanced-settings" id="ai-advanced"><summary>已有标注与审核设置</summary>
-    <div class="check-stack"><label class="check-line"><input id="replace-auto" type="checkbox" checked />替换之前的 AI 结果，保留人工绘制和人工校正的标注</label><label class="check-line" ${canReview() ? "" : "hidden"}><input id="include-reviewed" type="checkbox" ${canReview()?"":"disabled"}/>重新标注未分块的待审核或已通过图片（会恢复为草稿，需要再次提交审核）</label></div><p class="hint">任务块内待审核或已通过的图片始终跳过。有审核权限时，上述选项可将它们用于只读预览。</p></details>${state.assistPoints.length ? `<div class="assist-summary">当前画布已有 ${state.assistPoints.filter(point => point.label).length} 个正点、${state.assistPoints.filter(point => !point.label).length} 个负点，将作为半自动分割提示。</div>` : ""}</section>${aiPreviewMarkup()}</div>`,
-    submitText: "启动标注任务", onClose: () => { preparation?.dispose(); preview?.dispose(); }, onReady: () => {
+    <details class="advanced-settings" id="ai-advanced"><summary>${t("已有标注与审核设置")}</summary>
+    <div class="check-stack"><label class="check-line"><input id="replace-auto" type="checkbox" checked />${t("替换之前的 AI 结果，保留人工绘制和人工校正的标注")}</label><label class="check-line" ${canReview() ? "" : "hidden"}><input id="include-reviewed" type="checkbox" ${canReview()?"":"disabled"}/>${t("重新标注未分块的待审核或已通过图片（会恢复为草稿，需要再次提交审核）")}</label></div><p class="hint">${t("任务块内待审核或已通过的图片始终跳过。有审核权限时，上述选项可将它们用于只读预览。")}</p></details>${state.assistPoints.length ? `<div class="assist-summary">${t("当前画布已有 {0} 个正点、{1} 个负点，将作为半自动分割提示。", [state.assistPoints.filter(point => point.label).length, state.assistPoints.filter(point => !point.label).length])}</div>` : ""}</section>${aiPreviewMarkup()}</div>`,
+    submitText: t("启动标注任务"), onClose: () => { preparation?.dispose(); preview?.dispose(); }, onReady: () => {
       sourceModal = modalRoot.querySelector('.modal');
       sourceModal.classList.add("ai-preview-modal");
       const batchHint = document.createElement("span"); batchHint.id = "ai-batch-preview-state"; batchHint.className = "ai-batch-preview-state"; batchHint.setAttribute("role", "status");
@@ -4311,8 +4350,8 @@ function openAiModal(preselectedAssetIds = null) {
         parametersChanged();
       };
     }, onSubmit: async () => {
-      if (!modalCurrent()) throw new Error("页面已切换，请关闭此窗口，在当前项目重新开始 AI 标注。");
-      if (previewState.busy) throw new Error("请等待预览完成，再启动正式标注。");
+      if (!modalCurrent()) throw new Error(t("页面已切换，请关闭此窗口，在当前项目重新开始 AI 标注。"));
+      if (previewState.busy) throw new Error(t("请等待预览完成，再启动正式标注。"));
       const payload = readAiPayload();
       const { prompt, target_labels: targetLabels, asset_ids: scopedAssetIds } = payload;
       const assetId = state.asset?.id;
@@ -4320,7 +4359,7 @@ function openAiModal(preselectedAssetIds = null) {
       if (releasesCurrentAsset) {
         await releaseCurrentLock(assetId);
         if (!modalCurrent()) return;
-        state.readOnly = true; state.readOnlyReason = "AI 正在处理这张图片，请完成后再检查或校正。";
+        state.readOnly = true; state.readOnlyReason = t("AI 正在处理这张图片，请完成后再检查或校正。");
       }
       let job;
       try {
@@ -4335,12 +4374,12 @@ function openAiModal(preselectedAssetIds = null) {
         throw error;
       }
       if (!modalCurrent()) {
-        if (state.session === session) notify(`“${projectName}”的 AI 标注任务已创建，可返回该项目查看进度。`);
+        if (state.session === session) notify(t("“{0}”的 AI 标注任务已创建，可返回该项目查看进度。", [projectName]));
         return;
       }
       try { localStorage.setItem(`visionforge-ai-config-${projectId}`, JSON.stringify({ model_id:selectedModel, prompt, confidence_threshold:payload.confidence_threshold })); } catch (_) { /* Browser preferences do not affect accepted jobs. */ }
       setSectionTab(state.session, projectId, "ai", "history");
-      state.jobs.unshift(job); state.assistPoints = []; state.inspectorTab = "jobs"; closeModal(); notify("AI 标注任务已创建，可在任务列表查看进度。");
+      state.jobs.unshift(job); state.assistPoints = []; state.inspectorTab = "jobs"; closeModal(); notify(t("AI 标注任务已创建，可在任务列表查看进度。"));
       if (state.currentSection === "annotate") { renderWorkspace(); startJobPolling(); }
       else if (state.currentSection === "ai") {
         resetHistoryNavigation(projectId, "ai"); renderAiPage();
@@ -4356,21 +4395,22 @@ function openAiModal(preselectedAssetIds = null) {
             state.activeLabel = project.labels.find(label => label.id === activeLabelId) || project.labels[0] || null;
             if (state.currentSection === "annotate") refreshInspector();
           }
-        } catch (_) { if (contextCurrent()) notify("任务已创建，类别列表暂未刷新。稍后刷新页面即可，请勿重复启动。", "warning"); }
+        } catch (_) { if (contextCurrent()) notify(t("任务已创建，类别列表暂未刷新。稍后刷新页面即可，请勿重复启动。"), "warning"); }
       }
     },
   });
 }
 
 function openExportModal() {
+  if (!canExportProject()) return notify(t("当前项目未授予这项操作权限"), "error");
   const count = () => state.assets.filter(asset => !document.querySelector("#approved-only").checked || asset.review_status === "approved").length;
-  openModal({ title:"导出当前数据", subtitle:"下载图片和标注文件。若要在本平台训练，请先到“数据版本”准备训练数据。", body:`
-    <div class="field"><label>文件格式</label>${exportFormatMarkup("format", projectTask())}</div><label class="check-line"><input id="approved-only" type="checkbox" checked/>仅导出审核通过的图片（建议）</label><div class="inline-notice" id="export-summary" role="status"></div><details class="technical-details"><summary>与数据版本导出的区别</summary><p>这里下载的是当前数据。数据版本会保留生成时的图片与标注，方便重复训练和比较结果。</p></details>`,
-    submitText:"下载数据 ZIP", onReady: () => {
-      const update = () => { const total = count(); document.querySelector("#export-summary").textContent = total ? `将导出 ${total} 张图片及其标注。${document.querySelector("#approved-only").checked ? "" : "包含未审核数据，请先确认质量。"}` : "没有符合条件的图片。请先检查并审核图片，或取消“仅导出审核通过的图片”。"; document.querySelector("#modal-submit").disabled = !total; };
+  openModal({ title:t("导出当前数据"), subtitle:t("下载图片和标注文件。若要在本平台训练，请先到“数据版本”准备训练数据。"), body:`
+    <div class="field"><label>${t("文件格式")}</label>${exportFormatMarkup("format", projectTask())}</div><label class="check-line"><input id="approved-only" type="checkbox" checked/>${t("仅导出审核通过的图片（建议）")}</label><div class="inline-notice" id="export-summary" role="status"></div><details class="technical-details"><summary>${t("与数据版本导出的区别")}</summary><p>${t("这里下载的是当前数据。数据版本会保留生成时的图片与标注，方便重复训练和比较结果。")}</p></details>`,
+    submitText:t("下载数据 ZIP"), onReady: () => {
+      const update = () => { const total = count(); document.querySelector("#export-summary").textContent = total ? t("将导出 {0} 张图片及其标注。{1}", [total, document.querySelector("#approved-only").checked ? "" : t("包含未审核数据，请先确认质量。")]) : t("没有符合条件的图片。请先检查并审核图片，或取消“仅导出审核通过的图片”。"); document.querySelector("#modal-submit").disabled = !total; };
       document.querySelector("#approved-only").onchange = update; update();
     }, onSubmit: async () => {
-      if (!count()) throw new Error("当前范围内没有可导出的图片，请先完成审核或调整导出范围。");
+      if (!count()) throw new Error(t("当前范围内没有可导出的图片，请先完成审核或调整导出范围。"));
       const format = document.querySelector('input[name="format"]:checked').value;
       await downloadArtifact(`/api/projects/${state.project.id}/export/${format}?approved_only=${document.querySelector("#approved-only").checked}`, `${state.project.name}-${format}.zip`);
       closeModal();
@@ -4381,7 +4421,7 @@ function openExportModal() {
 async function changeJob(jobId, action) {
   if (!state.project || state.jobActionIds.has(jobId)) return;
   if (action === "cancel" && state.jobs.find(job => job.id === jobId)?.cancel_requested) {
-    return notify("取消请求已接受，请等待当前图片处理结束。", "warning");
+    return notify(t("取消请求已接受，请等待当前图片处理结束。"), "warning");
   }
   const projectId = state.project.id;
   const selectionEpoch = state.selectionEpoch;
@@ -4390,17 +4430,17 @@ async function changeJob(jobId, action) {
     && state.selectionEpoch === selectionEpoch && state.currentSection === section;
   let acceptedJob = null;
   state.jobActionIds.add(jobId);
-  document.querySelectorAll(`[data-${action}-job="${jobId}"]`).forEach(button => { button.disabled = true; button.textContent = "正在处理…"; });
+  document.querySelectorAll(`[data-${action}-job="${jobId}"]`).forEach(button => { button.disabled = true; button.textContent = t("正在处理…"); });
   try {
     acceptedJob = await api(`/api/jobs/${jobId}/${action}`, { method: "POST" });
-    notify(action === "cancel" ? "已请求取消。当前图片处理结束后停止，已完成结果会保留。" : "任务已重新排队，可在这里查看进度。");
+    notify(action === "cancel" ? t("已请求取消。当前图片处理结束后停止，已完成结果会保留。") : t("任务已重新排队，可在这里查看进度。"));
     if (!isCurrent()) return;
     state.jobs = state.jobs.map(job => job.id === jobId ? acceptedJob : job);
     try {
       const jobs = await api(`/api/projects/${projectId}/jobs`);
       if (isCurrent()) state.jobs = jobs;
     } catch (error) {
-      if (error.status !== 401 && isCurrent()) notify(`${action === "cancel" ? "取消请求已接受" : "任务已重新排队"}，但列表暂未刷新。请稍后刷新查看，无需重复操作。`, "warning");
+      if (error.status !== 401 && isCurrent()) notify(t("{0}，但列表暂未刷新。请稍后刷新查看，无需重复操作。", [action === "cancel" ? t("取消请求已接受") : t("任务已重新排队")]), "warning");
     }
   } catch (error) { notify(error.message, "error"); }
   finally {
@@ -4410,7 +4450,7 @@ async function changeJob(jobId, action) {
         if (section === "annotate") renderWorkspace(); else renderProjectSection(section);
         startJobPolling();
       } else {
-        document.querySelectorAll(`[data-${action}-job="${jobId}"]`).forEach(button => { button.disabled = false; button.textContent = action === "cancel" ? "取消任务" : "重试任务"; });
+        document.querySelectorAll(`[data-${action}-job="${jobId}"]`).forEach(button => { button.disabled = false; button.textContent = action === "cancel" ? t("取消任务") : t("重试任务"); });
       }
     }
   }
@@ -4418,11 +4458,11 @@ async function changeJob(jobId, action) {
 async function cancelJob(jobId) { await changeJob(jobId, "cancel"); }
 async function retryJob(jobId) { await changeJob(jobId, "retry"); }
 
-function openModal({ title, subtitle = "", body, submitText = "确定", wide = false, onReady, onSubmit, onClose }) {
+function openModal({ title, subtitle = "", body, submitText = t("确定"), wide = false, onReady, onSubmit, onClose }) {
   modalCleanup?.(); modalCleanup = onClose || null;
   annotationMenu?.close({ restoreFocus: false, force: true });
   modalReturnFocus = document.activeElement;
-  modalRoot.innerHTML = `<div class="modal-backdrop"><div class="modal ${wide ? "wide" : ""}" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-description"><div class="modal-head"><div><h2 id="modal-title">${escapeHtml(title)}</h2><p id="modal-description">${escapeHtml(subtitle)}</p></div><button class="tool" id="modal-close" aria-label="关闭对话框">${icon("close")}</button></div><div class="modal-body">${body}</div><div id="modal-feedback" class="modal-feedback" role="alert" tabindex="-1" hidden></div><div class="modal-actions"><button class="btn ghost" id="modal-cancel">取消</button><button class="btn primary" id="modal-submit">${escapeHtml(submitText)}</button></div></div></div>`;
+  modalRoot.innerHTML = `<div class="modal-backdrop"><div class="modal ${wide ? "wide" : ""}" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-description"><div class="modal-head"><div><h2 id="modal-title">${escapeHtml(title)}</h2><p id="modal-description">${escapeHtml(subtitle)}</p></div><button class="tool" id="modal-close" aria-label="${ta("关闭对话框")}">${icon("close")}</button></div><div class="modal-body">${body}</div><div id="modal-feedback" class="modal-feedback" role="alert" tabindex="-1" hidden></div><div class="modal-actions"><button class="btn ghost" id="modal-cancel">${t("取消")}</button><button class="btn primary" id="modal-submit">${escapeHtml(submitText)}</button></div></div></div>`;
   const modal = document.querySelector(".modal");
   const submit = modal.querySelector("#modal-submit");
   const cancel = modal.querySelector("#modal-cancel");
@@ -4439,12 +4479,12 @@ function openModal({ title, subtitle = "", body, submitText = "确定", wide = f
     feedback.hidden = true; feedback.replaceChildren();
     busy = true; submit.disabled = true; cancel.disabled = true; closeButton.disabled = true;
     bodyElement.inert = true; modal.setAttribute("aria-busy", "true");
-    submit.innerHTML = `<span class="spinner"></span>正在处理…`;
+    submit.innerHTML = `<span class="spinner"></span>${t("正在处理…")}`;
     try { await onSubmit(); }
     catch (error) {
       if (!modal.isConnected && error.status !== 401) notify(error.message, "error");
       if (modal.isConnected) {
-        feedback.innerHTML = `<strong>${escapeHtml(error.message)}</strong>${error.technicalMessage ? `<details class="technical-details"><summary>技术详情（可提供给管理员）</summary><pre>${escapeHtml(error.technicalMessage)}</pre></details>` : ""}`;
+        feedback.innerHTML = `<strong>${escapeHtml(error.message)}</strong>${error.technicalMessage ? `<details class="technical-details"><summary>${t("技术详情（可提供给管理员）")}</summary><pre>${escapeHtml(error.technicalMessage)}</pre></details>` : ""}`;
         feedback.hidden = false; feedback.focus();
       }
     } finally {
@@ -4548,10 +4588,10 @@ function startJobPolling() {
           const created = completed.reduce((sum, job) => sum + job.created_count, 0);
           const processed = completed.reduce((sum, job) => sum + job.processed, 0);
           const detail = completed[0].progress_message?.replace(/^完成：?/, "");
-          notify(created ? `AI 标注完成：处理 ${processed} 张图片，新增 ${created} 个标注` : `AI 标注完成：${detail || "未产生符合条件的结果"}`);
+          notify(created ? t("AI 标注完成：处理 {0} 张图片，新增 {1} 个标注", [processed, created]) : t("AI 标注完成：{0}", [detail || t("未产生符合条件的结果")]));
         }
-        if (failed.length) notify(`AI 标注任务失败：${failed[0].error || "请查看任务详情"}`, "error");
-        if (cancelled.length) notify("AI 标注任务已取消");
+        if (failed.length) notify(t("AI 标注任务失败：{0}", [failed[0].error || t("请查看任务详情")]), "error");
+        if (cancelled.length) notify(t("AI 标注任务已取消"));
       }
     } catch (_) { /* keep polling through temporary network errors */ }
     finally { polling = false; if (stopped && state.pollTimer === timer) state.pollTimer = null; }
@@ -4582,7 +4622,7 @@ function startCollaborationPolling() {
         state.activeWorkBlock = block;
         if (lostOwnership) {
           clearInterval(state.lockTimer); state.lockTimer = null; state.lockOwned = false;
-          state.readOnly = true; state.readOnlyReason = "任务块已交回或转交给其他成员，当前仅供查看。";
+          state.readOnly = true; state.readOnlyReason = t("任务块已交回或转交给其他成员，当前仅供查看。");
           notify(state.readOnlyReason, "warning");
         }
       }
@@ -4599,7 +4639,7 @@ function startCollaborationPolling() {
         state.lockOwned = false; state.asset = null; state.annotations = []; state.selectedAnnotation = null;
         state.reviewEvents = []; state.assistPoints = []; state.keypointPlacement = null; state.handedOffAssetId = null;
         state.readOnly = false; state.readOnlyReason = ""; state.saveFeedback = {status:"idle", message:""};
-        notify(assets.length ? "当前图片已被管理员删除，已打开下一张图片。" : "当前图片已被管理员删除，项目中已没有图片。", "warning");
+        notify(assets.length ? t("当前图片已被管理员删除，已打开下一张图片。") : t("当前图片已被管理员删除，项目中已没有图片。"), "warning");
         if (assets.length) await selectAsset(assets[0].id);
         else {
           state.selectionEpoch += 1;
@@ -4625,6 +4665,20 @@ function runningJobCount() { return state.jobs.filter(job => ["queued", "running
 function formatBytes(bytes) { if (bytes < 1024) return `${bytes} B`; if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`; return `${(bytes / 1048576).toFixed(1)} MB`; }
 
 window.addEventListener("hashchange", route);
+window.addEventListener("cvsprout-before-language-change", event => {
+  const draft = state.currentSection === "annotate" && (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft());
+  const busy = document.querySelector("form[aria-busy=true], form button[type=submit]:disabled");
+  const edited = [...document.querySelectorAll("#modal-root input, #modal-root textarea, #modal-root select, form input, form textarea")].some(field => {
+    if (field.matches("[data-language-select], [type=hidden], [type=submit], [type=button]")) return false;
+    if (field.type === "checkbox" || field.type === "radio") return field.checked !== field.defaultChecked;
+    if (field.tagName === "SELECT") return [...field.options].some(option => option.selected !== option.defaultSelected);
+    return field.value !== field.defaultValue;
+  });
+  if (draft || busy || edited) {
+    event.preventDefault();
+    notify(t("请先保存或关闭正在编辑的表单和标注草稿，再切换语言。"), "warning");
+  }
+});
 window.addEventListener("beforeunload", event => {
   if (state.currentSection === "annotate" && (state.savingAnnotation || state.workflowBusy || hasAnnotationDraft())) {
     event.preventDefault(); event.returnValue = "";
@@ -4669,9 +4723,9 @@ document.addEventListener("click", async event => {
       state.keypointPlacement = null; state.advancedAnnotationDirty = false; state.advancedDraft = null;
       if (["submitted", "approved"].includes(asset.review_status)) state.readOnly = true;
       setSaveFeedback("idle");
-      notify("已重新加载服务器上的结果，未保存的修改已放弃。");
+      notify(t("已重新加载服务器上的结果，未保存的修改已放弃。"));
     } catch (error) {
-      if (isCurrent()) setSaveFeedback("error", `重新加载未完成。${error.message}`);
+      if (isCurrent()) setSaveFeedback("error", t("重新加载未完成。{0}", [error.message]));
     } finally {
       if (isCurrent()) { state.savingAnnotation = false; drawDraft(); refreshShapes(); refreshInspector(); refreshWorkflowState(); refreshCanvasStatus(); }
     }
@@ -4681,7 +4735,7 @@ const menuTargetCurrent = id => {
   const context = annotationMenuContext, item = state.annotations.find(annotation => annotation.id === id);
   if (!context?.current() || !item || context.versions.get(id) !== item.version) {
     annotationMenu?.close({ restoreFocus: false, force: true });
-    notify("对象状态已变化，请重新选择后操作。", "warning"); return false;
+    notify(t("对象状态已变化，请重新选择后操作。"), "warning"); return false;
   }
   return true;
 };
@@ -4721,19 +4775,19 @@ window.matchMedia("(max-width: 759px)").addEventListener("change", event => {
 });
 
 async function pasteCopiedAnnotation() {
-  if (!canEditCurrentAsset()) return notify("当前图片不可编辑", "error");
-  if (hasAnnotationDraft()) return notify("请先完成或取消当前草稿，再粘贴对象。", "warning");
+  if (!canEditCurrentAsset()) return notify(t("当前图片不可编辑"), "error");
+  if (hasAnnotationDraft()) return notify(t("请先完成或取消当前草稿，再粘贴对象。"), "warning");
   const source = state.copiedAnnotation;
-  if (!source || source._copiedProjectId !== state.project.id) return notify("请在当前项目重新复制对象。", "warning");
+  if (!source || source._copiedProjectId !== state.project.id) return notify(t("请在当前项目重新复制对象。"), "warning");
   if (source.shape_type === "classification") return chooseTaskLabel(source.label_id);
   const label = state.project.labels.find(item => item.id === source.label_id);
-  if (!label) return notify("复制对象的类别已不存在，请重新选择对象复制。", "error");
+  if (!label) return notify(t("复制对象的类别已不存在，请重新选择对象复制。"), "error");
   const points = (source.points || []).map((value, index) => Math.max(0, Math.min(index % 2 ? state.asset.height : state.asset.width, value + 8)));
   const keypoints = (source.keypoints || []).map(point => point.visibility ? { ...point, x: Math.max(0, Math.min(state.asset.width, point.x + 8)), y: Math.max(0, Math.min(state.asset.height, point.y + 8)) } : { ...point });
   state.pendingAnnotation = { shapeType: source.shape_type, points, keypoints, labelId: label.id,
     attributes: JSON.parse(JSON.stringify(source.attributes || defaultAttributes(label))), expectedRevision: state.asset.revision };
   const saved = await saveAnnotation(source.shape_type, points, keypoints, label.id);
-  if (saved) notify("已粘贴对象，可继续拖动调整。");
+  if (saved) notify(t("已粘贴对象，可继续拖动调整。"));
 }
 
 function deferRenderForNavigation(section) {

@@ -77,9 +77,9 @@ def _item(project_id: int, target: ReviewTarget, payload: BatchReview, actor: Ac
             return {**result, "status": "not_found", "code": "not_in_project", "message": "图片不存在或不属于当前项目"}
         asset = dict(row)
         result.update(filename=asset["filename"], review_status=asset["review_status"], current_revision=asset["revision"])
-        if payload.action in {"approve", "reject"} and actor.role not in {"admin", "reviewer"}:
+        if payload.action in {"approve", "reject"} and actor.role not in {"admin", "reviewer"} and actor.project_role not in {"owner", "editor"}:
             return {**result, "status": "forbidden", "code": "reviewer_required", "message": "需要审核员或管理员处理；当前账号可提交审核"}
-        if actor.role not in {"admin", "reviewer", "annotator"}:
+        if actor.role not in {"admin", "user", "reviewer", "annotator"}:
             return {**result, "status": "forbidden", "code": "role_not_allowed", "message": "当前账号没有操作权限"}
         source_issue = _source_job_issue(conn, project_id, target, payload)
         if source_issue:
@@ -155,7 +155,7 @@ def job_review_scope(project_id: int, job_id: int, actor: Actor = Depends(get_ac
     """
     if actor.must_change_password:
         raise password_change_required()
-    if actor.role not in {"admin", "reviewer", "annotator"}:
+    if actor.role not in {"admin", "user", "reviewer", "annotator"}:
         raise HTTPException(403, "当前账号没有提交审核权限")
     with db() as conn:
         conn.execute("BEGIN")

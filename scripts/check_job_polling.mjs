@@ -1,8 +1,9 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 // Deferred responses exercise the real polling and refresh functions without a server.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-const source = readFileSync(new URL('../static/app.js', import.meta.url), 'utf8');
+const source = stripI18nImports(readFileSync(new URL('../static/app.js', import.meta.url), 'utf8'));
 const extract = (start, end) => {
   const first = source.indexOf(start), last = source.indexOf(end, first);
   assert(first >= 0 && last > first, `Missing function boundary: ${start}`);
@@ -20,7 +21,7 @@ function harness(section = 'ai') {
     lockOwned: true, savingAnnotation: false, workflowBusy: false, annotations: [], pollTimer: null };
   const calls = [], events = [], timers = new Map(), cleared = [];
   let serial = 0;
-  const context = vm.createContext({ state, console,
+  const context = vm.createContext(withI18n({ state, console,
     api: path => { const call = { path, ...deferred() }; calls.push(call); return call.promise; },
     safeApi: path => context.api(path), fallbackAnalytics: () => ({ fallback: true }),
     setInterval: callback => { const id = ++serial; timers.set(id, callback); return id; },
@@ -31,7 +32,7 @@ function harness(section = 'ai') {
     renderWorkspace: () => events.push(['workspace']), loadAnnotations: async (...args) => events.push(['annotations', ...args]),
     acquireAssetLock: async (...args) => events.push(['lock', ...args]), releaseCurrentLock: async () => events.push(['release']),
     notify: (...args) => events.push(['notify', ...args]),
-  });
+  }));
   vm.runInContext(code, context);
   return { state, context, calls, events, timers, cleared, start: context.startJobPolling,
     answer(path, value) { const call = calls.find(item => item.path === path && !item.answered); assert(call, `Missing request ${path}`); call.answered = true; call.resolve(value); },

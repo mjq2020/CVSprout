@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 // Offline geometry / visibility regression; no server, dependencies, or data writes.
 import assert from "node:assert/strict";
 import { canvasGuideGeometry, canvasGuidesAllowed } from "../static/canvas-guides.js";

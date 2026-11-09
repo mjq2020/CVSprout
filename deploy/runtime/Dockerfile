@@ -4,6 +4,7 @@ WORKDIR /service
 RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
 COPY requirements ./requirements
 COPY app ./app
+COPY static ./static
 COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md ./
 RUN useradd --uid 10001 --create-home visionforge
 RUN python -m pip install --no-cache-dir --upgrade pip==26.2.2

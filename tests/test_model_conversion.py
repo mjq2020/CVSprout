@@ -111,6 +111,50 @@ class ConversionTest(unittest.TestCase):
                 response = self.client.post(endpoint, json={"format": "rknn", "rknn": self.system_config()})
                 self.assertEqual(response.status_code, 422, response.text)
 
+    def test_system_profile_explains_unsupported_model_and_keeps_generic_available(self):
+        self.set_source_architecture("yolo26n.pt")
+        system = self.client.get(f"/api/training-runs/{self.run}/conversion-options").json()["system_model"]
+        self.assertFalse(system["available"])
+        self.assertEqual(system["source_model_arch"], "yolo26n.pt")
+        for text in ("yolo26n.pt", "YOLOv8 / YOLO11", "重新训练", "通用 RKNN"):
+            self.assertIn(text, system["reason"])
+        response = self.client.post(f"/api/training-runs/{self.run}/conversions",
+                                    json={"format": "rknn", "rknn": self.system_config()})
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertEqual(response.json()["detail"], system["reason"])
+        generic = self.create()
+        self.assertEqual(generic["settings"]["rknn"]["deployment_profile"], "generic")
+
+    def test_system_profile_explains_missing_metadata_without_trusting_run_name(self):
+        with database.db() as conn:
+            conn.execute("UPDATE training_runs SET model_arch='yolov8n.pt' WHERE id=?", (self.run,))
+        for metadata in ({}, {"model_arch": None}, {"model_arch": {"name": "yolov8n.pt"}}):
+            with self.subTest(metadata=metadata):
+                with database.db() as conn:
+                    conn.execute("UPDATE training_runs SET artifact_metadata_json=? WHERE id=?", (json.dumps(metadata), self.run))
+                system = self.client.get(f"/api/training-runs/{self.run}/conversion-options").json()["system_model"]
+                self.assertFalse(system["available"])
+                self.assertIsNone(system["algorithm"])
+                self.assertEqual(system["source_model_arch"], "yolov8n.pt")
+                self.assertIn("训练产物未记录模型架构", system["reason"])
+
+    def test_system_profile_distinguishes_task_limits_from_supported_architecture(self):
+        for task, label in (("segment", "实例分割"), ("classify", "图像分类"), ("pose", "姿态估计"), ("obb", "旋转框检测")):
+            with self.subTest(task=task):
+                self.set_source_architecture("yolo11n.pt", task)
+                system = self.client.get(f"/api/training-runs/{self.run}/conversion-options").json()["system_model"]
+                self.assertFalse(system["available"])
+                self.assertIn(label, system["reason"])
+                self.assertIn("仅支持 YOLOv8 / YOLO11 目标检测", system["reason"])
+        for architecture, algorithm in (("yolov8n.pt", "yolov8"), ("yolo11s.pt", "yolo11")):
+            with self.subTest(architecture=architecture):
+                self.set_source_architecture(architecture)
+                system = self.client.get(f"/api/training-runs/{self.run}/conversion-options").json()["system_model"]
+                self.assertTrue(system["available"])
+                self.assertEqual(system["algorithm"], algorithm)
+                self.assertEqual(system["source_model_arch"], architecture)
+                self.assertEqual(system["reason"], "")
+
     def test_system_profile_worker_keeps_contract_frozen_calibration_and_retry_settings(self):
         self.set_source_architecture("yolo11n")
         item = self.create(rknn=self.system_config())

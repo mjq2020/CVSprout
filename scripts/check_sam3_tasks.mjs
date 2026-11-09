@@ -1,10 +1,11 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const appSource = fs.readFileSync(new URL('../static/app.js', import.meta.url), 'utf8');
-const taskSource = fs.readFileSync(new URL('../static/task-ui.js', import.meta.url), 'utf8');
-const preparationSource = fs.readFileSync(new URL('../static/model-preparation-ui.js', import.meta.url), 'utf8').replace(/^export /gm, '');
+const appSource = stripI18nImports(fs.readFileSync(new URL('../static/app.js', import.meta.url), 'utf8'));
+const taskSource = stripI18nImports(fs.readFileSync(new URL('../static/task-ui.js', import.meta.url), 'utf8'));
+const preparationSource = stripI18nImports(fs.readFileSync(new URL('../static/model-preparation-ui.js', import.meta.url), 'utf8')).replace(/^export /gm, '');
 function extract(source, start, end) {
   const a = source.indexOf(start), b = source.indexOf(end, a);
   assert(a >= 0 && b > a, `Missing function boundaries: ${start}`);
@@ -23,15 +24,15 @@ const sam3 = (changes = {}) => ({
   preparation: { mode: 'manual', installed: true, downloadable: false, files: ['sam3.pt'], missing_files: [] },
   ...changes,
 });
-function fixture(task, model = sam3(), saved = {}, role = 'annotator') {
+function fixture(task, model = sam3(), saved = {}, role = 'user') {
   let modal;
-  const state = { currentSection: 'ai', project: { id: 1, name: '测试', task_type: task, labels: [{ name: 'cat' }, { name: 'dog' }] },
+  const state = { currentSection: 'ai', project: { id: 1, name: '测试', task_type: task, permissions: {edit:true,manage:false,export:true}, labels: [{ name: 'cat' }, { name: 'dog' }] },
     models: [model], assets: [{ id: 1, status: 'unlabeled', review_status: 'draft' }], assistPoints: [], session: { role }, selectionEpoch: 1 };
-  const context = vm.createContext({ state, URL, escapeHtml,
+  const context = vm.createContext(withI18n({ state, URL, escapeHtml,
     localStorage: { getItem: () => JSON.stringify(saved) }, openModal: config => { modal = config; },
     aiPreviewMarkup: () => '', notify: () => {}, document: {}, modalRoot: {},
     api: () => { throw Error('Opening the picker must not download or run inference'); },
-  });
+  }));
   vm.runInContext(actualFunctions, context);
   context.openAiModal();
   return { state, context, model, get modal() { return modal; } };
@@ -53,7 +54,7 @@ for (const task of ['detect', 'segment', 'mixed', 'classify', 'pose']) {
   assert(h.modal.body.includes(prompt.hint), `${task}: task-specific output hint reaches the real modal`);
   assert.equal(prompt.value, 'cat, dog');
   assert.equal(prompt.readOnly, undefined);
-  assert(prompt.hint.includes('新类别需由管理员添加'));
+  assert(prompt.hint.includes('预览可尝试新类别'));
 }
 
 // Missing manual weights remain inspectable; disabling a model preserves the visible setup card but prevents selection.

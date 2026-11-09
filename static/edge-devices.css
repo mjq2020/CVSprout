@@ -115,8 +115,37 @@ html:has(.edge-devices-page), body:has(.edge-devices-page), #app:has(.edge-devic
 .edge-system-status div { min-width: 0; }
 .edge-system-status dt { color: var(--muted); font-size: 11px; line-height: 1.6; }
 .edge-system-status dd { margin: 4px 0 0; color: var(--text); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-#edge-system-content select { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; color: var(--text); background: var(--panel); font: inherit; }
-#edge-system-content [hidden] { display: none !important; }
+#edge-system-content select, #edge-project-device-content select { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; color: var(--text); background: var(--panel); font: inherit; }
+#edge-system-content [hidden], #edge-project-device-content [hidden] { display: none !important; }
+#edge-system-conversion:disabled { color: var(--text-secondary); background: var(--panel-2); }
+.edge-project-device-status { margin: 16px 0; padding: 14px; border-left: 3px solid var(--line-strong); background: var(--panel-2); font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.edge-project-device-status p { margin: 5px 0 0; color: var(--muted); }
+.edge-project-device-status ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); }
+.edge-project-device-status li + li { margin-top: 6px; }
+.edge-project-deployment-source { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.edge-project-deployment-source > span { flex: 1; min-width: 100px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 #edge-system-content .hint { overflow-wrap: anywhere; }
 #edge-system-content .edge-deployment-history button { justify-self: start; font-size: 11px; }
 @media (max-width: 640px) { .edge-system-status { grid-template-columns: 1fr; } }
+
+.edge-model-progress { margin: 0 0 22px; padding: 16px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-2); }
+.edge-model-progress-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; }
+.edge-model-progress h3 { margin: 0; color: var(--text); font-size: 15px; line-height: 1.6; }
+.edge-model-progress-heading > span, .edge-model-progress small { color: var(--muted); font-size: 11px; }
+.edge-model-progress p { margin: 8px 0; font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.edge-model-progress-file { color: var(--muted); }
+.edge-model-progress progress { display: block; width: 100%; height: 8px; margin: 14px 0; accent-color: var(--brand); }
+.edge-model-progress.success progress { accent-color: var(--success); }
+.edge-model-progress.warning h3 { color: var(--warning); }
+.edge-model-stages { display: flex; flex-wrap: wrap; gap: 10px 16px; list-style: none; padding: 0; margin: 14px 0; }
+.edge-model-stages li { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.edge-model-stages li > span { display: inline-grid; place-items: center; width: 20px; height: 20px; border: 1px solid var(--line-strong); border-radius: 50%; font-size: 10px; }
+.edge-model-stages li.done { color: var(--success); }
+.edge-model-stages li.current { color: var(--brand); font-weight: 600; }
+.edge-model-stages li.current > span { border-color: var(--brand); background: var(--brand-soft); }
+#edge-system-fps-field .field { max-width: 180px; margin: 12px 0 0; }
+.edge-model-name-field .hint, .edge-model-name-error, .edge-model-name-preview { margin: 7px 0 0; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.edge-model-name-error { color: var(--danger); }
+.edge-model-name-preview { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+#edge-system-model-name[aria-invalid="true"] { border-color: var(--danger); }
+@media (max-width: 640px) { .edge-model-stages { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } }

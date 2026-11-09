@@ -1,6 +1,7 @@
+import { t, ta, getLocale } from "./i18n.js?v=0.29.3";
 const SPLITS = ["train", "valid", "test"];
-const NAMES = { train: "训练", valid: "验证", test: "测试" };
-const PURPOSES = { train: "让模型学习图片和标注", valid: "训练时检查效果、选择模型", test: "训练完成后评估最终效果" };
+const NAMES = { train: t("训练"), valid: t("验证"), test: t("测试") };
+const PURPOSES = { train: t("让模型学习图片和标注"), valid: t("训练时检查效果、选择模型"), test: t("训练完成后评估最终效果") };
 
 // Match the server's largest-remainder allocation, including its one-image
 // training minimum. These are estimates until the version is created.
@@ -45,7 +46,7 @@ export function adjustSplitBoundaryPercentages(current, boundary, requested) {
 }
 
 export function datasetSplitControlsMarkup() {
-  return `<fieldset class="dataset-split-controls"><legend>分配训练、验证和测试数据</legend><p id="dataset-split-help" class="hint">拖动上方手柄调整训练与验证，下方手柄调整验证与测试，合计始终为 100%。训练至少占 1%，验证和测试可设为 0%。</p><div class="dataset-split-legend" aria-label="各组比例">${SPLITS.map(name => `<span class="${name}"><i aria-hidden="true"></i>${NAMES[name]} <strong data-split-percent="${name}"></strong></span>`).join("")}</div><div class="dataset-split-bar" role="group" aria-label="数据集分配比例"><div class="dataset-split-track" aria-hidden="true">${SPLITS.map(name => `<span class="${name}" data-split-segment="${name}"></span>`).join("")}</div><button type="button" class="dataset-split-handle train" data-split-handle="train" role="slider" aria-label="训练与验证分界（上方手柄）" aria-orientation="horizontal" aria-describedby="dataset-split-keyboard" title="拖动调整训练与验证比例"><span aria-hidden="true"></span></button><button type="button" class="dataset-split-handle test" data-split-handle="test" role="slider" aria-label="验证与测试分界（下方手柄）" aria-orientation="horizontal" aria-describedby="dataset-split-keyboard" title="拖动调整验证与测试比例"><span aria-hidden="true"></span></button></div><p id="dataset-split-keyboard" class="dataset-split-keyboard hint">手柄可用方向键调 1%，Page Up / Down 调 10%，Home / End 到边界。也可在下方输入精确比例，其他两组会自动分配剩余比例。</p>${SPLITS.map(name => `<div class="dataset-split-row ${name}"><div class="dataset-split-label"><label for="split-${name}">${NAMES[name]}</label><small>${PURPOSES[name]}</small></div><div class="dataset-split-number"><input id="split-${name}" data-split-number="${name}" type="number" min="${name === "train" ? 1 : 0}" max="${name === "train" ? 100 : 99}" step="1" inputmode="numeric" aria-label="${NAMES[name]}比例（百分比）"/><span aria-hidden="true">%</span></div><output data-split-count="${name}" for="split-${name}"></output></div>`).join("")}<div class="dataset-split-footer"><span>合计 <strong id="dataset-split-total">100%</strong></span><button type="button" class="btn ghost" data-split-default>恢复 70 / 20 / 10</button></div><p id="dataset-split-note" class="hint" role="status"></p></fieldset>`;
+  return `<fieldset class="dataset-split-controls"><legend>${t("分配训练、验证和测试数据")}</legend><p id="dataset-split-help" class="hint">${t("拖动上方手柄调整训练与验证，下方手柄调整验证与测试，合计始终为 100%。训练至少占 1%，验证和测试可设为 0%。")}</p><div class="dataset-split-legend" aria-label="${ta("各组比例")}">${SPLITS.map(name => `<span class="${name}"><i aria-hidden="true"></i>${NAMES[name]} <strong data-split-percent="${name}"></strong></span>`).join("")}</div><div class="dataset-split-bar" role="group" aria-label="${ta("数据集分配比例")}"><div class="dataset-split-track" aria-hidden="true">${SPLITS.map(name => `<span class="${name}" data-split-segment="${name}"></span>`).join("")}</div><button type="button" class="dataset-split-handle train" data-split-handle="train" role="slider" aria-label="${ta("训练与验证分界（上方手柄）")}" aria-orientation="horizontal" aria-describedby="dataset-split-keyboard" title="${ta("拖动调整训练与验证比例")}"><span aria-hidden="true"></span></button><button type="button" class="dataset-split-handle test" data-split-handle="test" role="slider" aria-label="${ta("验证与测试分界（下方手柄）")}" aria-orientation="horizontal" aria-describedby="dataset-split-keyboard" title="${ta("拖动调整验证与测试比例")}"><span aria-hidden="true"></span></button></div><p id="dataset-split-keyboard" class="dataset-split-keyboard hint">${t("手柄可用方向键调 1%，Page Up / Down 调 10%，Home / End 到边界。也可在下方输入精确比例，其他两组会自动分配剩余比例。")}</p>${SPLITS.map(name => `<div class="dataset-split-row ${name}"><div class="dataset-split-label"><label for="split-${name}">${NAMES[name]}</label><small>${PURPOSES[name]}</small></div><div class="dataset-split-number"><input id="split-${name}" data-split-number="${name}" type="number" min="${name === "train" ? 1 : 0}" max="${name === "train" ? 100 : 99}" step="1" inputmode="numeric" aria-label="${ta("{0}比例（百分比）", [NAMES[name]])}"/><span aria-hidden="true">%</span></div><output data-split-count="${name}" for="split-${name}"></output></div>`).join("")}<div class="dataset-split-footer"><span>${t("合计")} <strong id="dataset-split-total">100%</strong></span><button type="button" class="btn ghost" data-split-default>${t("恢复 70 / 20 / 10")}</button></div><p id="dataset-split-note" class="hint" role="status"></p></fieldset>`;
 }
 
 export function bindDatasetSplitControls(root, getTotal) {
@@ -61,7 +62,7 @@ export function bindDatasetSplitControls(root, getTotal) {
     const counts = estimatedSplitCounts(total, values);
     SPLITS.forEach(name => {
       root.querySelector(`[data-split-number="${name}"]`).value = values[name];
-      root.querySelector(`[data-split-count="${name}"]`).textContent = `预计 ${counts[name].toLocaleString()} 张`;
+      root.querySelector(`[data-split-count="${name}"]`).textContent = t("预计 {0} 张", [counts[name].toLocaleString(getLocale())]);
       root.querySelector(`[data-split-percent="${name}"]`).textContent = `${values[name]}%`;
       root.querySelector(`[data-split-segment="${name}"]`).style.width = `${values[name]}%`;
     });
@@ -71,12 +72,12 @@ export function bindDatasetSplitControls(root, getTotal) {
       handle.setAttribute("aria-valuemin", String(min));
       handle.setAttribute("aria-valuemax", String(max));
       handle.setAttribute("aria-valuenow", String(value));
-      handle.setAttribute("aria-valuetext", `训练 ${values.train}%，验证 ${values.valid}%，测试 ${values.test}%；预计分别 ${counts.train}、${counts.valid}、${counts.test} 张`);
+      handle.setAttribute("aria-valuetext", t("训练 {0}%，验证 {1}%，测试 {2}%；预计分别 {3}、{4}、{5} 张", [values.train, values.valid, values.test, counts.train, counts.valid, counts.test]));
     });
     const note = root.querySelector("#dataset-split-note");
     const empty = SPLITS.filter(name => values[name] > 0 && counts[name] === 0);
     note.classList.toggle("dataset-split-warning", total > 0 && (empty.length > 0 || !counts.valid));
-    note.textContent = !total ? "选择要保存的图片后，会显示每组预计张数。" : !counts.valid ? `按 ${total} 张图片估算，当前分配没有验证图片，暂时不能用于训练。可增加验证比例或补充图片；仍可保存版本用于下载。` : empty.length ? `图片较少，按整数分配后${empty.map(name => NAMES[name]).join("、")}组为 0 张。创建后可查看实际分组；训练组至少保留 1 张。` : `按当前 ${total.toLocaleString()} 张图片估算，实际分组以生成后的版本为准。每张图片只进入其中一组。`;
+    note.textContent = !total ? t("选择要保存的图片后，会显示每组预计张数。") : !counts.valid ? t("按 {0} 张图片估算，当前分配没有验证图片，暂时不能用于训练。可增加验证比例或补充图片；仍可保存版本用于下载。", [total]) : empty.length ? t("图片较少，按整数分配后{0}组为 0 张。创建后可查看实际分组；训练组至少保留 1 张。", [empty.map(name => NAMES[name]).join(t("、"))]) : t("按当前 {0} 张图片估算，实际分组以生成后的版本为准。每张图片只进入其中一组。", [total.toLocaleString(getLocale())]);
   };
   const setBoundary = (name, requested) => {
     const next = adjustSplitBoundaryPercentages(values, name, requested);
@@ -146,7 +147,7 @@ export function bindDatasetSplitControls(root, getTotal) {
 export function versionSamplesMarkup(version, escapeHtml, compact = false) {
   const samples = (version.preview_assets || []).slice(0, compact ? 1 : 6);
   if (!samples.length) return "";
-  return `<div class="version-samples ${compact ? "compact" : ""}" aria-label="版本中保存的图片示例">${samples.map(asset => `<div class="version-sample" title="${escapeHtml(asset.filename)} · ${NAMES[asset.split]}"><img src="${escapeHtml(asset.thumbnail_url)}?size=160" alt="${escapeHtml(asset.filename)}" loading="lazy" onerror="this.hidden=true;this.parentElement.classList.add('missing')"/><span class="version-image-fallback">图片暂不可用</span>${compact ? "" : `<small>${NAMES[asset.split]}</small>`}</div>`).join("")}</div>`;
+  return `<div class="version-samples ${compact ? "compact" : ""}" aria-label="${ta("版本中保存的图片示例")}">${samples.map(asset => `<div class="version-sample" title="${escapeHtml(asset.filename)} · ${NAMES[asset.split]}"><img src="${escapeHtml(asset.thumbnail_url)}?size=160" alt="${escapeHtml(asset.filename)}" loading="lazy" onerror="this.hidden=true;this.parentElement.classList.add('missing')"/><span class="version-image-fallback">${t("图片暂不可用")}</span>${compact ? "" : `<small>${NAMES[asset.split]}</small>`}</div>`).join("")}</div>`;
 }
 
 export function openVersionImages(version, dependencies) {
@@ -154,7 +155,7 @@ export function openVersionImages(version, dependencies) {
   const projectId = state.project?.id, epoch = state.selectionEpoch, session = state.session;
   const current = () => state.project?.id === projectId && state.currentSection === "versions" && state.selectionEpoch === epoch && state.session === session;
   let content, split = "all", serial = 0, loading = false, shown = 0, total = 0;
-  const labels = { all: "全部图片", train: "训练集", valid: "验证集", test: "测试集" };
+  const labels = { all: t("全部图片"), train: t("训练集"), valid: t("验证集"), test: t("测试集") };
   const load = async (append = false) => {
     const request = ++serial, requestedSplit = split;
     loading = true;
@@ -162,19 +163,19 @@ export function openVersionImages(version, dependencies) {
     const button = content.querySelector("[data-version-more]");
     const feedback = content.querySelector("[data-version-image-feedback]");
     feedback.hidden = true; button.disabled = true;
-    if (!append) { shown = 0; grid.innerHTML = `<p class="hint" role="status">正在读取版本中的图片…</p>`; }
+    if (!append) { shown = 0; grid.innerHTML = `<p class="hint" role="status">${t("正在读取版本中的图片…")}</p>`; }
     try {
       const result = await api(`/api/versions/${version.id}/assets?split=${requestedSplit}&offset=${append ? shown : 0}&limit=48`);
       if (!current() || !content.isConnected || request !== serial) return;
-      const markup = result.items.map(asset => `<article class="version-image-card"><a class="version-image-link" href="${escapeHtml(asset.image_url)}" target="_blank" rel="noopener" aria-label="查看 ${escapeHtml(asset.filename)} 的完整版本图片（新标签页）"><img src="${escapeHtml(asset.thumbnail_url)}?size=320" alt="${escapeHtml(asset.filename)}" loading="lazy" onerror="this.hidden=true;this.parentElement.classList.add('missing')"/><span class="version-image-fallback">图片暂不可用<br/>请联系管理员检查版本文件</span></a><strong title="${escapeHtml(asset.filename)}">${escapeHtml(asset.filename)}</strong><span>${labels[asset.split]} · ${asset.variant_index ? `增强副本 ${asset.variant_index}` : "原始图片"} · ${asset.annotation_count} 个标注</span><small>${asset.width} × ${asset.height}</small></article>`).join("");
-      if (append) grid.insertAdjacentHTML("beforeend", markup); else grid.innerHTML = markup || `<p class="hint">这个版本的${labels[requestedSplit]}中没有图片。可切换其他分组查看。</p>`;
+      const markup = result.items.map(asset => `<article class="version-image-card"><a class="version-image-link" href="${escapeHtml(asset.image_url)}" target="_blank" rel="noopener" aria-label="${ta("查看 {0} 的完整版本图片（新标签页）", [escapeHtml(asset.filename)])}"><img src="${escapeHtml(asset.thumbnail_url)}?size=320" alt="${escapeHtml(asset.filename)}" loading="lazy" onerror="this.hidden=true;this.parentElement.classList.add('missing')"/><span class="version-image-fallback">${t("图片暂不可用")}<br/>${t("请联系管理员检查版本文件")}</span></a><strong title="${escapeHtml(asset.filename)}">${escapeHtml(asset.filename)}</strong><span>${t("{0} · {1} · {2} 个标注", [labels[asset.split], asset.variant_index ? t("增强副本 {0}", [asset.variant_index]) : t("原始图片"), asset.annotation_count])}</span><small>${asset.width} × ${asset.height}</small></article>`).join("");
+      if (append) grid.insertAdjacentHTML("beforeend", markup); else grid.innerHTML = markup || `<p class="hint">${t("这个版本的{0}中没有图片。可切换其他分组查看。", [labels[requestedSplit]])}</p>`;
       shown += result.items.length; total = result.total;
-      content.querySelector("[data-version-image-count]").textContent = `${labels[requestedSplit]}：已显示 ${shown.toLocaleString()} / ${total.toLocaleString()} 张`;
-      button.hidden = !result.has_more; button.textContent = `继续显示 ${Math.min(48, total - shown)} 张`;
+      content.querySelector("[data-version-image-count]").textContent = t("{0}：已显示 {1} / {2} 张", [labels[requestedSplit], shown.toLocaleString(getLocale()), total.toLocaleString(getLocale())]);
+      button.hidden = !result.has_more; button.textContent = t("继续显示 {0} 张", [Math.min(48, total - shown)]);
     } catch (error) {
       if (!current() || !content.isConnected || request !== serial) return;
       if (!append) grid.innerHTML = "";
-      feedback.innerHTML = `<span>${escapeHtml(error.message)}</span><button class="btn ghost" data-version-retry>重新加载</button>`; feedback.hidden = false;
+      feedback.innerHTML = `<span>${escapeHtml(error.message)}</span><button class="btn ghost" data-version-retry>${t("重新加载")}</button>`; feedback.hidden = false;
       feedback.querySelector("[data-version-retry]").onclick = () => { void load(append); };
       button.hidden = true;
     } finally {
@@ -182,10 +183,10 @@ export function openVersionImages(version, dependencies) {
     }
   };
   openModal({
-    title: `${version.name || `V${version.version_number}`} · 版本图片`, wide: true,
-    subtitle: "查看生成版本时保存的图片与分组。之后修改或删除工作区图片，不会改变这里的内容。点击缩略图可查看完整图片。",
-    body: `<div id="version-image-browser"><div class="version-image-filters" aria-label="版本图片分组">${Object.entries(labels).map(([name, label]) => `<button class="btn ghost ${name === "all" ? "active" : ""}" data-version-image-split="${name}" aria-pressed="${name === "all"}">${label} <strong>${name === "all" ? version.asset_count : version.splits?.[name]?.asset_count || 0}</strong></button>`).join("")}</div><p class="hint" data-version-split-purpose>训练用于学习，验证用于训练中检查，测试用于最终评估。</p><p class="version-image-count" data-version-image-count role="status"></p><div class="version-image-grid" data-version-image-grid></div><div class="version-image-feedback" data-version-image-feedback role="alert" hidden></div><button class="btn ghost version-more" data-version-more hidden></button></div>`,
-    submitText: "关闭",
+    title: t("{0} · 版本图片", [version.name || `V${version.version_number}`]), wide: true,
+    subtitle: t("查看生成版本时保存的图片与分组。之后修改或删除工作区图片，不会改变这里的内容。点击缩略图可查看完整图片。"),
+    body: `<div id="version-image-browser"><div class="version-image-filters" aria-label="${ta("版本图片分组")}">${Object.entries(labels).map(([name, label]) => `<button class="btn ghost ${name === "all" ? "active" : ""}" data-version-image-split="${name}" aria-pressed="${name === "all"}">${label} <strong>${name === "all" ? version.asset_count : version.splits?.[name]?.asset_count || 0}</strong></button>`).join("")}</div><p class="hint" data-version-split-purpose>${t("训练用于学习，验证用于训练中检查，测试用于最终评估。")}</p><p class="version-image-count" data-version-image-count role="status"></p><div class="version-image-grid" data-version-image-grid></div><div class="version-image-feedback" data-version-image-feedback role="alert" hidden></div><button class="btn ghost version-more" data-version-more hidden></button></div>`,
+    submitText: t("关闭"),
     onReady: () => {
       content = document.querySelector("#version-image-browser");
       document.querySelector("#modal-cancel").hidden = true;
@@ -193,7 +194,7 @@ export function openVersionImages(version, dependencies) {
         if (!current() || split === button.dataset.versionImageSplit) return;
         split = button.dataset.versionImageSplit;
         content.querySelectorAll("[data-version-image-split]").forEach(tab => { tab.classList.toggle("active", tab === button); tab.setAttribute("aria-pressed", String(tab === button)); });
-        content.querySelector("[data-version-split-purpose]").textContent = split === "all" ? "训练用于学习，验证用于训练中检查，测试用于最终评估。" : `${labels[split]}：${PURPOSES[split]}。`;
+        content.querySelector("[data-version-split-purpose]").textContent = split === "all" ? t("训练用于学习，验证用于训练中检查，测试用于最终评估。") : `${labels[split]}${t("：")}${PURPOSES[split]}${t("。")}`;
         void load();
       });
       content.querySelector("[data-version-more]").onclick = () => { if (!loading && current()) void load(true); };

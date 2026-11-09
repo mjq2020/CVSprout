@@ -1,3 +1,4 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 // Run the real application workflow/API/navigation functions with controlled HTTP and DOM boundaries.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -5,7 +6,7 @@ import vm from "node:vm";
 import { annotationBlockURL, scopeWorkBlockRequest } from "../static/work-blocks-ui.js";
 import { shouldContinueReview } from "../static/review-ui.js";
 
-const source = readFileSync(new URL("../static/app.js", import.meta.url), "utf8");
+const source = stripI18nImports(readFileSync(new URL("../static/app.js", import.meta.url), "utf8"));
 function extract(start, end) {
   const from = source.indexOf(start), to = source.indexOf(end, from);
   assert(from >= 0 && to > from, `Cannot locate ${start}`);
@@ -32,7 +33,7 @@ function fixture({ blockId = null, initial = [image(1), image(2)], fresh = initi
   const server = structuredClone(fresh), requests = [], notices = [], renders = [], locks = [];
   const location = { hash: "unchanged" }, reason = { value: "" }, ui = { modal: null, closed: 0, draft: false };
   const response = (data, status = 200) => ({ ok: status < 400, status, json: async () => structuredClone(data) });
-  const context = vm.createContext({
+  const context = vm.createContext(withI18n({
     state, location, Headers, Date, actorId: "reviewer", editorToken: "current-page", annotationBlockURL, scopeWorkBlockRequest, shouldContinueReview,
     document: { querySelector: selector => selector === "#reject-reason" ? reason : null },
     history: { replaceState: (_state, _title, path) => { location.hash = path; } },
@@ -65,7 +66,7 @@ function fixture({ blockId = null, initial = [image(1), image(2)], fresh = initi
       }
       assert.fail(`Unexpected HTTP request ${path}`);
     },
-  });
+  }));
   vm.runInContext(functions, context);
   return { context, state, server, requests, notices, renders, locks, location, reason, ui };
 }

@@ -1,7 +1,8 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-const source = fs.readFileSync(new URL('../static/app.js', import.meta.url), 'utf8');
+const source = stripI18nImports(fs.readFileSync(new URL('../static/app.js', import.meta.url), 'utf8'));
 const extract = (start, end) => source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
 const refreshCode = extract('async function refreshPipelineData(', '\nfunction trainingHasActiveWork(');
 const pollCode = extract('function trainingHasActiveWork(', '\nfunction bindCommonProjectEvents(');
@@ -14,7 +15,7 @@ function harness() {
   const state = {project:{id:1},selectionEpoch:1,session:{username:'member'},currentSection:'train',trainingPage:{request:1,page:1},trainingFilters:{query:'',status:'all'},trainingSelectionRequest:1,selectedTrainingId:1,selectedTrainingRun:run(1),training:{runs:[run(1)],counts:{active:1},availability:{available:true}},trainingMetricsHistory:{1:{fetchedAt:1}},trainingLogs:{}};
   const calls = [], renders = [], auxiliary = [];
   const globals = {state,Date,AbortController,Promise,Map,console,document:{hidden:false,querySelector:()=>null},trainingSearchTimer:null,pipelineRefreshRequest:null,pipelineRefreshSerial:0,pipelinePollingKey:'',pipelinePollNow:null,trainingListURL:(_id,page,filters)=>`/list?page=${page}&q=${filters.query}`,monitoredTrainingRun:()=>state.selectedTrainingRun?.id===state.selectedTrainingId?state.selectedTrainingRun:null,rememberTrainingNavigation:()=>{},renderTrainingPage:()=>renders.push({status:state.selectedTrainingRun?.status,id:state.selectedTrainingRun?.id,epoch:state.selectedTrainingRun?.current_epoch}),pipelineApi:path=>{const d=deferred();calls.push({path,...d});return d.promise;},loadRunConversions:(id)=>{auxiliary.push(['conversions',id]);return new Promise(()=>{});},loadTrainingMetrics:(id)=>{auxiliary.push(['metrics',id]);return new Promise(()=>{});},loadTrainingLogs:(id)=>{auxiliary.push(['logs',id]);return new Promise(()=>{});},notify:()=>{}};
-  const context = vm.createContext(globals);
+  const context = vm.createContext(withI18n(globals));
   vm.runInContext(applyCode+'\n'+refreshCode+'\nglobalThis.refresh=refreshPipelineData;',context);
   const answerList = (status='running',epoch=1) => calls.find(call=>call.path.startsWith('/list')).resolve({runs:[run(1,status,epoch)],counts:{active:status==='completed'?0:1},pagination:{page:1,total:1}});
   return {state,context,calls,renders,auxiliary,answerList,refresh:context.refresh};
@@ -73,7 +74,7 @@ function harness() {
 }
 {
   let timeout, cleared=false, options;
-  const context=vm.createContext({AbortController,setTimeout:cb=>{timeout=cb;return 7;},clearTimeout:id=>{cleared=id===7;},api:(_path,opts)=>{options=opts;return new Promise((_,reject)=>opts.signal.addEventListener('abort',()=>reject(new Error('timeout'))));}});
+  const context=vm.createContext(withI18n({AbortController,setTimeout:cb=>{timeout=cb;return 7;},clearTimeout:id=>{cleared=id===7;},api:(_path,opts)=>{options=opts;return new Promise((_,reject)=>opts.signal.addEventListener('abort',()=>reject(new Error('timeout'))));}}));
   vm.runInContext(extract('async function pipelineApi(', '\nfunction monitoredTrainingRun(')+'\nglobalThis.get=pipelineApi;',context);
   const pending=context.get('/status');timeout();await assert.rejects(pending);assert.equal(options.cache,'no-store');assert(cleared,'Timeout must release its timer');
 }

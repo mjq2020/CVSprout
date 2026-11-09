@@ -3,14 +3,14 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 const source = readFileSync(new URL('../static/theme.js', import.meta.url), 'utf8');
-const key = 'cvsprout-theme';
-function browser({ saved = null, dark = false, blockedStorage = false, blockedWrite = false, legacyMedia = false, noMedia = false } = {}) {
+const key = 'cvsprout-theme', styleKey = 'cvsprout-style';
+function browser({ saved = null, savedStyle = null, dark = false, blockedStorage = false, blockedWrite = false, legacyMedia = false, noMedia = false } = {}) {
   const events = [];
   const listeners = new Map();
   let systemListener;
   const storage = {
-    getItem: () => saved,
-    setItem(name, value) { assert.equal(name, key); if (blockedWrite) throw Error('storage full'); saved = value; },
+    getItem: name => name === key ? saved : savedStyle,
+    setItem(name, value) { assert.ok([key, styleKey].includes(name)); if (blockedWrite) throw Error('storage full'); if (name === key) saved = value; else savedStyle = value; },
   };
   const media = { matches: dark };
   media[legacyMedia ? 'addListener' : 'addEventListener'] = (...args) => { systemListener = args.at(-1); };
@@ -26,7 +26,7 @@ function browser({ saved = null, dark = false, blockedStorage = false, blockedWr
   } });
   vm.runInContext(source, context);
   return {
-    api: window.CVSproutTheme, root, events, saved: () => saved,
+    api: window.CVSproutTheme, root, events, saved: () => saved, savedStyle: () => savedStyle,
     system(value) { media.matches = value; systemListener?.(); },
     sync(value, name = key, storageArea = storage) { listeners.get('storage')({ key: name, newValue: value, storageArea }); },
     reloadScript() { vm.runInContext(source, context); return window.CVSproutTheme; },
@@ -94,6 +94,36 @@ for (const options of [{ blockedStorage: true }, { blockedWrite: true }, { noMed
 const legacy = browser({ legacyMedia: true });
 legacy.system(true);
 assert.equal(legacy.api.getTheme(), 'dark');
+
+// Styles persist separately from brightness, including other-tab changes and clear.
+for (const savedStyle of ['forest', 'ocean', 'sand', 'invalid', null]) {
+  const styled = browser({ saved: 'dark', savedStyle });
+  assert.equal(styled.api.getStyle(), ['ocean', 'sand'].includes(savedStyle) ? savedStyle : 'forest');
+  assert.equal(styled.root.dataset.style, styled.api.getStyle());
+  styled.api.setStyle('ocean');
+  assert.equal(styled.savedStyle(), 'ocean');
+  assert.equal(styled.api.getTheme(), 'dark');
+  styled.api.setPreference('light');
+  assert.equal(styled.api.getStyle(), 'ocean');
+  styled.sync('sand', styleKey);
+  assert.equal(styled.api.getStyle(), 'sand');
+  assert.equal(styled.events.at(-1).type, 'cvsprout-style-change');
+  styled.sync('forest', styleKey, {});
+  assert.equal(styled.api.getStyle(), 'sand');
+  styled.sync('bad-style', styleKey);
+  assert.equal(styled.api.getStyle(), 'forest');
+  styled.api.setStyle('sand');
+  styled.sync(null, null);
+  assert.equal(styled.api.getStyle(), 'forest');
+  assert.equal(styled.api.getPreference(), 'system');
+}
+for (const options of [{ blockedStorage: true }, { blockedWrite: true }]) {
+  const styled = browser(options);
+  styled.api.setStyle('sand');
+  assert.equal(styled.root.dataset.style, 'sand');
+  styled.api.setStyle('unknown');
+  assert.equal(styled.root.dataset.style, 'forest');
+}
 
 // A deferred or late script would cause a flash of the wrong theme.
 const html = readFileSync(new URL('../static/index.html', import.meta.url), 'utf8');

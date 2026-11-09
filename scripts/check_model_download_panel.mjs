@@ -1,8 +1,9 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-const source = fs.readFileSync(new URL('../static/setup-ui.js', import.meta.url), 'utf8').replace(/^import .*;\n/gm, '').replace(/^export /gm, '');
-const helper = fs.readFileSync(new URL('../static/model-preparation-ui.js', import.meta.url), 'utf8').replace(/^export /gm, '');
+const source = stripI18nImports(fs.readFileSync(new URL('../static/setup-ui.js', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '').replace(/^export /gm, '');
+const helper = stripI18nImports(fs.readFileSync(new URL('../static/model-preparation-ui.js', import.meta.url), 'utf8')).replace(/^export /gm, '');
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const settle = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
 const deferred = () => { let resolve, reject; const promise = new Promise((a,b) => { resolve=a; reject=b; }); return {promise,resolve,reject}; };
@@ -33,7 +34,7 @@ function fixture() {
     querySelector(selector){return this.querySelectorAll(selector)[0]||null;}
   }
   const container=new Element();
-  const context=vm.createContext({URL,AbortController,setTimeout:fn=>{timers.set(++nextTimer,fn);return nextTimer;},clearTimeout:id=>timers.delete(id)});
+  const context=vm.createContext(withI18n({URL,AbortController,setTimeout:fn=>{timers.set(++nextTimer,fn);return nextTimer;},clearTimeout:id=>timers.delete(id)}));
   vm.runInContext(helper+'\n'+source,context);
   const controller=context.mountModelDownloads(container,{escapeHtml:esc,isCurrent:()=>current,api:async(path,options={})=>{const call={path,...options};calls.push(call);return handler ? handler(call) : [qwen,sam];}});
   return {container,controller,timers,calls,set handler(value){handler=value;},set current(value){current=value;},q:selector=>container.querySelector(selector),async tick(){const callbacks=[...timers.values()];timers.clear();callbacks.forEach(fn=>fn());await settle();}};

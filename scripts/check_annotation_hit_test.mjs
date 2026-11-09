@@ -1,8 +1,9 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 // Run with: node scripts/check_annotation_hit_test.mjs
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-const source = readFileSync(new URL("../static/annotation-context-menu.js", import.meta.url), "utf8");
-const { findAnnotationsAtPoint } = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
+const source = stripI18nImports(readFileSync(new URL("../static/annotation-context-menu.js", import.meta.url), "utf8"));
+const { findAnnotationsAtPoint } = await import('../static/annotation-context-menu.js');
 const box = { id: 1, shape_type: "rectangle", points: [10, 10, 60, 60] };
 const pose = { id: 2, shape_type: "keypoints", points: [30, 30, 80, 80] };
 const polygon = { id: 3, shape_type: "polygon", points: [40, 40, 90, 40, 90, 90, 65, 60, 40, 90] };

@@ -1,0 +1,58 @@
+/* Keep language accessible without opening appearance settings. */
+.language-switcher { position: relative; min-width: 0; border-radius: var(--studio-control-radius, 7px); color: var(--muted); }
+.language-switcher:hover, .language-switcher:focus-within { color: var(--text); background: var(--panel-2); }
+.language-switcher:focus-within { outline: 2px solid var(--brand); outline-offset: 2px; }
+.language-switcher > label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.language-switcher > select { display: block; appearance: none; width: 100%; min-height: 40px; margin: 0; padding: 8px 30px 8px 40px; border: 0; border-radius: inherit; color: inherit; background: transparent; font: inherit; font-size: 12px; cursor: pointer; }
+.language-switcher > select:focus-visible { outline: none; }
+.language-switcher option { color: var(--text); background: var(--panel); }
+.language-switcher > svg { position: absolute; top: 50%; transform: translateY(-50%); fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.language-switcher > .language-icon { left: 12px; width: 18px; height: 18px; }
+.language-switcher > .language-chevron { right: 10px; width: 14px; height: 14px; }
+.auth-utilities .language-switcher { width: 116px; }
+.auth-utilities .language-switcher > select { min-height: 36px; padding-left: 34px; }
+.auth-utilities .language-switcher > .language-icon { left: 10px; width: 15px; height: 15px; }
+@media (min-width: 901px) {
+  .workspace-navigation.is-collapsed .language-switcher > select { padding: 0; opacity: 0; }
+  .workspace-navigation.is-collapsed .language-switcher > .language-icon { left: 50%; transform: translate(-50%, -50%); }
+  .workspace-navigation.is-collapsed .language-switcher > .language-chevron { display: none; }
+}
+@media (pointer: coarse) {
+  .language-switcher > select, .auth-utilities .language-switcher > select, .auth-appearance > summary { min-height: 44px; }
+}
+
+/* English labels need room to wrap, especially in toolbars and the sidebar. */
+html:lang(en) .page-head {
+  flex-wrap: wrap;
+}
+
+html:lang(en) .page-head > div:first-child {
+  flex: 1 1 16rem;
+  min-width: min(100%, 16rem);
+}
+
+html:lang(en) .page-head > .btn {
+  height: auto;
+  min-height: 40px;
+  max-width: 100%;
+  white-space: normal;
+}
+
+html:lang(en) .navigation-link > span {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: break-word;
+  line-height: 1.4;
+}
+
+html:lang(en) .navigation-service-status {
+  white-space: normal;
+  line-height: 1.4;
+}
+/* Localize the file caption independently of the browser's own UI locale. */
+.localized-file-input { position: relative; display: flex; align-items: center; gap: .75rem; min-width: 0; }
+.localized-file-input input[type="file"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.localized-file-input:focus-within { outline: 2px solid var(--accent, #2563eb); outline-offset: 3px; border-radius: 6px; }
+.localized-file-button { flex-shrink: 0; padding: .5rem .75rem; border: 1px solid currentColor; border-radius: 6px; }
+.localized-file-input [data-file-selection] { min-width: 0; overflow-wrap: anywhere; }
+.localized-file-input:has(input:disabled) { opacity: .5; }

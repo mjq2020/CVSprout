@@ -11,8 +11,11 @@ import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from app.i18n import LocaleMiddleware, negotiate_language, validation_message
 from PIL import Image, ImageOps
 from app.http_limits import RequestBodyLimit
 
@@ -60,6 +63,17 @@ async def request_budget(scope):
 
 
 app.add_middleware(RequestBodyLimit, policy=request_budget)
+app.add_middleware(LocaleMiddleware, prefix="/")
+app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parents[2] / "static"), name="static")
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError):
+    locale = negotiate_language(request.headers.get("accept-language", ""))
+    return JSONResponse(status_code=422, content={"detail": [
+        {"loc": list(error["loc"]), "msg": validation_message(error, locale), "type": error["type"]}
+        for error in exc.errors()
+    ]})
 
 
 @app.get("/health")
@@ -122,10 +136,4 @@ _request_slot = threading.Lock()
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    return '''<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<title>CVSprout 模型测试</title><style>body{font:16px system-ui;max-width:880px;margin:40px auto;padding:0 20px;color:#1f2937}label{display:block;margin:18px 0}input,button{font:inherit;padding:8px}input[type=password]{width:min(100%,540px);box-sizing:border-box}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f6fa;padding:16px}canvas{max-width:100%;height:auto}button{cursor:pointer}input:focus,button:focus{outline:2px solid #2563eb}</style>
-<h1>测试你的模型</h1><p>上传一张图片，查看预测结果。部署密钥保存在部署目录的 .env 文件中。</p>
-<form><label>部署密钥 <input id="key" type="password" required autocomplete="off"></label>
-<label>图片 <input id="file" type="file" accept="image/*" required></label><button>运行预测</button></form>
-<p id="status" role="status"></p><canvas hidden></canvas><pre id="result" hidden></pre>
-<script>document.querySelector('form').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('button'),status=document.querySelector('#status'),out=document.querySelector('#result');button.disabled=true;status.textContent='正在预测…';try{const file=document.querySelector('#file').files[0],body=new FormData();body.append('file',file);const response=await fetch('/predict',{method:'POST',headers:{Authorization:'Bearer '+document.querySelector('#key').value},body});const data=await response.json();if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'预测请求失败');out.hidden=false;out.textContent=JSON.stringify(data,null,2);const image=await createImageBitmap(file),canvas=document.querySelector('canvas');canvas.width=image.width;canvas.height=image.height;canvas.hidden=false;const ctx=canvas.getContext('2d');ctx.drawImage(image,0,0);ctx.strokeStyle='#16a34a';ctx.fillStyle='#16a34a';ctx.lineWidth=Math.max(2,image.width/400);ctx.font=Math.max(14,image.width/50)+'px sans-serif';for(const p of data.predictions){if(p.box){const b=p.box;ctx.strokeRect(b.x1,b.y1,b.x2-b.x1,b.y2-b.y1);ctx.fillText(p.name,b.x1,Math.max(20,b.y1-5));}}image.close();status.textContent='预测完成';}catch(error){status.textContent=error.message;}finally{button.disabled=false;}};</script></html>'''
+    return Path(__file__).with_name("index.html").read_text(encoding="utf-8")

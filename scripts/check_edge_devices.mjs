@@ -1,9 +1,10 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 // Exercise actual device rendering and polling logic with a small DOM adapter.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const source = readFileSync(new URL("../static/edge-devices-ui.js", import.meta.url), "utf8")
+const source = stripI18nImports(readFileSync(new URL("../static/edge-devices-ui.js", import.meta.url), "utf8"))
   .replace(/^import .*;\n/gm, "").replaceAll("export async function ", "async function ").replaceAll("export function ", "function ");
 const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
@@ -44,8 +45,8 @@ const document = { activeElement: null, hidden: false,
   addEventListener: (event, callback) => { listeners[event] = callback; },
   querySelector: selector => ({ "#edge-device-results": result, "#edge-page-feedback": feedback, "#edge-refresh-time": updated })[selector] || null,
   getElementById: id => id === result.id ? result : null };
-const context = vm.createContext({ URL, Date, Number, Set, Map, JSON, document, state, esc: escapeHtml,
-  api: path => { const pending = deferred(); calls.push({ path, ...pending }); return pending.promise; } });
+const context = vm.createContext(withI18n({ URL, Date, Number, Set, Map, JSON, document, state, esc: escapeHtml,
+  api: path => { const pending = deferred(); calls.push({ path, ...pending }); return pending.promise; } }));
 vm.runInContext(source, context);
 
 for (const value of ["", "not-a-url", "javascript:alert(1)", "ftp://host", "http://localhost:8000", "http://camera.localhost", "http://127.2.3.4", "http://0.0.0.0", "http://[::1]", "http://[::]", "https://user:secret@host", "https://host?q=token", "https://host/#token"]) {
@@ -184,7 +185,7 @@ function clipboardHarness({ writeText, copyResult = true, copyThrows = false, le
     if (copyThrows) throw new Error("Browser refused copy");
     return copyResult;
   };
-  const clipboardContext = vm.createContext({ document: copyDocument, navigator: writeText ? { clipboard: { writeText } } : {}, Date, state: { currentSection: "overview" } });
+  const clipboardContext = vm.createContext(withI18n({ document: copyDocument, navigator: writeText ? { clipboard: { writeText } } : {}, Date, state: { currentSection: "overview" } }));
   vm.runInContext(source, clipboardContext);
   return { context: clipboardContext, copy: (isCurrent = () => true) => clipboardContext.copyDeviceToken(input.value, container, isCurrent), entries, removed, copyCalls, input, container, document: copyDocument, selection };
 }

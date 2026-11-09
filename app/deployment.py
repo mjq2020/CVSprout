@@ -52,7 +52,10 @@ def bundle(run_id: int, actor: Actor = Depends(get_actor)):
             archive.writestr("model/manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
             archive.writestr("app/__init__.py", "")
             archive.write(BASE_DIR / "app" / "http_limits.py", "app/http_limits.py")
-            for filename in ("__init__.py", "server.py"):
+            archive.write(BASE_DIR / "app" / "i18n.py", "app/i18n.py")
+            for filename in ("i18n.js", "i18n.css", "locales/en.js", "locales/en.json", "locales/api.json"):
+                archive.write(BASE_DIR / "static" / filename, f"static/{filename}")
+            for filename in ("__init__.py", "server.py", "index.html"):
                 archive.write(BASE_DIR / "app" / "runtime" / filename, f"app/runtime/{filename}")
             for filename in ("web.txt", "runtime-cpu.txt", "runtime-gpu.txt"):
                 archive.write(BASE_DIR / "requirements" / filename, f"requirements/{filename}")

@@ -1,8 +1,10 @@
-import { enterWorkspaceContent } from "./workspace-feedback.js?v=0.27.0";
+import { t, accountDisplayName, ta, languageSwitcherMarkup } from "./i18n.js?v=0.29.3";
+import { appearanceControlsMarkup, themeLabels, styleLabels, themePreference, stylePreference } from "./appearance-ui.js?v=0.29.3";
+import { enterWorkspaceContent } from "./workspace-feedback.js?v=0.29.3";
 
 const workflow = [
-  ["overview", "项目概览", "chart"], ["data", "导入与数据", "database"], ["ai", "AI 标注", "magic"],
-  ["blocks", "标注任务块", "users"], ["annotate", "标注与审核", "polygon"], ["versions", "数据版本", "layers"], ["train", "训练与转换", "cpu"],
+  ["overview", t("项目概览"), "chart"], ["data", t("导入与数据"), "database"], ["ai", t("AI 标注"), "magic"],
+  ["blocks", t("标注任务块"), "users"], ["annotate", t("标注与审核"), "polygon"], ["versions", t("数据版本"), "layers"], ["train", t("训练与部署"), "cpu"],
 ];
 const mobile = () => window.matchMedia("(max-width: 900px)").matches;
 let drawerOpen = false, initialized = false, returnFocus = null;
@@ -15,24 +17,21 @@ export function currentProjectRoute() {
   return match ? { id: Number(match[1]), section: match[2] || "overview" } : null;
 }
 
-const themeLabels = { light: "浅色", dark: "深色", system: "跟随系统" };
-const themePreference = () => window.CVSproutTheme?.getPreference?.() || "system";
-
 export function workspaceNavigationMarkup({ session, project, admin, active, authMode = "disabled", workerOnline = false, taskLabel = "", icon, escapeHtml: esc }) {
   const route = currentProjectRoute(), canvas = route?.section === "annotate";
   const key = `visionforge-navigation:${identity(session)}:${canvas ? "canvas" : "main"}`;
   const collapsed = Boolean(read(key, canvas));
   const isMobile = mobile(), open = isMobile && drawerOpen;
-  const projectName = route && project?.id === route.id ? project.name : "正在读取项目…";
-  const displayName = session?.display_name || (authMode === "disabled" ? "开发管理员" : "当前账号");
-  const role = { admin: "管理员", annotator: "标注员", reviewer: "审核员" }[session?.role] || (authMode === "disabled" ? "开发模式" : "");
-  const status = workerOnline ? "标注服务正常" : "标注服务暂未就绪", preference = themePreference();
+  const projectName = route && project?.id === route.id ? project.name : t("正在读取项目…");
+  const displayName = accountDisplayName(session?.display_name) || (authMode === "disabled" ? t("开发管理员") : t("当前账号"));
+  const role = { admin: t("系统管理员"), user: t("普通用户"), annotator: t("普通用户"), reviewer: t("普通用户") }[session?.role] || (authMode === "disabled" ? t("开发模式") : "");
+  const status = workerOnline ? t("标注服务正常") : t("标注服务暂未就绪"), preference = themePreference();
   const link = (href, label, iconName, selected, extra = "") => `<a href="${href}" class="navigation-link ${selected ? "active" : ""}" ${selected ? 'aria-current="page"' : ""} aria-label="${esc(label)}" title="${esc(label)}" ${extra}>${icon(iconName)}<span>${esc(label)}</span></a>`;
   const focused = document.activeElement;
   const focusedLink = focused?.closest(".workspace-navigation a")?.getAttribute("href");
   const focusedToggle = focused?.matches("[data-toggle-navigation]") ? focused.classList.contains("navigation-collapse") ? ".navigation-collapse" : ".navigation-toggle" : null;
   const focusedFooter = focused?.closest("[data-navigation-menu]")?.dataset.navigationMenu;
-  const focusedControl = focused?.matches("[data-theme-select]") ? "[data-theme-select]" : focused?.matches("#session-button") ? "#session-button" : null;
+  const focusedControl = focused?.matches("[data-language-select]") ? "[data-language-select]" : focused?.matches("[data-theme-select]") ? "[data-theme-select]" : focused?.matches("[data-style-select]") ? "[data-style-select]" : focused?.matches("#session-button") ? "#session-button" : null;
   const expandedMenus = new Set([...document.querySelectorAll(".workspace-navigation [data-navigation-menu][open]")].map(menu => menu.dataset.navigationMenu));
   queueMicrotask(() => {
     syncNavigation();
@@ -41,23 +40,24 @@ export function workspaceNavigationMarkup({ session, project, admin, active, aut
       next?.focus({ preventScroll: true });
     }
   });
-  return `<aside id="workspace-navigation" class="workspace-navigation ${collapsed ? "is-collapsed" : ""} ${open ? "is-open" : ""}" data-navigation-key="${esc(key)}" aria-label="应用导航" ${isMobile ? open ? 'role="dialog" aria-modal="true"' : "inert" : ""}>
-    <a class="navigation-brand" href="#/" aria-label="CVSprout 项目工作台"><span class="brand-mark">${icon("logo")}</span><span>CVSprout<small>数据工作台</small></span></a><button class="navigation-close tool" data-close-navigation aria-label="关闭导航">${icon("close")}</button>
-    <div class="navigation-scroll"><nav class="application-links" aria-label="工作台">${link("#/", "所有项目", "folder", !route && active === "projects")}</nav>
-      ${route ? `<div class="navigation-project"><strong title="${esc(projectName)}">${esc(projectName)}</strong>${project ? `<small>${esc(taskLabel)}<span>${project.asset_count || 0} 张图片</span></small>` : ""}</div><nav class="workflow-links" aria-label="项目工作流">${workflow.map(([id, label, name]) => link(`#/projects/${route.id}/${id}`, label, name, route.section === id, `data-workflow-link="${id}"`)).join("")}</nav>` : ""}
-      ${admin ? `<nav class="management-links" aria-label="管理">${link("#/models", "标注模型服务", "cpu", active === "models")}${link("#/devices", "边缘设备", "database", active === "devices")}${link("#/users", "用户管理", "users", active === "users")}</nav>` : ""}
+  return `<aside id="workspace-navigation" class="workspace-navigation ${collapsed ? "is-collapsed" : ""} ${open ? "is-open" : ""}" data-navigation-key="${esc(key)}" aria-label="${ta("应用导航")}" ${isMobile ? open ? 'role="dialog" aria-modal="true"' : "inert" : ""}>
+    <a class="navigation-brand" href="#/" aria-label="${ta("CVSprout 项目工作台")}"><span class="brand-mark">${icon("logo")}</span><span>CVSprout<small>${t("数据工作台")}</small></span></a><button class="navigation-close tool" data-close-navigation aria-label="${ta("关闭导航")}">${icon("close")}</button>
+    <div class="navigation-scroll"><nav class="application-links" aria-label="${ta("工作台")}">${link("#/", t("项目工作台"), "folder", !route && active === "projects")}</nav>
+      ${route ? `<div class="navigation-project"><strong title="${esc(projectName)}">${esc(projectName)}</strong>${project ? `<small>${esc(taskLabel)}<span>${t("{0} 张图片", [project.asset_count || 0])}</span></small>` : ""}</div><nav class="workflow-links" aria-label="${ta("项目工作流")}">${workflow.map(([id, label, name]) => link(`#/projects/${route.id}/${id}`, label, name, route.section === id, `data-workflow-link="${id}"`)).join("")}</nav>` : ""}
+      ${admin ? `<nav class="management-links" aria-label="${ta("管理")}">${link("#/models", t("标注模型服务"), "cpu", active === "models")}${link("#/devices", t("边缘设备"), "database", active === "devices")}${link("#/users", t("用户管理"), "users", active === "users")}</nav>` : ""}
     </div>
     <div class="navigation-footer">
       <div class="navigation-service-status" title="${status}" aria-label="${status}"><span class="status-dot ${workerOnline ? "" : "warning"}" aria-hidden="true"></span><span>${status}</span></div>
-      <details class="navigation-menu navigation-theme" data-navigation-menu="theme" ${expandedMenus.has("theme") ? "open" : ""}><summary class="navigation-footer-trigger" title="主题设置：${themeLabels[preference]}" aria-label="主题设置">${icon("sliders")}<span>主题</span><small data-navigation-theme-label>${themeLabels[preference]}</small></summary><div class="navigation-popover"><label for="navigation-theme-select">外观主题</label><select id="navigation-theme-select" data-theme-select>${Object.entries(themeLabels).map(([value, label]) => `<option value="${value}" ${preference === value ? "selected" : ""}>${label}</option>`).join("")}</select></div></details>
-      <details class="navigation-menu navigation-account" data-navigation-menu="account" ${expandedMenus.has("account") ? "open" : ""}><summary class="navigation-footer-trigger" title="${esc(displayName)} · ${role}" aria-label="账号菜单：${esc(displayName)}"><span class="navigation-avatar">${esc(displayName.slice(0, 1))}</span><span class="navigation-identity"><strong>${esc(displayName)}</strong><small>${role}</small></span>${icon("chevronRight")}</summary><div class="navigation-popover"><div class="navigation-account-heading"><strong>${esc(displayName)}</strong><small>${role}</small></div>${session?.user_id ? `<a href="#/account" class="navigation-account-link" ${active === "account" || location.hash === "#/account" ? 'aria-current="page"' : ""}>${icon("shield")}账号与安全</a>` : ""}${authMode !== "disabled" ? `<button id="session-button">退出登录</button>` : `<span class="navigation-local-mode">本机开发模式</span>`}</div></details>
+      ${languageSwitcherMarkup("navigation")}
+      <details class="navigation-menu navigation-theme" data-navigation-menu="theme" ${expandedMenus.has("theme") ? "open" : ""}><summary class="navigation-footer-trigger" title="${ta("外观设置：{0} / {1}", [styleLabels[stylePreference()], themeLabels[preference]])}" aria-label="${ta("外观设置")}">${icon("sliders")}<span>${t("外观")}</span><small data-navigation-theme-label>${themeLabels[preference]}</small></summary><div class="navigation-popover">${appearanceControlsMarkup("navigation")}</div></details>
+      <details class="navigation-menu navigation-account" data-navigation-menu="account" ${expandedMenus.has("account") ? "open" : ""}><summary class="navigation-footer-trigger" title="${esc(displayName)} · ${role}" aria-label="${ta("账号菜单：{0}", [esc(displayName)])}"><span class="navigation-avatar">${esc(displayName.slice(0, 1))}</span><span class="navigation-identity"><strong>${esc(displayName)}</strong><small>${role}</small></span>${icon("chevronRight")}</summary><div class="navigation-popover"><div class="navigation-account-heading"><strong>${esc(displayName)}</strong><small>${role}</small></div>${session?.user_id ? `<a href="#/account" class="navigation-account-link" ${active === "account" || location.hash === "#/account" ? 'aria-current="page"' : ""}>${t("{0}账号与安全", [icon("shield")])}</a>` : ""}${authMode !== "disabled" ? `<button id="session-button">${t("退出登录")}</button>` : `<span class="navigation-local-mode">${t("本机开发模式")}</span>`}</div></details>
     </div>
-    <button class="navigation-collapse" data-toggle-navigation aria-controls="workspace-navigation" aria-expanded="${!collapsed}" title="${collapsed ? "展开导航" : "收起导航"}">${icon("arrowLeft")}<span>收起导航</span></button>
-  </aside><button class="navigation-backdrop" data-close-navigation aria-label="关闭导航" tabindex="-1" ${open ? "" : "hidden"}></button>`;
+    <button class="navigation-collapse" data-toggle-navigation aria-controls="workspace-navigation" aria-expanded="${!collapsed}" title="${collapsed ? ta("展开导航") : ta("收起导航")}">${icon("arrowLeft")}<span>${t("收起导航")}</span></button>
+  </aside><button class="navigation-backdrop" data-close-navigation aria-label="${ta("关闭导航")}" tabindex="-1" ${open ? "" : "hidden"}></button>`;
 }
 
 export function navigationToggleMarkup(icon) {
-  return `<button class="btn ghost icon-btn navigation-toggle" data-toggle-navigation aria-label="展开或收起导航" aria-controls="workspace-navigation" aria-expanded="false">${icon("grid")}</button>`;
+  return `<button class="btn ghost icon-btn navigation-toggle" data-toggle-navigation aria-label="${ta("展开或收起导航")}" aria-controls="workspace-navigation" aria-expanded="false">${icon("grid")}</button>`;
 }
 
 function syncNavigation() {
@@ -69,7 +69,7 @@ function syncNavigation() {
   else { nav.removeAttribute("role"); nav.removeAttribute("aria-modal"); }
   const backdrop = document.querySelector(".navigation-backdrop"); if (backdrop) backdrop.hidden = !open;
   document.querySelectorAll(".app-shell > main, .app-shell > .topbar").forEach(node => { node.inert = open || node.dataset.workspaceLoading === "true"; });
-  document.querySelectorAll("[data-toggle-navigation]").forEach(button => { const expanded = isMobile ? open : !nav.classList.contains("is-collapsed"); button.setAttribute("aria-expanded", String(expanded)); button.title = expanded ? "收起导航" : "展开导航"; button.setAttribute("aria-label", button.title); });
+  document.querySelectorAll("[data-toggle-navigation]").forEach(button => { const expanded = isMobile ? open : !nav.classList.contains("is-collapsed"); button.setAttribute("aria-expanded", String(expanded)); button.title = expanded ? t("收起导航") : t("展开导航"); button.setAttribute("aria-label", button.title); });
 }
 
 export function closeWorkspaceNavigation({ focus = false } = {}) {
@@ -137,11 +137,13 @@ export function installWorkspaceNavigation() {
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
   }, true);
   document.addEventListener("change", event => {
-    if (!event.target.matches("[data-theme-select]") || !Object.hasOwn(themeLabels, event.target.value)) return;
-    window.CVSproutTheme?.setPreference(event.target.value);
+    if (event.target.matches("[data-theme-select]") && Object.hasOwn(themeLabels, event.target.value)) window.CVSproutTheme?.setPreference(event.target.value);
+    else if (event.target.matches("[data-style-select]") && Object.hasOwn(styleLabels, event.target.value)) window.CVSproutTheme?.setStyle(event.target.value);
+    else return;
     syncThemePreference();
   });
   window.addEventListener("cvsprout-theme-change", syncThemePreference);
+  window.addEventListener("cvsprout-style-change", syncThemePreference);
   window.addEventListener("hashchange", () => closeWorkspaceNavigation());
   window.matchMedia("(max-width: 900px)").addEventListener("change", () => {
     const focused = document.activeElement === document.body && resizeFocus?.isConnected ? resizeFocus : document.activeElement;
@@ -158,10 +160,11 @@ export function installWorkspaceNavigation() {
 
 function syncThemePreference() {
   const preference = themePreference();
+  document.querySelectorAll("[data-style-select]").forEach(select => { select.value = stylePreference(); });
   document.querySelectorAll("[data-theme-select]").forEach(select => { select.value = preference; });
   document.querySelectorAll("[data-navigation-theme-label]").forEach(label => { label.textContent = themeLabels[preference]; });
   const trigger = document.querySelector('[data-navigation-menu="theme"] > summary');
-  if (trigger) trigger.title = `主题设置：${themeLabels[preference]}`;
+  if (trigger) trigger.title = t("外观设置：{0} / {1}", [styleLabels[stylePreference()], themeLabels[preference]]);
 }
 
 const sectionTabs = new Map();
@@ -186,7 +189,7 @@ export function setSectionTab(session, projectId, scope, tab) {
   }
 }
 export function sectionTabsMarkup(scope, tabs, selected, esc) {
-  return `<div class="section-tabs" role="tablist" aria-label="${scope === "train" ? "所选训练详情" : "AI 标注内容"}">${tabs.map(([id, label]) => `<button type="button" role="tab" id="section-tab-${scope}-${id}" data-section-tab="${scope}:${id}" aria-controls="section-panel-${scope}-${id}" aria-selected="${selected === id}" tabindex="${selected === id ? 0 : -1}">${esc(label)}</button>`).join("")}</div>`;
+  return `<div class="section-tabs" role="tablist" aria-label="${scope === "train" ? ta("所选训练详情") : ta("AI 标注内容")}">${tabs.map(([id, label]) => `<button type="button" role="tab" id="section-tab-${scope}-${id}" data-section-tab="${scope}:${id}" aria-controls="section-panel-${scope}-${id}" aria-selected="${selected === id}" tabindex="${selected === id ? 0 : -1}">${esc(label)}</button>`).join("")}</div>`;
 }
 export function sectionPanelAttributes(scope, id, selected) { return `id="section-panel-${scope}-${id}" role="tabpanel" aria-labelledby="section-tab-${scope}-${id}" data-section-panel="${scope}:${id}" ${selected === id ? "" : "hidden"}`; }
 export function bindSectionTabs(root, scope, { selected, onChange }) {

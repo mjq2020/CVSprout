@@ -12,7 +12,8 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from .auth import Actor, get_actor, require_admin, require_reviewer
+from .auth import Actor, get_actor, require_reviewer, require_project_editor
+from .project_access import recheck_access
 from .database import db, now_iso
 
 router = APIRouter(prefix="/api/projects/{project_id}/work-blocks", tags=["work-blocks"])
@@ -146,7 +147,7 @@ def guard_block_asset(conn: sqlite3.Connection, asset, actor: Actor,
     if not project or not project["work_blocks_enabled"]:
         return
     if action == "delete":
-        require_admin(actor)
+        require_project_editor(actor)
         return
     if action == "review":
         require_reviewer(actor)
@@ -215,9 +216,10 @@ def list_blocks(project_id: int, actor: Actor = Depends(get_actor)) -> dict:
 
 @router.post("", status_code=201)
 def create_blocks(project_id: int, payload: CreateBlocks, actor: Actor = Depends(get_actor)) -> dict:
-    require_admin(actor)
+    require_project_editor(actor)
     with db() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         project = _project(conn, project_id, write=True)
         assets = [dict(row) for row in conn.execute("""SELECT a.* FROM assets a WHERE a.project_id=?
             AND a.review_status NOT IN ('submitted','approved')
@@ -251,10 +253,13 @@ def create_blocks(project_id: int, payload: CreateBlocks, actor: Actor = Depends
 
 @router.get("/assignees")
 def block_assignees(project_id: int, actor: Actor = Depends(get_actor)) -> list[dict]:
-    require_admin(actor)
+    require_project_editor(actor)
     with db() as conn:
         _project(conn, project_id)
-        return [dict(row) for row in conn.execute("SELECT id,username,display_name,role FROM users WHERE enabled=1 ORDER BY display_name,id")]
+        return [dict(row) for row in conn.execute("""SELECT u.id,u.username,u.display_name,u.role FROM users u
+            WHERE u.enabled=1 AND (u.role='admin' OR u.id=(SELECT owner_user_id FROM projects WHERE id=?)
+            OR u.id IN (SELECT user_id FROM project_members WHERE project_id=? AND role='editor'))
+            ORDER BY u.display_name,u.id""", (project_id, project_id))]
 
 
 def _available(conn, block) -> None:
@@ -275,10 +280,11 @@ def _fence(conn, block_id: int) -> None:
 
 @router.post("/claim")
 def claim_block(project_id: int, payload: ClaimBlock, actor: Actor = Depends(get_actor)) -> dict:
-    if actor.role not in {"admin", "annotator", "reviewer"}:
+    if actor.role not in {"admin", "user", "annotator", "reviewer"}:
         raise HTTPException(403, "当前账号不能领取标注任务")
     with db() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         _project(conn, project_id, write=True)
         owned = conn.execute("SELECT * FROM work_blocks WHERE project_id=? AND owner_key=?", (project_id, owner_key(actor))).fetchall()
         if any(_state(row, _assets(conn, row["id"]), False) in {"in_progress", "rejected"} for row in owned):
@@ -329,8 +335,9 @@ def _changeable(conn, project_id: int, block_id: int, payload: ChangeBlock) -> d
 def release_block(project_id: int, block_id: int, payload: ChangeBlock, actor: Actor = Depends(get_actor)) -> dict:
     with db() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         block = _changeable(conn, project_id, block_id, payload)
-        if actor.role != "admin" and not owns_block(block, actor):
+        if actor.role != "admin" and actor.project_role != "owner" and not owns_block(block, actor):
             raise HTTPException(403, "只能交回自己的任务块；管理员可以转交或回收")
         if not block["owner_key"] or block["status"] == "completed":
             raise HTTPException(409, "此任务块没有工作占用，或已经完成，无需交回")
@@ -343,15 +350,18 @@ def release_block(project_id: int, block_id: int, payload: ChangeBlock, actor: A
 
 @router.post("/{block_id}/assign")
 def assign_block(project_id: int, block_id: int, payload: AssignBlock, actor: Actor = Depends(get_actor)) -> dict:
-    require_admin(actor)
+    require_project_editor(actor)
     with db() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         block = _changeable(conn, project_id, block_id, payload)
         if block["status"] == "completed":
             raise HTTPException(409, "已完成的任务块不能重新分配，请先明确重新打开")
         user = conn.execute("SELECT id,username,display_name FROM users WHERE id=? AND enabled=1", (payload.user_id,)).fetchone()
         if user is None:
             raise HTTPException(422, "请选择有效且已启用的成员账号")
+        from .project_access import access
+        access(conn, project_id, Actor("assignment", "user", user_id=user["id"]), write=True)
         key = f"user:{user['id']}"
         conn.execute("""UPDATE work_blocks SET owner_key=?,owner_user_id=?,owner_name=?,human_started=1,claimed_at=? WHERE id=?""",
                      (key, user["id"], user["display_name"] or user["username"], now_iso(), block_id))
@@ -363,11 +373,12 @@ def assign_block(project_id: int, block_id: int, payload: AssignBlock, actor: Ac
 
 @router.post("/{block_id}/reopen")
 def reopen_block(project_id: int, block_id: int, payload: ChangeBlock, actor: Actor = Depends(get_actor)) -> dict:
-    require_admin(actor)
+    require_project_editor(actor)
     if not payload.reason.strip():
         raise HTTPException(422, "请填写重新打开任务块的原因")
     with db() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        recheck_access(conn, actor)
         block = _changeable(conn, project_id, block_id, payload)
         assets = _assets(conn, block_id)
         if block["status"] != "completed" or not assets:

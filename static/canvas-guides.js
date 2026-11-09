@@ -1,3 +1,4 @@
+import { getLocale } from "./i18n.js?v=0.29.3";
 const SVG_NS = "http://www.w3.org/2000/svg";
 const mounted = new WeakMap();
 let nextGuideId = 0;
@@ -77,7 +78,7 @@ export function mountCanvasGuides({ state, canEditCurrentAsset, isContextMenuOpe
     layer.style.display = "";
     size.style.display = geometry.size ? "" : "none";
     if (!geometry.size) return;
-    const pixels = value => Number(value.toFixed(1)).toLocaleString("zh-CN", { maximumFractionDigits: 1 });
+    const pixels = value => Number(value.toFixed(1)).toLocaleString(getLocale(), { maximumFractionDigits: 1 });
     sizeText.textContent = `${pixels(geometry.size.width)} × ${pixels(geometry.size.height)} px`;
     size.dataset.width = String(geometry.size.width); size.dataset.height = String(geometry.size.height);
     const labelWidth = Math.ceil(sizeText.getComputedTextLength()) + 16;

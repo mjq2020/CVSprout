@@ -198,7 +198,7 @@ class ProjectDeletionTest(unittest.TestCase):
         # demoted or logged out. That stale Actor must not authorize deletion.
         self.actor = Actor("stale-admin", "admin", user_id=user_id, session_id="test-session")
         result = self.delete(project)
-        self.assertEqual(result.status_code, 403, result.text)
+        self.assertEqual(result.status_code, 404, result.text)
         self.assert_intact(project, assets)
         with db() as conn:
             conn.execute("UPDATE users SET role='admin' WHERE id=?", (user_id,))

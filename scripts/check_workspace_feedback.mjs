@@ -1,8 +1,9 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const source = readFileSync(new URL("../static/workspace-feedback.js", import.meta.url), "utf8").replaceAll("export function ", "function ");
+const source = stripI18nImports(readFileSync(new URL("../static/workspace-feedback.js", import.meta.url), "utf8")).replaceAll("export function ", "function ");
 
 function fixture({ initial = false, reduced = false } = {}) {
   const timers = new Map(); let sequence = 0, now = 0, fallbacks = 0;
@@ -25,10 +26,10 @@ function fixture({ initial = false, reduced = false } = {}) {
     set innerHTML(value) { this.replacements++; this.main = main; this.html = value; },
   };
   const document = { createElement: () => new Node(), activeElement: main };
-  const context = vm.createContext({ document, window: { matchMedia: () => ({ matches: reduced }) },
+  const context = vm.createContext(withI18n({ document, window: { matchMedia: () => ({ matches: reduced }) },
     setTimeout: (callback, delay) => { const id = ++sequence; timers.set(id, { callback, due: now + delay }); return id; },
     clearTimeout: id => timers.delete(id),
-  });
+  }));
   vm.runInContext(source, context);
   return { app, main, shell, document, Node, timers,
     begin: message => context.beginWorkspaceLoad(app, { message, fallback: () => { fallbacks++; return "initial shell"; } }),

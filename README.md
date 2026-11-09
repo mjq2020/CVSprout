@@ -8,6 +8,10 @@ Run your computer vision workflow on your own hardware: import images → AI ann
 
 CVSprout supports object detection, instance segmentation, image classification, and keypoints. It is designed for personal computers, single-GPU servers, and small teams.
 
+The interface supports **Simplified Chinese and English**, including dialogs, validation, progress messages, and API errors. Use the dedicated language selector at the top of the login screen or in the workspace sidebar. Your browser remembers the choice; project names, labels, and other user content retain their original language. See [Language settings and translation maintenance](docs/localization.md).
+
+Each regular user has an independent workspace, and projects are private by default. Add collaborators or read-only members through **Project members and sharing**. System administrators can manage all projects. For account and project ownership migration during upgrades, see [Personal workspaces and project sharing](docs/workspaces.md).
+
 Teams can use [work blocks](docs/user-guide.md#任务块协作): administrators split images into blocks, members claim blocks exclusively, and reviewers check the completed annotations. Fully approved blocks retain their completion records to prevent duplicate assignment.
 
 The left sidebar brings together the current project, workflow, annotation service status, and account controls. The **Theme** control at the bottom switches between light, dark, and system settings, and the browser remembers your choice. On mobile, open navigation from the top menu. Page transitions keep existing content visible while loading, and data searches and loading more results preserve your position. The interface also respects the system's reduced-motion setting. See [Interface and themes](docs/user-guide.md#界面与主题).

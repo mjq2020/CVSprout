@@ -1,8 +1,9 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-const source = fs.readFileSync(new URL('../static/model-preparation-ui.js', import.meta.url), 'utf8').replace(/^export /gm, '');
-const appSource = fs.readFileSync(new URL('../static/app.js', import.meta.url), 'utf8');
+const source = stripI18nImports(fs.readFileSync(new URL('../static/model-preparation-ui.js', import.meta.url), 'utf8')).replace(/^export /gm, '');
+const appSource = stripI18nImports(fs.readFileSync(new URL('../static/app.js', import.meta.url), 'utf8'));
 const extract = (start, end) => { const a = appSource.indexOf(start), b = appSource.indexOf(end, a); assert(a >= 0 && b > a); return appSource.slice(a, b); };
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]));
 const model = (changes = {}) => ({ id: 'qwen-small', name: 'Qwen 3.5', enabled: true, configured: false, modes: ['auto', 'assist'], capabilities: ['检测框'], tasks: ['detect'], preparation: { mode: 'download', downloadable: true, installed: false, directory: '/models/qwen', files: ['config.json', 'model.safetensors'], missing_files: ['model.safetensors'], size_bytes: 2 * 1024 ** 3, source_url: 'https://example.com/model', state: { status: 'missing' } }, ...changes });
@@ -12,7 +13,7 @@ function fixture(initial = model()) {
   const nodes = new Map(), timers = new Map(), calls = [], updates = [];
   let current = true, allowed = true, nextTimer = 0, handler;
   const container = { isConnected: true, innerHTML: '', querySelector(selector) { if (!nodes.has(selector)) nodes.set(selector, { textContent: '', innerHTML: '', hidden: false, disabled: false, open: false }); return nodes.get(selector); } };
-  const context = vm.createContext({ URL, AbortController, console, setTimeout: fn => { timers.set(++nextTimer, fn); return nextTimer; }, clearTimeout: id => timers.delete(id) });
+  const context = vm.createContext(withI18n({ URL, AbortController, console, setTimeout: fn => { timers.set(++nextTimer, fn); return nextTimer; }, clearTimeout: id => timers.delete(id) }));
   vm.runInContext(source, context);
   const controller = context.mountModelPreparation(container, { model: initial, escapeHtml: esc, canPrepare: () => allowed, isCurrent: () => current, api: async (path, options) => { const call = { path, ...options }; calls.push(call); return handler ? handler(call) : initial; }, onChange: (...args) => updates.push(args) });
   return { context, controller, container, calls, updates, timers, q: selector => container.querySelector(selector), set current(value) { current = value; }, set allowed(value) { allowed = value; }, set handler(value) { handler = value; }, async tick() { const callbacks = [...timers.values()]; timers.clear(); callbacks.forEach(fn => fn()); await settle(); } };
@@ -75,7 +76,7 @@ for (const boundary of ['route', 'disconnect', 'dispose']) {
   let modal;
   const models = [model({ id: 'qwen-large', preparation: { ...model().preparation, size_bytes: 70 * 1024 ** 3 } }), model(), model({ id: 'sam', preparation: { mode: 'manual', files: ['sam.pt'], missing_files: ['sam.pt'] } }), model({ id: 'remote', preparation: { mode: 'remote' } })];
   const state = { currentSection: 'ai', project: { id: 1, name: '测试', labels: [] }, models, assets: [{ id: 1, status: 'unlabeled' }], assistPoints: [], session: { role: 'annotator' }, selectionEpoch: 1 };
-  const context = vm.createContext({ state, URL, localStorage: { getItem: () => null }, modelFitsProject: () => true, isAdmin: () => false, canReview: () => false, aiPromptConfig: () => ({ value: '识别目标', label: '要求', placeholder: '', hint: '' }), escapeHtml: esc, openModal: config => { modal = config; }, aiPreviewMarkup: () => '', notify: () => {}, document: {}, modalRoot: {} });
+  const context = vm.createContext(withI18n({ state, URL, localStorage: { getItem: () => null }, modelFitsProject: () => true, canEditProject: () => true, canExportProject: () => true, isAdmin: () => false, canReview: () => false, aiPromptConfig: () => ({ value: '识别目标', label: '要求', placeholder: '', hint: '' }), escapeHtml: esc, openModal: config => { modal = config; }, aiPreviewMarkup: () => '', notify: () => {}, document: {}, modalRoot: {} }));
   vm.runInContext(source + '\n' + extract('function canPrepareAnnotationModels()', '\nasync function renderModelsPage(') + '\n' + extract('function openAiModal(', '\nfunction openExportModal('), context);
   context.openAiModal();
   assert(modal.body.includes('70.0 GiB · 选择后后台下载'));

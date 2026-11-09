@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from .accounts import _account_row
-from .auth import Actor, get_actor, require_admin
+from .auth import Actor, get_actor, require_project_manager
 from .config import settings
 from .database import db, now_iso
 
@@ -210,11 +210,14 @@ def _cleanup_files(items: list[dict], audit_id: int) -> dict:
 
 @router.delete("/{project_id}")
 def delete_project(project_id: int, payload: ProjectDelete, actor: Actor = Depends(get_actor)) -> dict:
-    require_admin(actor)
+    require_project_manager(actor)
     try:
         with db() as conn:
             conn.execute("BEGIN IMMEDIATE")
-            _account_row(conn, actor, admin=True)
+            if actor.user_id is not None:
+                _account_row(conn, actor)
+            from .project_access import access
+            access(conn, project_id, actor, manage=True)
             row = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
             if row is None:
                 raise HTTPException(404, "项目不存在")

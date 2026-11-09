@@ -1,11 +1,12 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 // Exercise the actual browser request, ownership, and workflow guards without a server.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const app = readFileSync(new URL("../static/app.js", import.meta.url), "utf8");
-const blocks = readFileSync(new URL("../static/work-blocks-ui.js", import.meta.url), "utf8").replace(/^export /gm, "");
-const context = vm.createContext({ URLSearchParams });
+const app = stripI18nImports(readFileSync(new URL("../static/app.js", import.meta.url), "utf8"));
+const blocks = stripI18nImports(readFileSync(new URL("../static/work-blocks-ui.js", import.meta.url), "utf8")).replace(/^export /gm, "");
+const context = vm.createContext(withI18n({ URLSearchParams }));
 vm.runInContext(blocks, context);
 const { scopeWorkBlockRequest: scope, annotationBlockURL: url } = context;
 const state = { currentSection: "annotate", activeWorkBlockId: 7, activeWorkBlock: { project_id: 1 } };
@@ -27,10 +28,10 @@ function extract(start, end) {
 
 const calls = [];
 const requestState = { ...state, session: { user_id: 1 } };
-const requestContext = vm.createContext({
+const requestContext = vm.createContext(withI18n({
   state: requestState, Headers, scopeWorkBlockRequest: scope, actorId: "session-actor", editorToken: "page-one-token",
   fetch: async (path, options) => { calls.push({ path, options }); return { ok: true, status: 200, json: async () => path.startsWith("/api/assets/") ? { id: 10 } : [{ id: 10 }, { id: 11 }] }; },
-});
+}));
 vm.runInContext(extract("async function api(", "\nfunction jsonOptions("), requestContext);
 await requestContext.api("/api/projects/1/assets");
 assert.equal(calls.at(-1).path, "/api/projects/1/assets?work_block_id=7");
@@ -50,7 +51,7 @@ const editor = {
   saveFeedback: { status: "idle" }, activeWorkBlock: { is_mine: true, status: "in_progress" },
 };
 let task = "detect";
-const workflowContext = vm.createContext({ state: editor, projectTask: () => task, canReview: () => false, isAdmin: () => false, hasAnnotationDraft: () => false });
+const workflowContext = vm.createContext(withI18n({ state: editor, projectTask: () => task, canReview: () => false, canEditProject: () => true, canExportProject: () => true, isAdmin: () => false, hasAnnotationDraft: () => false }));
 vm.runInContext(extract("function canEditCurrentAsset(", "\nfunction hasAnnotationDraft("), workflowContext);
 vm.runInContext(extract("function workflowControlsMarkup(", "\nfunction refreshWorkflowState("), workflowContext);
 const markup = () => workflowContext.workflowControlsMarkup();
@@ -76,10 +77,10 @@ for (const transition of ["session", "route"]) {
   const button = { dataset: { blockClaim: "7" }, disabled: false, isConnected: true };
   const fixture = { project: { id: 1 }, currentSection: "blocks", selectionEpoch: 2, session: { user_id: 1 }, workBlocks: { blocks: [] } };
   const location = { hash: "unchanged" }, messages = [];
-  const harness = vm.createContext({ URLSearchParams, location, document: {
+  const harness = vm.createContext(withI18n({ URLSearchParams, location, document: {
     querySelector: selector => selector === "[data-block-refresh]" ? {} : null,
     querySelectorAll: selector => selector === "[data-block-claim]" ? [button] : [],
-  } });
+  } }));
   vm.runInContext(blocks, harness);
   harness.bindWorkBlocks({ state: fixture, api: () => claim, jsonOptions: (method, body) => ({ method, body }),
     notify: message => messages.push(message), refresh: async () => {}, render: () => {} });

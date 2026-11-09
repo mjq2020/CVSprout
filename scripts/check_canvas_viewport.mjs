@@ -1,14 +1,15 @@
 #!/usr/bin/env node
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 // Run the real viewport functions against browser-like resize/clamping events.
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
-const source=readFileSync(new URL('../static/app.js',import.meta.url),'utf8');
+const source=stripI18nImports(readFileSync(new URL('../static/app.js',import.meta.url),'utf8'));
 const functions=source.slice(source.indexOf('function rememberCanvasView()'),source.indexOf('function setCanvasZoom('));
 const frame={dataset:{assetId:'7'},style:{}},stage={style:{}};
 const scroll={clientWidth:1000,clientHeight:600,scrollLeft:320,scrollTop:210,classList:{toggle(){}},querySelector:s=>s==='.canvas-frame'?frame:s==='.canvas-stage'?stage:null};
 const context={canvasView:{assetId:7,zoom:1,fit:true,center:{x:320,y:210},viewport:{width:1000,height:600}},state:{asset:{id:7,width:640,height:420},tool:'select'},document:{querySelector:s=>s==='#canvas-scroll'?scroll:null},canvasGuides:null};
-vm.createContext(context);vm.runInContext(functions,context);
+vm.createContext(withI18n(context));vm.runInContext(functions,context);
 context.rememberCanvasView();
 assert.equal(context.canvasView.center.x,320);
 // Browser clamps offsets when a smaller layout lands, before ResizeObserver runs.

@@ -1,4 +1,5 @@
-export const WORK_BLOCKS_COMPATIBILITY_MESSAGE = "后端仍为旧版本，暂不支持任务块功能。请更新并重新构建、重启前后端服务，再刷新页面。现有项目可继续使用原来的标注与审核流程。";
+import { t } from "./i18n.js?v=0.29.3";
+export const WORK_BLOCKS_COMPATIBILITY_MESSAGE = t("后端仍为旧版本，暂不支持任务块功能。请更新并重新构建、重启前后端服务，再刷新页面。现有项目可继续使用原来的标注与审核流程。");
 
 // Unknown/development versions do not establish that task ownership is absent.
 function predatesWorkBlocks(version) {
@@ -35,7 +36,7 @@ export async function loadProjectWorkBlocks(api, projectId, projectPromiseOrObje
     return { enabled: false, blocks: [], unassigned_count: 0, unavailable: true,
       compatibility_message: WORK_BLOCKS_COMPATIBILITY_MESSAGE };
   }
-  const error = new Error("后端任务块接口不可用，可能尚未更新或前后端版本不一致。请管理员更新并重新构建、重启前后端服务，再刷新页面。", { cause: requestError });
+  const error = new Error(t("后端任务块接口不可用，可能尚未更新或前后端版本不一致。请管理员更新并重新构建、重启前后端服务，再刷新页面。"), { cause: requestError });
   error.status = 404;
   error.code = "work_blocks_api_unavailable";
   throw error;

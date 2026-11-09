@@ -1,3 +1,4 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 // Exercise actual batch-review requests and the automatic review continuation default.
 import assert from "node:assert/strict";
 import { bindReviewPage, reviewContinuationMarkup, shouldContinueReview } from "../static/review-ui.js";

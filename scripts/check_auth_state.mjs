@@ -1,8 +1,9 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const source = fs.readFileSync(new URL('../static/app.js', import.meta.url), 'utf8');
+const source = stripI18nImports(fs.readFileSync(new URL('../static/app.js', import.meta.url), 'utf8'));
 const start = source.indexOf('async function ensureAuthenticated(');
 const end = source.indexOf('\nfunction renderLoginScreen(', start);
 assert(start >= 0 && end > start, 'Authentication entry must be present');
@@ -11,9 +12,9 @@ function harness(fetch) {
   const state = {selectionEpoch: 1, authReady: false, session: null};
   const app = {innerHTML: 'original page'};
   let loginRenders = 0;
-  const context = vm.createContext({state, app, fetch, icon: () => '', renderLoginScreen: () => {
+  const context = vm.createContext(withI18n({state, app, fetch, icon: () => '', renderLoginScreen: () => {
     loginRenders++; state.session = null; state.authReady = false;
-  }});
+  }}));
   vm.runInContext(source.slice(start, end) + '\nglobalThis.check = ensureAuthenticated;', context);
   return {state, app, check: context.check, loginRenders: () => loginRenders};
 }

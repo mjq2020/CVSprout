@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT NOT NULL UNIQUE,
     display_name TEXT NOT NULL,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL CHECK(role IN ('admin', 'annotator', 'reviewer')),
+    role TEXT NOT NULL CHECK(role IN ('admin', 'user', 'annotator', 'reviewer')),
     enabled INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL
 );
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS registration_requests (
     note TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
     reason TEXT NOT NULL DEFAULT '',
-    role TEXT CHECK(role IN ('admin','annotator','reviewer')),
+    role TEXT CHECK(role IN ('admin','user','annotator','reviewer')),
     user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     revision INTEGER NOT NULL DEFAULT 1,
     ip_address TEXT NOT NULL DEFAULT '',
@@ -561,6 +561,9 @@ LEGACY_COLUMNS: dict[str, dict[str, str]] = {
         "claim_generation": "INTEGER NOT NULL DEFAULT 0",
         "next_attempt_at": "TEXT",
     },
+    "edge_model_deployments": {
+        "model_name": "TEXT NOT NULL DEFAULT ''",
+    },
     "model_conversions": {
         "lease_expires_at": "TEXT",
         "heartbeat_at": "TEXT",
@@ -663,6 +666,8 @@ def init_db() -> None:
                     conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
         _migrate_conversion_formats(conn)
         _migrate_dataset_variants(conn)
+        from .project_migration import migrate
+        migrate(conn, now_iso())
         conn.execute("UPDATE assets SET updated_at = created_at WHERE updated_at = ''")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_assets_project_review ON assets(project_id, review_status)"
@@ -741,6 +746,7 @@ def init_db() -> None:
         conn.execute("INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (13,?)", (now_iso(),))
         conn.execute("INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (14,?)", (now_iso(),))
         conn.execute("INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (15,?)", (now_iso(),))
+        conn.execute("INSERT OR IGNORE INTO schema_migrations (version,applied_at) VALUES (17,?)", (now_iso(),))
 
 
 @contextmanager

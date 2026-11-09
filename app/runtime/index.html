@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>CVSprout</title>
+<link rel="stylesheet" href="/static/i18n.css?v=0.29.3">
+<style>
+body{font:16px system-ui;max-width:880px;margin:40px auto;padding:0 20px;color:#1f2937}
+label{display:block;margin:18px 0}input,button,select{font:inherit;padding:8px}
+input[type=password]{width:min(100%,540px);box-sizing:border-box}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f6fa;padding:16px}
+canvas{max-width:100%;height:auto}button{cursor:pointer}
+input:focus,button:focus,select:focus{outline:2px solid #2563eb}
+</style>
+<main></main>
+<script type="module">
+import {t, getLocale, fileInputMarkup, languageControlsMarkup, installLanguageControls} from '/static/i18n.js?v=0.29.3';
+document.title = t("CVSprout 模型测试");
+document.querySelector('main').innerHTML = `${languageControlsMarkup('runtime')}
+<h1>${t("测试你的模型")}</h1><p>${t("上传一张图片，查看预测结果。部署密钥保存在部署目录的 .env 文件中。")}</p>
+<form><label>${t("部署密钥")} <input id="key" type="password" required autocomplete="off"></label>
+<label>${t("图片")} ${fileInputMarkup("file", "image/*", true)}</label><button>${t("运行预测")}</button></form>
+<p id="status" role="status"></p><canvas hidden></canvas><pre id="result" hidden></pre>`;
+installLanguageControls();
+window.addEventListener('cvsprout-before-language-change', event => {
+  if (document.querySelector('#key').value || document.querySelector('#file').files.length) {
+    event.preventDefault();
+    document.querySelector('#status').textContent = t("请先清空部署密钥和所选图片，再切换语言。");
+  }
+});
+document.querySelector('form').onsubmit = async event => {
+  event.preventDefault();
+  const button = event.target.querySelector('button'), status = document.querySelector('#status'), out = document.querySelector('#result');
+  button.disabled = true; status.textContent = t("正在预测…");
+  try {
+    const file = document.querySelector('#file').files[0], body = new FormData(); body.append('file', file);
+    const response = await fetch('/predict', {method: 'POST', headers: {Authorization: 'Bearer ' + document.querySelector('#key').value, 'Accept-Language': getLocale()}, body});
+    const data = await response.json();
+    if (!response.ok) throw Error(typeof data.detail === 'string' ? data.detail : t("预测请求失败"));
+    out.hidden = false; out.textContent = JSON.stringify(data, null, 2);
+    const image = await createImageBitmap(file), canvas = document.querySelector('canvas');
+    canvas.width = image.width; canvas.height = image.height; canvas.hidden = false;
+    const ctx = canvas.getContext('2d'); ctx.drawImage(image, 0, 0); ctx.strokeStyle = '#16a34a'; ctx.fillStyle = '#16a34a';
+    ctx.lineWidth = Math.max(2, image.width / 400); ctx.font = Math.max(14, image.width / 50) + 'px sans-serif';
+    for (const prediction of data.predictions) {
+      if (!prediction.box) continue;
+      const box = prediction.box;
+      ctx.strokeRect(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1);
+      ctx.fillText(prediction.name, box.x1, Math.max(20, box.y1 - 5));
+    }
+    image.close(); status.textContent = t("预测完成");
+  } catch (error) { status.textContent = error.message; }
+  finally { button.disabled = false; }
+};
+</script>
+</html>

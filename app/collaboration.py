@@ -36,6 +36,9 @@ def guard_asset(conn: sqlite3.Connection, asset_id: int, actor: Actor, *, editab
     if row is None:
         raise HTTPException(404, "图片不存在")
     asset = dict(row)
+    if actor.project_id is not None:
+        from .project_access import access
+        access(conn, asset["project_id"], actor, write=True)
     if foreign_edit_lock(asset, actor):
         raise HTTPException(423, "图片正在由其他协作者或浏览器页面编辑，请稍后重试")
     from .work_blocks import guard_block_asset

@@ -1,9 +1,10 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 // Exercise actual training readiness decisions and the rendered recovery links.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 
-const source = fs.readFileSync(new URL("../static/app.js", import.meta.url), "utf8");
+const source = stripI18nImports(fs.readFileSync(new URL("../static/app.js", import.meta.url), "utf8"));
 const start = source.indexOf("function trainingReadiness("), end = source.indexOf("\nfunction captureTrainingViewState(", start);
 assert(start >= 0 && end > start);
 const code = source.slice(start, end);
@@ -12,12 +13,12 @@ function fixture() {
     trainingCatalog: { models: [{ id: "yolo.pt", available: true }], tasks: {} }, trainingResources: { worker: { online_count: 1 } }, trainingMetricsHistory: {} };
   const role = { reviewer: true, admin: true }, app = { innerHTML: "" };
   const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
-  const context = vm.createContext({ state, app, canReview: () => role.reviewer, isAdmin: () => role.admin,
+  const context = vm.createContext(withI18n({ state, app, canReview: () => role.reviewer, isAdmin: () => role.admin,
     document: { querySelector: () => null }, deferRenderForNavigation: () => false, captureTrainingViewState: () => null, monitoredTrainingRun: () => null,
     escapeHtml: esc, icon: () => "", projectPageShell: (_section, body) => body, trainingSyncMarkup: () => "",
     trainingListMarkup: () => "", trainingStatusLabel() {}, trainingTaskInfo() {}, formatDateTime() {}, trainingTaskCapabilityCard: () => "", trainingCatalogModelCard: () => "", trainingLicenseMarkup: () => "",
     bindCommonProjectEvents() {}, bindTrainingPageEvents() {}, restoreTrainingViewState() {},
-  });
+  }));
   vm.runInContext(code, context);
   const render = () => { context.renderTrainingPage(); return app.innerHTML; };
   return { state, role, context, render };

@@ -23,6 +23,8 @@ class Actor:
     must_change_password: bool = False
     session_id: str | None = None
     edit_token: str | None = None
+    project_id: int | None = None
+    project_role: str | None = None
 
 
 def password_change_required() -> HTTPException:
@@ -144,14 +146,29 @@ def get_actor(
     token = request.headers.get("x-edit-token")
     if token is not None and not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", token):
         raise HTTPException(400, "编辑页面身份无效，请刷新页面")
-    return replace(actor, edit_token=token)
+    from .project_access import scope_actor
+    return scope_actor(request, replace(actor, edit_token=token))
 
 
 def require_reviewer(actor: Actor) -> None:
     if actor.must_change_password:
         raise password_change_required()
-    if actor.role not in {"reviewer", "admin"}:
+    if actor.role not in {"reviewer", "admin"} and actor.project_role not in {"owner", "editor"}:
         raise HTTPException(403, "需要审核员权限")
+
+
+def require_project_manager(actor: Actor) -> None:
+    if actor.must_change_password:
+        raise password_change_required()
+    if actor.role != "admin" and actor.project_role != "owner":
+        raise HTTPException(403, "需要项目所有者权限")
+
+
+def require_project_editor(actor: Actor) -> None:
+    if actor.must_change_password:
+        raise password_change_required()
+    if actor.role != "admin" and actor.project_role not in {"owner", "editor"}:
+        raise HTTPException(403, "需要项目协作权限")
 
 
 def require_admin(actor: Actor) -> None:

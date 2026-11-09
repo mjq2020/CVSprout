@@ -19,6 +19,7 @@ from PIL import Image, ImageOps
 
 from .auth import Actor, get_actor, require_reviewer
 from .config import settings
+from .project_access import recheck_access
 from .database import all_rows, db, now_iso, one
 from .schemas import DatasetVersionCreate, DatasetVersionPreview
 
@@ -489,6 +490,7 @@ def create_version(
         # this short write transaction.
         with db() as conn:
             conn.execute("BEGIN IMMEDIATE")
+            recheck_access(conn, actor)
             if not conn.execute("SELECT 1 FROM projects WHERE id=?", (project_id,)).fetchone():
                 raise HTTPException(404, "项目已被删除，请返回项目列表")
             next_number = int(

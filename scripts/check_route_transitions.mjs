@@ -1,8 +1,9 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const source = readFileSync(new URL("../static/app.js", import.meta.url), "utf8");
+const source = stripI18nImports(readFileSync(new URL("../static/app.js", import.meta.url), "utf8"));
 const code = source.slice(source.indexOf("async function route("), source.indexOf("\nasync function ensureAuthenticated("));
 function fixture() {
   let resolve; const release = new Promise(done => { resolve = done; });
@@ -10,7 +11,7 @@ function fixture() {
     lockOwned: true, selectionEpoch: 1, pollTimer: "old-poll", lockTimer: "old-lock", collaborationTimer: "old-collaboration" };
   const cleared = [], loaded = [], ui = { draft: false, cancelled: 0, notices: [], restoredHash: null };
   const location = { hash: "#/projects/2/data" };
-  const context = vm.createContext({ state, location, URLSearchParams, app: {},
+  const context = vm.createContext(withI18n({ state, location, URLSearchParams, app: {},
     authCleanup: null, canvasObserver: null, annotationMenu: null, canvasGuides: null,
     hasAnnotationDraft: () => ui.draft, closeWorkspaceNavigation() {}, closeModal() {},
     annotationBlockURL: () => "#/projects/1/annotate?asset=10", history: { replaceState: (_, __, hash) => { ui.restoredHash = hash; } },
@@ -18,7 +19,7 @@ function fixture() {
     clearInterval: timer => cleared.push(timer), releaseCurrentLock: () => release,
     ensureAuthenticated: async () => true,
     loadProjectSection: async (id, section) => { loaded.push([id, section]); state.pollTimer = "new-poll"; state.lockTimer = "new-lock"; state.collaborationTimer = "new-collaboration"; },
-  });
+  }));
   vm.runInContext(code, context);
   return { state, ui, loaded, cleared, location, resolve, route: context.route };
 }

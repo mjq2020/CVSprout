@@ -1,8 +1,9 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 // Exercise the actual conversion renderer/controller and its payload validation.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-const source = readFileSync(new URL('../static/conversion-ui.js', import.meta.url), 'utf8');
-const { mountConversionForm, validateConversionPayload } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+const source = stripI18nImports(readFileSync(new URL('../static/conversion-ui.js', import.meta.url), 'utf8'));
+const { mountConversionForm, validateConversionPayload } = await import('../static/conversion-ui.js');
 const escapeHtml = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const devices = [{ id: 'cpu', type: 'cpu', available: true }, { id: 'cuda:0', type: 'cuda', available: true }];
 const basePayload = { format: 'onnx', image_size: 640, dynamic: false, half: false, device: 'cpu', max_retries: 2, batch: 1 };
@@ -17,7 +18,7 @@ assert(validateConversionPayload({ ...basePayload, dynamic: true }, validContext
 assert.deepEqual(validateConversionPayload({ ...basePayload, image_size: 32, dynamic: true }, { config: { available: true } }), []);
 
 // This small DOM fixture retains the rendered attributes and form event bindings.
-function fixture({ task = 'detect', backend = 'rtdetr', imageSize = 640, systemModel } = {}) {
+function fixture({ task = 'detect', optionsTask, backend = 'rtdetr', imageSize = 640, systemModel, runModelArch } = {}) {
   let container, active = null;
   const matches = (node, selector) => {
     if (selector === '*') return true;
@@ -60,11 +61,11 @@ function fixture({ task = 'detect', backend = 'rtdetr', imageSize = 640, systemM
   container = new Element('div');
   let valid = false;
   const options = {
-    system_model: systemModel, model_backend: backend, constraints: backend === 'rtdetr' ? constraints : {},
+    task: optionsTask, system_model: systemModel, model_backend: backend, constraints: backend === 'rtdetr' ? constraints : {},
     formats: { onnx: { available: true }, torchscript: { available: true }, engine: { available: true }, rknn: { available: backend !== 'rtdetr', reason: backend === 'rtdetr' ? 'RT-DETR 暂不支持 RKNN 转换。' : '' } },
     defaults: { image_size: imageSize }, calibration: { available_count: 12, default_count: 12 },
   };
-  const form = mountConversionForm(container, { run: { id: 1, task }, options, resources: { devices }, escapeHtml, onValidityChange: value => { valid = value; } });
+  const form = mountConversionForm(container, { run: { id: 1, task, model_arch: runModelArch }, options, resources: { devices }, escapeHtml, onValidityChange: value => { valid = value; } });
   const q = id => container.querySelector(`#${id}`);
   return { form, options, q, container, get valid() { return valid; }, get active() { return active; }, change(id, value) { q(id).value = String(value); container.listeners.input(); }, format(value) { container.querySelector(`input[name="convert-format"][value="${value}"]`).checked = true; container.listeners.change(); } };
 }
@@ -106,7 +107,9 @@ console.log('PASS conversion form: model-aware min size and dynamic limits, RT-D
 
 // System deployment is explicit, preserves generic edits, and cannot bypass capability restrictions.
 {
-  const h = fixture({ backend: 'yolo', systemModel: { available: true } }); h.format('rknn');
+  const h = fixture({ backend: 'yolo', systemModel: { available: true, source_model_arch: 'yolov8n.pt' } }); h.format('rknn');
+  assert.equal(h.q('convert-rknn-profile').attrs['aria-describedby'], 'convert-rknn-profile-help');
+  assert(h.q('convert-rknn-profile-help').textContent.includes('当前模型：yolov8n.pt'));
   h.change('convert-rknn-target', 'rk3576'); h.change('convert-rknn-mean', '1, 2, 3'); h.change('convert-rknn-std', '100, 110, 120');
   assert.equal(h.form.payload().rknn.deployment_profile, 'generic');
   h.change('convert-rknn-profile', 'recamera_system');
@@ -119,9 +122,52 @@ console.log('PASS conversion form: model-aware min size and dynamic limits, RT-D
   assert.equal(generic.target_platform, 'rk3576'); assert.equal(generic.quantized, false); assert.deepEqual(generic.mean_values, [1, 2, 3]); assert.deepEqual(generic.std_values, [100, 110, 120]);
   assert.equal(h.q('convert-rknn-std').disabled, false);
 }
-for (const setup of [{ task: 'segment' }, { task: 'detect', systemModel: { available: false, reason: '当前模型导出契约不受支持' } }]) {
+for (const setup of [{ task: 'segment', systemModel: { available: false, source_model_arch: 'yolo11n-seg.pt' } }, { task: 'detect', systemModel: { available: false, source_model_arch: 'yolo26n.pt', reason: 'YOLO26 的输出与设备系统后处理不兼容，请使用 YOLOv8 或 YOLO11。' } }]) {
   const h = fixture({ backend: 'yolo', ...setup }); h.format('rknn');
-  assert.equal(h.q('convert-rknn-profile').querySelector('option[value="recamera_system"]').disabled, true);
-  h.change('convert-rknn-profile', 'recamera_system'); assert.equal(h.valid, false); assert.throws(() => h.form.payload());
+  assert.equal(h.q('convert-rknn-profile').querySelector('option[value="recamera_system"]').disabled, false, 'Unavailable profiles stay selectable so their requirements can be inspected');
+  assert(h.container.innerHTML.includes('当前模型不兼容'));
+  assert(h.q('convert-rknn-profile-help').textContent.includes(setup.systemModel.source_model_arch));
+  if (setup.systemModel.reason) assert(h.q('convert-rknn-profile-help').textContent.includes(setup.systemModel.reason));
+  h.change('convert-rknn-target', 'rk3576'); h.change('convert-rknn-mean', '1, 2, 3'); h.change('convert-rknn-std', '100, 110, 120');
+  assert.equal(h.valid, true, 'Generic conversions remain usable for incompatible system models');
+  h.change('convert-rknn-profile', 'recamera_system');
+  for (const [key, value] of [['target', 'rv1126b'], ['quantized', 'true'], ['mean', '0, 0, 0'], ['std', '255, 255, 255']]) {
+    assert.equal(h.q(`convert-rknn-${key}`).value, value);
+    assert.equal(h.q(`convert-rknn-${key}`).disabled, true);
+  }
+  assert.equal(h.valid, false); assert.throws(() => h.form.payload());
+  assert(h.q('convert-rknn-profile-help').textContent.includes('当前不可转换为 reCamera Pro 系统模型'));
+  assert(h.q('conversion-validation').innerHTML.includes(escapeHtml(setup.systemModel.reason || '系统模型部署目前仅支持目标检测。')));
+  h.change('convert-rknn-profile', 'generic');
+  assert.equal(h.valid, true); const restored = h.form.payload().rknn;
+  assert.equal(restored.target_platform, 'rk3576'); assert.equal(restored.quantized, false);
+  assert.deepEqual(restored.mean_values, [1, 2, 3]); assert.deepEqual(restored.std_values, [100, 110, 120]);
 }
-console.log('PASS system RKNN profile: explicit selection, fixed deployment contract, generic value restoration, format retention and unsupported-task/capability validation');
+for (const systemModel of [undefined, null, {}, { available: null }, { available: 'true' }, { available: 1 }]) {
+  const h = fixture({ backend: 'yolo', systemModel }); h.format('rknn');
+  assert.equal(h.valid, true);
+  assert(h.container.innerHTML.includes('兼容性待确认'));
+  assert(h.q('convert-rknn-profile-help').textContent.includes('服务未提供系统模型兼容性结论'));
+  h.change('convert-rknn-profile', 'recamera_system');
+  assert.equal(h.valid, false); assert.throws(() => h.form.payload(), /服务未提供系统模型兼容性结论/);
+  h.change('convert-rknn-profile', 'generic'); assert.equal(h.valid, true);
+}
+{
+  const h = fixture({ backend: 'yolo', runModelArch: 'yolov8n.pt', systemModel: { available: false, reason: '训练产物未记录模型架构' } });
+  h.format('rknn'); h.change('convert-rknn-profile', 'recamera_system');
+  assert(h.q('convert-rknn-profile-help').textContent.includes('当前模型：yolov8n.pt'));
+  assert.equal(h.valid, false, 'A run display name must not grant system compatibility');
+  assert.throws(() => h.form.payload(), /训练产物未记录模型架构/);
+}
+{
+  const h = fixture({ task: null, optionsTask: 'detect', backend: 'yolo', systemModel: { available: true, source_model_arch: 'yolo11n.pt' } });
+  h.format('rknn'); h.change('convert-rknn-profile', 'recamera_system'); assert.equal(h.valid, true);
+}
+{
+  const h = fixture({ backend: 'yolo', systemModel: { available: false, source_model_arch: '<img src=x>', reason: '<script>alert(1)</script>' } });
+  assert(h.q('convert-rknn-profile-help').textContent.includes('<img src=x>'));
+  assert(!h.container.innerHTML.includes('<img src=x>') && !h.container.innerHTML.includes('<script>'));
+  h.format('rknn'); h.change('convert-rknn-profile', 'recamera_system');
+  assert(h.q('conversion-validation').innerHTML.includes('&lt;script&gt;'));
+}
+console.log('PASS system RKNN profile: inspectable incompatibility, explicit fixed settings, fail-closed unknown capability, precise reason/model text, escaped diagnostics, generic restoration and fresh task metadata');

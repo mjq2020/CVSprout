@@ -1,3 +1,4 @@
+import { t } from "./i18n.js?v=0.29.3";
 /* Geometry follows SVG paint order: the last annotation is the topmost object. */
 function nearSegment(point, ax, ay, bx, by, tolerance) {
   const dx = bx - ax, dy = by - ay;
@@ -48,7 +49,7 @@ export function createAnnotationContextMenu(deps) {
     const index = deps.state?.annotations?.findIndex(item => item.id === annotation.id) ?? -1;
     const number = index >= 0 ? index + 1 : candidates.indexOf(annotation) + 1;
     const label = deps.state?.project?.labels?.find(item => item.id === annotation.label_id);
-    return `${label?.name || annotation.label_name || "未命名类别"} · 对象 ${number}`;
+    return t("{0} · 对象 {1}", [label?.name || annotation.label_name || t("未命名类别"), number]);
   };
   const focusable = () => [...(panel?.querySelectorAll("button:not(:disabled),select:not(:disabled),[tabindex='0']") || [])]
     .filter(node => node.getClientRects().length);
@@ -114,10 +115,10 @@ export function createAnnotationContextMenu(deps) {
       const result = await callback();
       if (panel !== currentPanel || generation !== token) return;
       if (result !== false) { close({ restoreFocus: false, force: true }); return; }
-      busy = false; render(); setBusy(false, "操作未完成，请查看页面提示。");
+      busy = false; render(); setBusy(false, t("操作未完成，请查看页面提示。"));
     } catch (_) {
       if (panel === currentPanel && generation === token) {
-        busy = false; render(); setBusy(false, "操作未完成，请查看页面提示。");
+        busy = false; render(); setBusy(false, t("操作未完成，请查看页面提示。"));
       }
     } finally {
       if (panel === currentPanel && generation === token && !busy) focusFirst();
@@ -130,13 +131,13 @@ export function createAnnotationContextMenu(deps) {
     if (!annotation) { close({ force: true }); return; }
     panel.replaceChildren();
     const header = element("div", "annotation-context-header");
-    const heading = element("h2", "", "对象操作"); heading.id = `${identifier}-heading`;
+    const heading = element("h2", "", t("对象操作")); heading.id = `${identifier}-heading`;
     const dismiss = element("button", "annotation-context-close", "×"); dismiss.type = "button";
-    dismiss.setAttribute("aria-label", "关闭对象操作菜单"); dismiss.title = "关闭 (Esc)";
+    dismiss.setAttribute("aria-label", t("关闭对象操作菜单")); dismiss.title = t("关闭 (Esc)");
     dismiss.addEventListener("click", () => close()); header.append(heading, dismiss); panel.append(header);
     const body = element("div", "annotation-context-body"); panel.append(body);
     if (candidates.length > 1) {
-      const label = element("label", "annotation-context-field", `此处有 ${candidates.length} 个对象，选择要操作的对象`);
+      const label = element("label", "annotation-context-field", t("此处有 {0} 个对象，选择要操作的对象", [candidates.length]));
       const select = element("select"); select.id = `${identifier}-target`; label.htmlFor = select.id;
       candidates.forEach(item => {
         const option = element("option", "", objectName(item)); option.value = String(item.id); option.selected = item.id === selectedId; select.append(option);
@@ -150,9 +151,9 @@ export function createAnnotationContextMenu(deps) {
     }
     body.append(element("p", "annotation-context-target", objectName(annotation)));
     const writable = editable();
-    if (!writable) body.append(element("p", "annotation-context-readonly", reason || "当前图片只读，可以查看或复制对象。"));
+    if (!writable) body.append(element("p", "annotation-context-readonly", reason || t("当前图片只读，可以查看或复制对象。")));
     const labels = deps.state?.project?.labels || [];
-    const category = element("label", "annotation-context-field", "对象类别（选择后自动保存）");
+    const category = element("label", "annotation-context-field", t("对象类别（选择后自动保存）"));
     const categorySelect = element("select"); categorySelect.id = `${identifier}-label`; category.htmlFor = categorySelect.id;
     categorySelect.disabled = !writable || !labels.length; categorySelect.dataset.disabled = String(categorySelect.disabled);
     labels.forEach(label => {
@@ -161,20 +162,20 @@ export function createAnnotationContextMenu(deps) {
     categorySelect.addEventListener("change", () => {
       const label = labels.find(item => String(item.id) === categorySelect.value);
       if (!label || label.id === annotation.label_id) return;
-      void runAction(() => deps.onChangeLabel(annotation.id, label.id), "正在保存类别…", true);
+      void runAction(() => deps.onChangeLabel(annotation.id, label.id), t("正在保存类别…"), true);
     });
     category.append(categorySelect); body.append(category);
     const actions = element("div", "annotation-context-actions");
     const addAction = (text, name, callback, disabled, needsEdit = false) => {
       const button = element("button", `annotation-context-action${name === "delete" ? " danger" : ""}`, text);
       button.type = "button"; button.dataset.contextAction = name; button.disabled = disabled; button.dataset.disabled = String(disabled);
-      button.addEventListener("click", () => { void runAction(callback, name === "delete" ? "正在删除对象…" : "正在处理…", needsEdit); });
+      button.addEventListener("click", () => { void runAction(callback, name === "delete" ? t("正在删除对象…") : t("正在处理…"), needsEdit); });
       actions.append(button);
     };
-    addAction("移动 / 调整边界", "edit", () => deps.onEdit(annotation.id), !writable, true);
-    addAction("复制对象", "copy", () => deps.onCopy(annotation.id), false);
-    addAction("删除对象", "delete", () => deps.onDelete(annotation.id), !writable, true);
-    addAction("继续绘制", "continue", () => deps.onContinue(), !writable, true);
+    addAction(t("移动 / 调整边界"), "edit", () => deps.onEdit(annotation.id), !writable, true);
+    addAction(t("复制对象"), "copy", () => deps.onCopy(annotation.id), false);
+    addAction(t("删除对象"), "delete", () => deps.onDelete(annotation.id), !writable, true);
+    addAction(t("继续绘制"), "continue", () => deps.onContinue(), !writable, true);
     body.append(actions);
     const status = element("p", "annotation-context-status"); status.setAttribute("role", "status"); status.hidden = true; body.append(status);
     position();

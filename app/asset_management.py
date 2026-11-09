@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .accounts import _account_row
-from .auth import Actor, get_actor, require_admin
+from .auth import Actor, get_actor, require_project_editor
 from .collaboration import guard_asset
 from .config import settings
 from .database import db, now_iso, one
@@ -143,7 +143,7 @@ def _item(project_id: int, target: DeleteTarget, actor: Actor, *, preview: bool)
 
 
 def _run(project_id: int, payload: BatchDelete, actor: Actor, *, preview: bool) -> dict:
-    require_admin(actor)
+    require_project_editor(actor)
     if not one("SELECT id FROM projects WHERE id=?", (project_id,)):
         raise HTTPException(404, "项目不存在")
     unique = {target.asset_id: target for target in payload.assets}

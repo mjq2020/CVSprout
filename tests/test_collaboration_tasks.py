@@ -257,7 +257,7 @@ class CollaborationTaskTest(unittest.TestCase):
 
     def test_independent_accounts_roles_sessions_and_collaborative_locks(self):
         project,assets=self.fixture()
-        for username,role in [("admin","admin"),("alice","annotator"),("bob","annotator"),("review","reviewer")]:
+        for username,role in [("admin","admin"),("alice","user"),("bob","user"),("review","user")]:
             response=self.client.post("/api/users",json={"username":username,"display_name":username,"password":"test-password-123","role":role})
             self.assertEqual(response.status_code,201,response.text)
         object.__setattr__(settings,"auth_mode","accounts")
@@ -275,25 +275,30 @@ class CollaborationTaskTest(unittest.TestCase):
             self.assertFalse(changed.json()["must_change_password"])
         self.assertNotEqual(alice.get("/api/session").json()["actor"],bob.get("/api/session").json()["actor"])
         self.assertEqual(alice.get("/api/users").status_code,403)
-        self.assertEqual(alice.post("/api/projects",json={"name":"forbidden"}).status_code,403)
+        self.assertEqual(alice.post("/api/projects",json={"name":"my-private-project"}).status_code,201)
         for client in (alice, review):
-            self.assertEqual(client.patch(f"/api/projects/{project['id']}/archive", json={"archived": True}).status_code, 403)
-            self.assertEqual(client.get("/api/projects?archived=true").status_code, 403)
+            self.assertEqual(client.patch(f"/api/projects/{project['id']}/archive", json={"archived": True}).status_code, 404)
+            self.assertEqual(client.get("/api/projects?archived=true").status_code, 200)
         with patch.object(main,"get_provider",return_value=DemoProvider()), patch.object(main,"get_model",return_value={"provider_type":"local_grounding_dino","tasks":["detect"]}):
             response=alice.post(f"/api/projects/{project['id']}/jobs",json={"model_id":"grounding-dino","prompt":"new-class","target_labels":["new-class"],"asset_ids":[assets[0]]})
-            self.assertEqual(response.status_code,403,response.text)
+            self.assertEqual(response.status_code,404,response.text)
         self.assertNotIn("new-class",[label["name"] for label in admin.get(f"/api/projects/{project['id']}").json()["labels"]])
-        self.assertEqual(alice.post(f"/api/projects/{project['id']}/training-runs",json={"version_id":1}).status_code,403)
+        self.assertEqual(alice.post(f"/api/projects/{project['id']}/training-runs",json={"version_id":1}).status_code,404)
+        for username in ("alice", "bob", "review"):
+            shared = admin.put(f"/api/projects/{project['id']}/members", json={"username": username, "role": "editor"})
+            self.assertEqual(shared.status_code, 200, shared.text)
+        self.assertEqual(alice.patch(f"/api/projects/{project['id']}/archive", json={"archived": True}).status_code, 403)
         self.assertEqual(alice.post(f"/api/assets/{assets[0]}/lock").status_code,200)
         self.assertEqual(bob.post(f"/api/assets/{assets[0]}/lock").status_code,423)
         self.assertEqual(bob.post(f"/api/assets/{assets[1]}/lock").status_code,200)
         item=alice.post(f"/api/assets/{assets[0]}/annotations",json={"label_id":project["labels"][0]["id"],"shape_type":"rectangle","points":[1,1,20,20]}).json()
         result=alice.post(f"/api/assets/{assets[0]}/workflow",json={"action":"submit","expected_revision":item["asset_revision"]})
         self.assertEqual(result.status_code,200,result.text)
+        self.assertEqual(admin.put(f"/api/projects/{project['id']}/members", json={"username": "alice", "role": "viewer"}).status_code, 200)
         payload={"action":"approve","expected_revision":result.json()["revision"]}
         self.assertEqual(alice.post(f"/api/assets/{assets[0]}/workflow",json=payload).status_code,403)
         self.assertEqual(review.post(f"/api/assets/{assets[0]}/workflow",json=payload).status_code,200)
-        self.assertEqual(alice.post(f"/api/assets/{assets[0]}/lock").status_code,409)
+        self.assertEqual(alice.post(f"/api/assets/{assets[0]}/lock").status_code,403)
         revision=review.get(f"/api/assets/{assets[0]}").json()["revision"]
         self.assertEqual(alice.post(f"/api/assets/{assets[0]}/workflow",json={"action":"reopen","expected_revision":revision}).status_code,403)
         self.assertEqual(alice.post(f"/api/projects/{project['id']}/versions",json={}).status_code,403)
@@ -322,7 +327,7 @@ class CollaborationTaskTest(unittest.TestCase):
         changed=self.client.post("/api/account/password",json={"current_password":credentials["password"],"new_password":"personal-password-123"})
         self.assertEqual(changed.status_code,200,changed.text)
         credentials["password"]="personal-password-123"
-        self.assertEqual(self.client.patch(f"/api/users/{user_id}",json={"role":"annotator"}).status_code,409)
+        self.assertEqual(self.client.patch(f"/api/users/{user_id}",json={"role":"user"}).status_code,409)
         self.assertEqual(self.client.patch(f"/api/users/{user_id}",json={"enabled":False}).status_code,409)
         self.assertEqual(self.client.patch(f"/api/users/{user_id}",json={"password":"replacement-password-123"}).status_code,400)
         self.assertEqual(self.client.post("/api/users",json={"username":"secondadmin","display_name":"Second admin","password":"test-password-123","role":"admin"}).status_code,201)

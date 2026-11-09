@@ -1,10 +1,11 @@
+import { withI18n, stripI18nImports } from './i18n-test-support.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const appSource = fs.readFileSync(new URL('../static/app.js', import.meta.url), 'utf8');
-const taskSource = fs.readFileSync(new URL('../static/task-ui.js', import.meta.url), 'utf8');
-const preparationSource = fs.readFileSync(new URL('../static/model-preparation-ui.js', import.meta.url), 'utf8').replace(/^export /gm, '');
+const appSource = stripI18nImports(fs.readFileSync(new URL('../static/app.js', import.meta.url), 'utf8'));
+const taskSource = stripI18nImports(fs.readFileSync(new URL('../static/task-ui.js', import.meta.url), 'utf8'));
+const preparationSource = stripI18nImports(fs.readFileSync(new URL('../static/model-preparation-ui.js', import.meta.url), 'utf8')).replace(/^export /gm, '');
 const extract = (source, start, end) => {
   const a = source.indexOf(start), b = source.indexOf(end, a);
   assert(a >= 0 && b > a, `Missing source boundaries: ${start}`);
@@ -45,7 +46,7 @@ function fixture({ assets = [asset(1, 7)], blocks = [block(7, [1])], active = nu
     return match ? radios.find(radio => radio.value === match[1]) : q(selector);
   };
   const sourceModal = { ...node(), querySelector };
-  const context = vm.createContext({ state, URL, escapeHtml, console,
+  const context = vm.createContext(withI18n({ state, URL, escapeHtml, console,
     document: { querySelector, querySelectorAll: selector => selector === 'input[name="scope"]' ? radios : selector.startsWith('input[name="scope"],') ? [...radios, q('#include-reviewed'), q('#replace-auto')] : [], createElement: node },
     modalRoot: { querySelector: () => sourceModal }, app: { querySelector: () => null }, location: {},
     localStorage: { getItem: () => null, setItem() {} }, hasAnnotationDraft: () => draft,
@@ -61,7 +62,7 @@ function fixture({ assets = [asset(1, 7)], blocks = [block(7, [1])], active = nu
     releaseCurrentLock: async id => { events.push(`release:${id}`); state.lockOwned = false; },
     acquireAssetLock: async id => { events.push(`acquire:${id}`); state.lockOwned = true; },
     setSectionTab() {}, resetHistoryNavigation() {}, renderAiPage() {}, renderWorkspace() {}, startJobPolling() {}, refreshInspector() {},
-  });
+  }));
   vm.runInContext(actualFunctions, context);
   context.openAiModal(selected.length ? selected : null);
   if (modal) {

@@ -285,27 +285,26 @@ RKNN 支持按目标芯片配置浮点或 INT8、均值/标准差、量化算法
 
 系统模型部署默认复用设备内置推理。一个 `cvsprout-capture` 联动应用完成原图采集、系统能力上报、任务领取与模型传输；模型发布不要求重装独立推理应用。转换页面提供“通用 RKNN”和“reCamera Pro 系统模型”两种明确用途，系统用途首期支持 YOLOv8 / YOLO11 检测，固定 RV1126B、INT8 与标准 RGB 归一化，并保留用户原有通用参数。
 
-管理员发布兼容转换为模型版本后，可选择仅加入设备模型库，或确认替换当前模型并启用。页面区分模型入库、请求启用与运行验证，显示当前系统模型、目标与实际 FPS、NPU 占用和不兼容原因。设备主动领取任务，离线时保留等待；仅未领取任务可取消，结果未知时要求先核实。旧版推理应用包与 SSH / App Center 部署历史保留在兼容入口。
+管理员在项目“训练与部署”→“转换与部署”的系统模型转换结果旁点击“部署到设备”，选择当前项目已连接的边缘设备。列表自动刷新，离线、未连接和已撤销设备不可选择。部署窗口锁定所选转换结果，自动准备并复用模型版本，可选择仅加入设备模型库，或确认替换当前模型并启用。模型名称可编辑，默认包含算法、训练和转换编号，设备文件名自动追加发布编号；名称保存在部署任务中，历史任务和不可变发布文件保持原样。页面区分模型入库、请求启用与运行验证，显示当前系统模型、目标与实际 FPS、NPU 占用和不兼容原因。设备主动领取任务，离线时保留等待；仅未领取任务可取消，结果未知时要求先核实。旧版推理应用包与 SSH / App Center 部署历史保留在兼容入口。
 
 主要实现：[edge.py](../app/edge.py)、[edge_models.py](../app/edge_models.py)、[recamera_export.py](../app/recamera_export.py)、[recamera_packages.py](../app/recamera_packages.py)、[edge-devices-ui.js](../static/edge-devices-ui.js)。旧版应用部署兼容逻辑保留在 [edge_deployment.py](../app/edge_deployment.py) 和 [recamera_remote.py](../app/recamera_remote.py)。安装、参数和设备验收边界见 [reCamera Pro 联动](recamera-pro.md)。
 
 ## 角色与权限
 
-正常协作采用 `accounts` 模式。角色决定可执行的操作，任务块归属、编辑租约、审核状态和版本号还会继续限制具体图片的写入。
+正常协作采用 `accounts` 模式。系统管理员管理全站账号与配置，普通用户拥有个人项目空间；项目内的所有者、协作者和只读成员决定可执行的操作。具体分享流程和升级规则见[个人工作空间与项目分享](workspaces.md)。
 
 | 操作 | 当前权限规则 |
 |---|---|
-| 查看共享项目、图片、模型目录、任务和产物 | 已登录成员；接口仍检查相应记录是否存在和可访问 |
-| 上传图片、人工标注、领取与提交任务块 | 已登录成员；修改块内图片需为负责人，且通过编辑和状态检查 |
-| 创建/归档/永久删除项目、维护类别、删除图片、配置模型和管理用户 | 管理员 |
-| 创建任务块、分配/转交任务块、重新打开已完成块 | 管理员 |
-| 主动交回未完成任务块 | 当前负责人或管理员，需符合块状态和版本条件 |
-| 审核图片、预览/创建数据版本、创建/重试训练和转换 | 审核员或管理员 |
-| 查看和下载训练、转换产物或部署包 | 已登录成员，产物需存在并通过相应校验 |
-| 取消训练或转换 | 当前后端接口允许已登录成员；界面上的操作入口可能更严格 |
-| 调整自己的资料、密码和会话 | 当前账号本人；管理员另有成员管理入口 |
+| 创建私有项目 | 普通用户、系统管理员 |
+| 查看项目、图片、任务、版本和训练结果 | 所有者、被分享的成员、系统管理员 |
+| 上传图片、标注、审核、标签与任务块管理 | 所有者、协作者、系统管理员；块内编辑仍需领取或转交 |
+| 创建/取消/重试数据版本、训练和转换 | 所有者、协作者、系统管理员 |
+| 下载数据、模型或部署包 | 所有者、协作者、系统管理员，或获单独导出授权的只读成员 |
+| 分享、移除成员、归档或删除项目 | 所有者、系统管理员 |
+| 分配旧项目所有者、管理全站用户、模型配置和设备 | 系统管理员 |
+| 调整自己的资料、密码和会话 | 当前账号本人 |
 
-当前采用实例内共享项目与角色控制，尚无按项目成员划分的多租户隔离。不要把“任务块只能由负责人编辑”理解成“其他成员看不到这个项目”。
+未分享的项目及其图片、下载链接和其他资源不能通过直接提供 ID 访问。移除成员或降为只读时，释放其编辑占用及未完成任务块，取消其未完成的 AI 标注任务，已有成果和审计记录保留。
 
 当前也不强制标注者和审核者必须是不同人员；有审核权限的成员可以审核自己的提交。
 
@@ -362,7 +361,7 @@ Compose 使用 `visionforge-data`、`visionforge-models` 持久卷；这些旧�
 | [app/http_limits.py](../app/http_limits.py) | 对实际接收的请求体实施大小限制，供平台和独立推理服务复用 |
 | [app/storage.py](../app/storage.py) | 图片解码校验、ZIP 图片读取、内容哈希及媒体落盘 |
 | [app/asset_management.py](../app/asset_management.py) | 批量删除预览、逐图校验、删除及媒体清理结果 |
-| [app/project_deletion.py](../app/project_deletion.py) | 项目名称确认、管理员权限与任务占用检查、关联数据删除及文件清理审计 |
+| [app/project_deletion.py](../app/project_deletion.py) | 项目名称确认、所有者或系统管理员权限与任务占用检查、关联数据删除及文件清理审计 |
 | [app/file_responses.py](../app/file_responses.py) | 固定模型下载文件，保留分段下载并避免项目删除中断已开始的下载 |
 | [app/task_types.py](../app/task_types.py) | 任务允许的形状、关键点顺序/数量/可见性及坐标规则 |
 | [app/collaboration.py](../app/collaboration.py) | 图片写入、审核、删除、编辑占用和 AI 冲突的公共检查 |
@@ -472,7 +471,7 @@ Compose 使用 `visionforge-data`、`visionforge-models` 持久卷；这些旧�
 | 首次设置、身份与会话 | `/api/setup`、`/api/login`、`/api/session` |
 | 注册、成员与个人安全 | `/api/register`、`/api/registration-requests`、`/api/users`、`/api/account` |
 | 项目、类别与图片 | `/api/projects`、`/api/projects/{id}/labels`、`/api/projects/{id}/assets` |
-| 永久删除项目 | `DELETE /api/projects/{id}`，JSON 请求体为 `{"confirmation_name":"项目完整名称"}`，仅管理员 |
+| 永久删除项目 | `DELETE /api/projects/{id}`，JSON 请求体为 `{"confirmation_name":"项目完整名称"}`，仅所有者或系统管理员 |
 | 图片编辑与审核 | `/api/assets/{id}/lock`、`/annotations`、`/workflow`、`/review-events`；标注对象更新使用 `/api/annotations/{id}` |
 | 任务块 | `/api/projects/{id}/work-blocks` 及领取、交回、分配、返工子接口 |
 | 批量审核 | `/api/projects/{id}/review/preview`、`/api/projects/{id}/review/batch` |

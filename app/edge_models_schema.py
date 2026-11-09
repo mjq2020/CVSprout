@@ -1,4 +1,4 @@
-"""System RKNN releases and device-pulled deployment leases (migration 15)."""
+"""System RKNN releases, deployment leases and names (migrations 15 and 17)."""
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS edge_model_releases (
@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS edge_model_deployments (
     device_id TEXT NOT NULL REFERENCES edge_devices(id) ON DELETE CASCADE,
     project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     release_id INTEGER NOT NULL REFERENCES edge_model_releases(id) ON DELETE CASCADE,
+    model_name TEXT NOT NULL DEFAULT '',
     activate INTEGER NOT NULL DEFAULT 1,
     fps INTEGER NOT NULL DEFAULT 10,
     status TEXT NOT NULL CHECK(status IN ('queued','running','succeeded','failed','unknown','cancelled')),
